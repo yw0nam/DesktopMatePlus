@@ -27,6 +27,19 @@ class Settings(BaseSettings):
     app_version: str = Field(default="0.1.0", description="Application version")
     debug: bool = Field(default=False, description="Enable debug mode")
 
+    # External service URLs
+    vlm_base_url: str = Field(
+        default="http://localhost:8001", description="VLM service base URL"
+    )
+    tts_base_url: str = Field(
+        default="http://localhost:8002", description="TTS service base URL"
+    )
+
+    # Health check settings
+    health_check_timeout: int = Field(
+        default=5, description="Timeout for health checks in seconds"
+    )
+
     model_config = SettingsConfigDict(
         env_prefix="FASTAPI_",
         case_sensitive=False,
