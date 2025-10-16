@@ -16,6 +16,10 @@ dependencies = [
     "langchain-openai>=0.3.33",
     "langchain-core>=0.3.0",
     "langchain-neo4j>=0.5.0",
+    
+    # LLM & AI Model Clients
+    "openai>=1.0.0",
+    
     # Memory Management
     "mem0ai>=0.1.118",
     "langmem>=0.0.29",
@@ -33,6 +37,8 @@ dependencies = [
     # Utilities
     "python-dotenv>=1.0.0",
     "pydantic-settings>=2.6.0",
+    "loguru>=0.7.0",
+    "tenacity>=8.0.0",
 ]
 
 [project.optional-dependencies]
