@@ -35,8 +35,62 @@
         "dependencies": [
           2
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Project Folder Structure",
+            "description": "Create the required source directories and initial files for the FastAPI application.",
+            "dependencies": [],
+            "details": "In the repository root, create a `src` directory. Inside `src`, create subfolders `api`, `models`, and `configs`. Add an empty `__init__.py` file in each folder to make them packages. Also create a placeholder `src/configs/settings.py` file for later configuration.",
+            "status": "done",
+            "testStrategy": "Verify that the directories `src/api`, `src/models`, and `src/configs` exist and contain `__init__.py`. Run `tree src` to confirm the structure."
+          },
+          {
+            "id": 2,
+            "title": "Implement Pydantic Settings Class",
+            "description": "Define a Pydantic BaseSettings subclass to hold configurable values such as host, port, and CORS origins.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Edit `src/configs/settings.py` and add:\n```python\nfrom pydantic import BaseSettings, Field\nfrom typing import List\n\nclass Settings(BaseSettings):\n    host: str = Field(default=\"127.0.0.1\", description=\"Server host\")\n    port: int = Field(default=8000, description=\"Server port; can be overridden via env\")\n    cors_origins: List[str] = Field(default=[\"*\"], description=\"Allowed CORS origins\")\n\n    class Config:\n        env_prefix = \"FASTAPI_\"\n        case_sensitive = False\n```\nThis class will automatically read environment variables like `FASTAPI_HOST` and `FASTAPI_PORT`.\n",
+            "status": "done",
+            "testStrategy": "Write a small script that imports `Settings` and prints the values. Run it with and without environment variables to ensure defaults and overrides work."
+          },
+          {
+            "id": 3,
+            "title": "Create main.py with FastAPI Instance",
+            "description": "Initialize the FastAPI application, load settings, and configure the Uvicorn server entry point.",
+            "dependencies": [
+              "3.2"
+            ],
+            "details": "Create `src/main.py` with the following content:\n```python\nimport uvicorn\nfrom fastapi import FastAPI\nfrom src.configs.settings import Settings\nfrom src.api.routes import router as api_router\n\nsettings = Settings()\napp = FastAPI(title=\"VLM Service\", docs_url=\"/docs\", redoc_url=None)\napp.include_router(api_router)\n\nif __name__ == \"__main__\":\n    uvicorn.run(\n        \"src.main:app\",\n        host=settings.host,\n        port=settings.port,\n        reload=True,\n    )\n```\nThe file imports a router that will be created in subtask 4. The `reload=True` flag aids local development.\n",
+            "status": "done",
+            "testStrategy": "Run `python src/main.py` and ensure the server starts without errors. Access `http://127.0.0.1:8000/docs` to confirm OpenAPI UI loads."
+          },
+          {
+            "id": 4,
+            "title": "Add Basic Root Endpoint and API Router",
+            "description": "Define a router with a simple GET `/` endpoint that returns a welcome message.",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "Create `src/api/routes.py` with:\n```python\nfrom fastapi import APIRouter\n\nrouter = APIRouter()\n\n@router.get(\"/\", summary=\"Root endpoint\")\nasync def read_root():\n    return {\"message\": \"FastAPI is running\"}\n```\nMake sure `src/api/__init__.py` exists so the router can be imported in `main.py`.\n",
+            "status": "done",
+            "testStrategy": "After starting the server, send a GET request to `http://127.0.0.1:8000/` (e.g., using curl or httpie) and verify the JSON response contains the welcome message."
+          },
+          {
+            "id": 5,
+            "title": "Configure CORS Middleware and Additional Global Middleware",
+            "description": "Add CORS support using the origins from settings and set up any generic middleware needed for the application.",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "Edit `src/main.py` to include:\n```python\nfrom fastapi.middleware.cors import CORSMiddleware\n\n# after app creation\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=settings.cors_origins,\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n```\nIf additional middleware (e.g., logging) is required, add it after the CORS block following FastAPI's middleware pattern.\n",
+            "status": "done",
+            "testStrategy": "Start the server and make a cross‑origin request from a browser or using a tool that simulates CORS (e.g., curl with `Origin` header). Verify that the response includes the appropriate `Access-Control-Allow-Origin` header matching the configured origins."
+          }
+        ]
       },
       {
         "id": 4,
@@ -256,7 +310,7 @@
     ],
     "metadata": {
       "created": "2025-10-16T07:15:16.465Z",
-      "updated": "2025-10-16T08:21:21.915Z",
+      "updated": "2025-10-16T12:41:10.075Z",
       "description": "Tasks for master context"
     }
   }
