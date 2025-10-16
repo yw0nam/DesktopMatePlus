@@ -1,0 +1,263 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Initialize Python Project and Environment",
+        "description": "Set up the Python project structure, create a virtual environment, and configure dependency management using pyproject.toml and uv.",
+        "details": "Use pyenv or venv to create a virtual environment. Initialize pyproject.toml for dependency management. Install uv for package management. Ensure .gitignore is present for Python artifacts. Adhere to PEP8 code style from the start.",
+        "testStrategy": "Verify environment activation, dependency installation, and code style enforcement using pre-commit hooks.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Install Core Dependencies",
+        "description": "Install FastAPI, Uvicorn, LangGraph, vLLM client, Fish Speech client, mem0, Pydantic, and other required libraries.",
+        "details": "Add all required packages to pyproject.toml. Use uv to install: fastapi, uvicorn, langgraph, vllm, fish-speech, mem0, pydantic, dxcam, mss, requests, and any other explicitly required libraries.",
+        "testStrategy": "Run 'uv list' to confirm all dependencies are installed. Import each library in a test script to verify installation.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Configure FastAPI Application",
+        "description": "Set up the FastAPI server with dynamic port assignment and automatic OpenAPI documentation.",
+        "details": "Create main.py with FastAPI app instance. Configure host as 127.0.0.1 and port as 8000 (or dynamic). Enable auto-generated docs at /docs. Use Uvicorn for local development.",
+        "testStrategy": "Start server and verify accessibility at / and /docs endpoints.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Implement Health Check Endpoint",
+        "description": "Create GET /health endpoint to report readiness of VLM, TTS, and Agent modules.",
+        "details": "Define /health route in FastAPI. Query status of VLM, TTS, and LangGraph agent modules. Return JSON with status and module readiness.",
+        "testStrategy": "Simulate module readiness and error states. Validate correct JSON responses for both success and failure cases.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Develop Screen Capture Utility",
+        "description": "Implement cross-platform screen capture using DXcam (Windows) and MSS (macOS/Linux).",
+        "details": "Create a Python module that detects OS and uses DXcam or MSS to capture the screen. Output image as bytes.",
+        "testStrategy": "Run utility on all supported OSes. Validate image capture speed and correctness.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Encode Image for VLM API",
+        "description": "Process captured screen image and encode as Base64 for VLM API requests.",
+        "details": "Implement function to convert image bytes to Base64 string. Ensure compatibility with vLLM API requirements.",
+        "testStrategy": "Unit test encoding function with sample images. Validate output matches VLM API expectations.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Integrate VLM API Client",
+        "description": "Implement get_visual_description(image: bytes) -> str function to send image to vLLM server and receive description.",
+        "details": "Create internal Python client for vLLM API. Send Base64-encoded image via HTTP request. Parse and return textual description.",
+        "testStrategy": "Mock vLLM server responses. Validate correct request formatting and response parsing.",
+        "priority": "high",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Implement TTS Synthesis Client",
+        "description": "Develop synthesize_speech(text: str) -> bytes function to request audio from Fish Speech server.",
+        "details": "Create HTTP POST client for Fish Speech API. Send text and receive audio data (.wav or .mp3). Handle errors and timeouts.",
+        "testStrategy": "Mock Fish Speech server. Validate audio output format and error handling.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Implement Voice Cloning Client",
+        "description": "Develop clone_voice_from_audio(audio_file: bytes) function to trigger zero-shot voice cloning via Fish Speech.",
+        "details": "Send multipart/form-data POST request with audio file to Fish Speech API. Handle response and update voice reference.",
+        "testStrategy": "Test with valid and invalid audio files. Validate success and error responses.",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Define LangGraph Agent State and Nodes",
+        "description": "Implement GraphState TypedDict and LangGraph nodes for perceive_environment, query_memory, reason_and_plan, generate_response, and update_memory.",
+        "details": "Define GraphState with messages, visual_context, action_plan, user_id. Implement each node as a Python function. Integrate with VLM, mem0, and TTS tools.",
+        "testStrategy": "Unit test each node with mock inputs and outputs. Validate state transitions.",
+        "priority": "high",
+        "dependencies": [
+          7,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Integrate Memory Management with mem0",
+        "description": "Implement memory_tool integration for semantic memory management using mem0.",
+        "details": "Create add_memory, update_memory, delete_memory functions. Use Pydantic schemas for validation. Ensure all memory operations are internal to agent nodes.",
+        "testStrategy": "Unit test memory operations. Validate Read-then-Write and Search-Before-Act patterns.",
+        "priority": "high",
+        "dependencies": [
+          10
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Implement Controlled Vocabulary Manager",
+        "description": "Develop VocabularyManager for metadata.category validation and management.",
+        "details": "Create SQLite table controlled_vocabulary(category TEXT UNIQUE). Implement get_all_terms and ensure_categories functions. Integrate with memory_tool logic.",
+        "testStrategy": "Test category insertion, retrieval, and duplicate handling. Validate integration with memory operations.",
+        "priority": "medium",
+        "dependencies": [
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Implement Fresh/Old Memory Tiering and Migration",
+        "description": "Set up fresh_memory and old_memory collections in mem0. Develop cleanup.py script for periodic migration.",
+        "details": "Track updated_at timestamps. Move memories older than threshold (e.g., 30 days) from fresh to old. Implement sequential probing in search logic.",
+        "testStrategy": "Simulate memory aging and migration. Validate search order and correctness.",
+        "priority": "medium",
+        "dependencies": [
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement POST /v1/chat Endpoint",
+        "description": "Create API endpoint to process user messages, manage thread_id, run LangGraph workflow, and return text/audio responses.",
+        "details": "Define Pydantic request/response schemas. Load or create thread state using Checkpointer. Run LangGraph workflow: perceive -> query_memory -> reason -> generate -> update_memory. Call TTS for audio response. Return thread_id, text_response, audio_response_b64.",
+        "testStrategy": "Integration test with multiple thread_ids. Validate context continuity and response formats.",
+        "priority": "high",
+        "dependencies": [
+          10,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Implement POST /v1/voice Endpoint",
+        "description": "Create API endpoint for zero-shot voice cloning via audio file upload.",
+        "details": "Accept multipart/form-data with audio_file. Call clone_voice_from_audio. Return success or error JSON.",
+        "testStrategy": "Test with valid/invalid files. Validate API response codes and messages.",
+        "priority": "medium",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Implement Checkpointer for Conversation State",
+        "description": "Integrate LangGraph's Checkpointer (e.g., SqliteSaver) to persist and restore GraphState per thread_id.",
+        "details": "Configure SqliteSaver for thread-based state persistence. Ensure state is loaded/saved on each API call.",
+        "testStrategy": "Simulate server restarts and API calls. Validate state restoration and continuity.",
+        "priority": "high",
+        "dependencies": [
+          10
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "Package Application with PyInstaller",
+        "description": "Bundle all Python code, dependencies, and model files into a single executable for Tauri integration.",
+        "details": "Configure PyInstaller spec to include all dependencies and model weights. Ensure executable runs independently and loads models from bundled folder.",
+        "testStrategy": "Build executable in Docker. Validate startup and module loading on target OS.",
+        "priority": "high",
+        "dependencies": [
+          3,
+          5,
+          7,
+          8,
+          10,
+          11,
+          12,
+          13,
+          16
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Develop Unit and Integration Tests",
+        "description": "Write comprehensive tests for all modules and API endpoints, including mocking external dependencies.",
+        "details": "Use pytest for unit tests of VLM, TTS, LangGraph nodes, memory tools. Use requests or Postman for API integration tests. Mock external servers for isolation.",
+        "testStrategy": "Run test suite with coverage report. Validate all acceptance criteria from PRD.",
+        "priority": "high",
+        "dependencies": [
+          4,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-10-16T07:15:16.465Z",
+      "updated": "2025-10-16T08:05:39.605Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
