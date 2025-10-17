@@ -1,15 +1,12 @@
-"""External service clients."""
+"""Screen capture service for cross-platform screen capturing."""
 
-from src.services.health import HealthService, health_service
-from src.services.screen_capture_service import (
+from .screen_capture import (
     ScreenCaptureError,
     ScreenCaptureService,
     get_screen_capture_service,
 )
 
 __all__ = [
-    "HealthService",
-    "health_service",
     "ScreenCaptureService",
     "ScreenCaptureError",
     "get_screen_capture_service",
