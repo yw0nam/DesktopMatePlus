@@ -14,8 +14,8 @@ import platform
 from typing import Optional, Tuple
 
 import mss
-from PIL import Image
 from loguru import logger
+from PIL import Image
 
 
 class ScreenCaptureError(Exception):
@@ -106,9 +106,7 @@ class ScreenCaptureService:
             logger.error(f"Failed to capture screens: {e}")
             raise ScreenCaptureError(f"Screen capture failed: {e}") from e
 
-    def capture_region(
-        self, x: int, y: int, width: int, height: int
-    ) -> bytes:
+    def capture_region(self, x: int, y: int, width: int, height: int) -> bytes:
         """
         Capture a specific region of the screen.
 

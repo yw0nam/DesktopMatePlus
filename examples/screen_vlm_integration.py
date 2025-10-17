@@ -5,12 +5,12 @@ This shows how to capture the screen and prepare it for VLM API requests.
 """
 
 import asyncio
-from typing import Dict
+from typing import Any, Dict
 
 from src.services.screen_capture_service import get_screen_capture_service
 
 
-async def prepare_screen_context_for_vlm() -> Dict[str, str]:
+async def prepare_screen_context_for_vlm() -> Dict[str, Any]:
     """
     Capture current screen and prepare for VLM API request.
 
@@ -46,7 +46,7 @@ async def get_visual_description(prompt: str = "What do you see on the screen?")
         Description of the screen content
     """
     # Capture screen
-    image_data = await prepare_screen_context_for_vlm()
+    _image_data = await prepare_screen_context_for_vlm()
 
     # In actual implementation, this would call the VLM service:
     # from src.services.vlm_service import get_vlm_client
@@ -74,9 +74,9 @@ async def example_langgraph_tool():
         # Capture and prepare for VLM
         base64_image = service.capture_to_base64(max_size=(1024, 768))
 
-        print(f"✓ Screen captured and encoded")
+        print("✓ Screen captured and encoded")
         print(f"✓ Base64 length: {len(base64_image)} chars")
-        print(f"✓ Ready for VLM API call")
+        print("✓ Ready for VLM API call")
 
         # This image would be sent to VLM for analysis
         # and the description would be stored in GraphState.visual_context
@@ -104,11 +104,9 @@ async def main():
     print("-" * 60)
     try:
         image_data = await prepare_screen_context_for_vlm()
-        print(f"✓ Image prepared for VLM API")
+        print("✓ Image prepared for VLM API")
         print(f"✓ Format: {image_data['type']}")
-        print(
-            f"✓ URL prefix: {image_data['image_url']['url'][:50]}..."
-        )
+        print(f"✓ URL prefix: {image_data['image_url']['url'][:50]}...")
         print()
     except Exception as e:
         print(f"✗ Failed: {e}")
