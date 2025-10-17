@@ -32,7 +32,8 @@ class Settings(BaseSettings):
         default="http://localhost:8001", description="VLM service base URL"
     )
     tts_base_url: str = Field(
-        default="http://localhost:8002", description="TTS service base URL"
+        default="http://localhost:8080",
+        description="TTS service base URL (Fish Speech API)",
     )
 
     # Health check settings

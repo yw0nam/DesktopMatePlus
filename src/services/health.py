@@ -45,15 +45,20 @@ class HealthService:
             Tuple of (is_ready, error_message)
         """
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(f"{settings.tts_base_url}/health")
-                if response.status_code == 200:
-                    return True, None
-                return False, f"TTS returned status code {response.status_code}"
-        except httpx.TimeoutException:
-            return False, "TTS service timeout"
-        except httpx.ConnectError:
-            return False, "TTS service unavailable"
+            from src.services.tts_service import get_tts_service
+
+            # Get TTS service and check health
+            tts_service = get_tts_service()
+            health_status = tts_service.is_healthy()
+
+            # Check primary provider health
+            primary = health_status.get("primary", {})
+            if primary.get("healthy", False):
+                return True, None
+            else:
+                message = primary.get("message", "TTS service unhealthy")
+                return False, str(message) if message else "TTS service unhealthy"
+
         except Exception as e:
             return False, f"TTS check failed: {str(e)}"
 

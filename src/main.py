@@ -18,6 +18,19 @@ async def lifespan(app: FastAPI):
     print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
     print(f"🔧 Debug mode: {settings.debug}")
 
+    # Initialize TTS client
+    try:
+        from src.services.tts_service import initialize_tts_client
+
+        initialize_tts_client(
+            fish_speech_url=settings.tts_base_url.rstrip("/") + "/v1/tts"
+        )
+        print(
+            f"✅ TTS client initialized with Fish Speech URL: {settings.tts_base_url}"
+        )
+    except Exception as e:
+        print(f"⚠️  Failed to initialize TTS client: {e}")
+
     yield
 
     # Shutdown

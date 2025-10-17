@@ -1,6 +1,6 @@
 """Tests for health check endpoint."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
@@ -189,10 +189,12 @@ class TestHealthService:
         """Test TTS health check with successful response."""
         service = HealthService(timeout=5)
 
-        with patch("httpx.AsyncClient.get") as mock_get:
-            mock_response = AsyncMock()
-            mock_response.status_code = 200
-            mock_get.return_value = mock_response
+        with patch("src.services.tts_service.get_tts_service") as mock_get_tts:
+            mock_tts_service = MagicMock()
+            mock_tts_service.is_healthy.return_value = {
+                "primary": {"healthy": True, "message": "Service healthy"}
+            }
+            mock_get_tts.return_value = mock_tts_service
 
             ready, error = await service.check_tts()
 
