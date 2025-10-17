@@ -4,6 +4,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.services.vlm_service.prompts import DEFAULT_VLM_SYSTEM_PROMPT
+from src.services.vlm_service.utils import prepare_image_for_vlm
 
 
 class BaseVLMService(abc.ABC):
@@ -29,24 +30,14 @@ class BaseVLMService(abc.ABC):
 
         Args:
             prompt (str): The text prompt to send to the model.
-            image (str | bytes): The image to include in the request, either as a URL or base64.
+            image (str | bytes): The image to include in the request, either as a URL or raw bytes.
 
-        TODO: Add support for different image input types.
         TODO: Add support of video, multi-image inputs.
         Returns:
             str: The model's response.
         """
-        if isinstance(image, str):
-            input_image_dict = {"type": "image", "source_type": "url", "url": image}
-        elif isinstance(image, bytes):
-            input_image_dict = {
-                "type": "image",
-                "source_type": "base64",
-                "data": image,
-                "mime_type": "image/jpeg",
-            }
-        else:
-            raise ValueError("Invalid image type")
+        # Use utility function to prepare image for VLM API
+        input_image_dict = prepare_image_for_vlm(image)
 
         message = [
             SystemMessage(content=DEFAULT_VLM_SYSTEM_PROMPT),
