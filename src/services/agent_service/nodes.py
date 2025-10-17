@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, cast
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import create_react_agent
 from mem0 import Memory
 
-from src.graphs.state import Configuration, OverallState
-from langgraph.checkpoint.memory import InMemorySaver
+from src.services.agent_service.state import Configuration, OverallState
 from src.tools.memory import AddMemoryTool, SearchMemoryTool
 from src.tools.memory.metadata_manager import PostgreSQLVocabularyManager
 
@@ -30,8 +29,10 @@ MEMORY_CONTEXT_PROMPT = (
 def _resolve_configuration(config: Optional[RunnableConfig]) -> Configuration:
     raw_config: Dict[str, Any] = {}
     if config and "configurable" in config:
-        raw_config = dict(config["configurable"])
-    return Configuration.model_validate(raw_config)
+        # config["configurable"] may be a mapping-like object
+        raw_config = dict(config["configurable"])  # type: ignore[arg-type]
+    # model_validate expects a dict but its stub may be Any; cast to Configuration
+    return cast(Configuration, Configuration.model_validate(raw_config))
 
 
 class MemoryAgentGraphBuilder:
@@ -84,22 +85,31 @@ class MemoryAgentGraphBuilder:
         categories = self._vocabulary_manager.get_all_terms()
         state["metadata_terms"] = categories
 
-        system_messages = ""
+        # Build system messages as a list for consistent types
+        system_messages: List[SystemMessage] = []
         if categories:
-            system_messages += (
-                "Known metadata categories available for filtering: "
-                f"{', '.join(categories)}\n\n"
+            system_messages.append(
+                SystemMessage(
+                    content=(
+                        "Known metadata categories available for filtering: "
+                        f"{', '.join(categories)}\n\n"
+                    )
+                )
             )
 
         if results:
-            system_messages += (
-                "Previously saved memories relevant to this user:\n"
-                f"{str(results)}\n\n"
+            system_messages.append(
+                SystemMessage(
+                    content=(
+                        "Previously saved memories relevant to this user:\n"
+                        f"{str(results)}\n\n"
+                    )
+                )
             )
-        if system_messages != "":
-            system_messages = [SystemMessage(content=system_messages)]
-        previous_messages = state.get("messages", [])
-        state["messages"] = system_messages + previous_messages
+
+        previous_messages: Sequence[Any] = state.get("messages", [])
+        # Ensure previous_messages is a list before concatenation
+        state["messages"] = list(system_messages) + list(previous_messages)
         return state
 
     def _agent_node(self, state: OverallState, config: RunnableConfig) -> OverallState:

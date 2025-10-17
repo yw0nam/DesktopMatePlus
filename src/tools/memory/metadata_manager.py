@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 import psycopg2
 
@@ -8,16 +8,18 @@ import psycopg2
 class PostgreSQLVocabularyManager:
     """Controlled vocabulary manager backed by PostgreSQL."""
 
-    def __init__(self, db_config: Dict[str, str]):
+    def __init__(self, db_config: Dict[str, Any]):
+        # db_config may contain ints for fields like port; accept Any and normalize
         self.db_config = self._normalize_config(db_config)
         self._initialize_database()
 
-    def _normalize_config(self, db_config: Dict[str, str]) -> Dict[str, str]:
+    def _normalize_config(self, db_config: Dict[str, Any]) -> Dict[str, Any]:
         config = dict(db_config)
         if "database" in config and "dbname" not in config:
             config["dbname"] = config.pop("database")
         if "port" in config:
-            config["port"] = int(config["port"])
+            # psycopg2 accepts an int for port; keep it as int for the connection
+            config["port"] = int(config["port"])  # type: ignore[arg-type]
         return config
 
     def _get_connection(self) -> psycopg2.Connection:
