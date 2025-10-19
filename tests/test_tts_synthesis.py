@@ -1,298 +1,185 @@
 """
 Tests for TTS synthesis functionality.
 
-Tests the main synthesize_speech function and TTS service integration.
+Tests the TTS service integration with new factory pattern.
 """
 
 from unittest.mock import Mock, patch
 
 import pytest
 
-from src.services.tts_service.service import (
-    FishSpeechProvider,
-    TTSService,
-    initialize_tts_service,
-)
-from src.services.tts_service.tts_client import (
-    TTSClient,
-    get_tts_client,
-    initialize_tts_client,
-    synthesize_speech,
-)
+from src.services.tts_service.fish_speech import FishSpeechTTS
+from src.services.tts_service.service import TTSService
+from src.services.tts_service.tts_factory import TTSFactory
 
 
-class TestTTSClient:
-    """Test TTS client functionality."""
+class TestTTSFactory:
+    """Test TTS factory functionality."""
 
-    def test_initialize_tts_client(self):
-        """Test TTS client initialization."""
-        client = initialize_tts_client(fish_speech_url="http://localhost:8080/v1/tts")
-        assert isinstance(client, TTSClient)
-
-        # Verify we can get the same client instance
-        same_client = get_tts_client()
-        assert same_client is client
-
-    def test_get_tts_client_not_initialized(self):
-        """Test getting TTS client when not initialized raises error."""
-        # Clear the global client
-        import src.services.tts_service.tts_client as tts_client_module
-
-        tts_client_module._tts_client = None
-
-        with pytest.raises(RuntimeError, match="TTS client not initialized"):
-            get_tts_client()
-
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_tts_client_synthesize_speech(self, mock_fish_speech_class):
-        """Test TTS client speech synthesis."""
-        # Mock the Fish Speech TTS
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = b"fake_audio_data"
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        # Initialize client
-        client = initialize_tts_client()
-
-        # Test synthesis
-        result = client.synthesize_speech("Hello world")
-        assert result == b"fake_audio_data"
-
-        # Verify the underlying service was called
-        mock_fish_instance.generate_speech.assert_called_once()
-
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_tts_client_health_check(self, mock_fish_speech_class):
-        """Test TTS client health check."""
-        # Mock the Fish Speech TTS
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = b"test_audio"
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        # Initialize client
-        client = initialize_tts_client()
-
-        # Test health check
-        health = client.is_healthy()
-        assert isinstance(health, dict)
-        assert "primary" in health
-
-
-class TestTTSService:
-    """Test TTS service functionality."""
-
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_initialize_tts_service(self, mock_fish_speech_class):
-        """Test TTS service initialization."""
-        mock_fish_instance = Mock()
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        service = initialize_tts_service(
-            fish_speech_url="http://test.com/v1/tts", fish_speech_api_key="test_key"
+    def test_get_fish_local_tts_engine(self):
+        """Test creating Fish TTS engine via factory."""
+        tts_engine = TTSFactory.get_tts_engine(
+            "fish_local_tts",
+            base_url="http://localhost:8080/v1/tts",
+            api_key="test_key",
         )
+        assert isinstance(tts_engine, FishSpeechTTS)
+        assert isinstance(tts_engine, TTSService)
 
-        assert isinstance(service, TTSService)
+    def test_get_unknown_engine_type(self):
+        """Test factory raises error for unknown engine type."""
+        with pytest.raises(ValueError, match="Unknown TTS engine type"):
+            TTSFactory.get_tts_engine("unknown_engine")
 
-        # Verify Fish Speech was initialized with correct parameters
-        mock_fish_speech_class.assert_called_once_with(
-            url="http://test.com/v1/tts", api_key="test_key"
+    def test_factory_with_all_params(self):
+        """Test factory with all configuration parameters."""
+        tts_engine = TTSFactory.get_tts_engine(
+            "fish_local_tts",
+            base_url="http://test.com/v1/tts",
+            api_key="key123",
+            seed=42,
+            streaming=True,
+            use_memory_cache="on",
+            chunk_length=250,
+            max_new_tokens=2048,
+            top_p=0.9,
+            repetition_penalty=1.5,
+            temperature=0.8,
         )
+        assert isinstance(tts_engine, FishSpeechTTS)
+        assert tts_engine.url == "http://test.com/v1/tts"
+        assert tts_engine.api_key == "key123"
+        assert tts_engine.seed == 42
+        assert tts_engine.streaming is True
 
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_synthesize_speech_success(self, mock_fish_speech_class):
+
+class TestFishSpeechTTS:
+    """Test Fish Speech TTS functionality."""
+
+    @patch("src.services.tts_service.fish_speech.requests.post")
+    def test_generate_speech_success(self, mock_post):
         """Test successful speech synthesis."""
-        # Mock the Fish Speech TTS
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = b"fake_audio_data"
-        mock_fish_speech_class.return_value = mock_fish_instance
+        # Mock the HTTP response
+        mock_response = Mock()
+        mock_response.content = b"fake_audio_data"
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
 
-        # Initialize service
-        service = initialize_tts_service()
+        # Create TTS instance
+        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
 
         # Test synthesis
-        result = service.synthesize_speech("Hello world")
+        result = tts.generate_speech("Hello world", output_format="bytes")
         assert result == b"fake_audio_data"
 
-        # Verify the Fish Speech client was called correctly
-        mock_fish_instance.generate_speech.assert_called_once_with(
-            raw_text="Hello world",
-            reference_id=None,
-            output_format="bytes",
-            output_filename=None,
-        )
+        # Verify the API was called
+        assert mock_post.called
 
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_synthesize_speech_empty_text(self, mock_fish_speech_class):
+    def test_generate_speech_empty_text(self):
         """Test synthesis with empty text."""
-        mock_fish_instance = Mock()
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        service = initialize_tts_service()
+        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
 
         # Test with empty text
-        result = service.synthesize_speech("")
+        result = tts.generate_speech("")
         assert result is None
 
         # Test with whitespace only
-        result = service.synthesize_speech("   ")
+        result = tts.generate_speech("   ")
         assert result is None
 
-        # Verify Fish Speech was not called
-        mock_fish_instance.generate_speech.assert_not_called()
+    @patch("src.services.tts_service.fish_speech.requests.post")
+    def test_generate_speech_base64_format(self, mock_post):
+        """Test synthesis with base64 output format."""
+        # Mock the HTTP response
+        mock_response = Mock()
+        mock_response.content = b"audio_data"
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
 
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_synthesize_speech_provider_failure(self, mock_fish_speech_class):
-        """Test synthesis when provider fails."""
-        # Mock the Fish Speech TTS to return None (failure)
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = None
-        mock_fish_speech_class.return_value = mock_fish_instance
+        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
 
-        service = initialize_tts_service()
+        # Test synthesis with base64 format
+        result = tts.generate_speech("Hello", output_format="base64")
+        assert isinstance(result, str)
+        assert result  # Should be a non-empty base64 string
+
+    @patch("src.services.tts_service.fish_speech.requests.post")
+    def test_generate_speech_api_failure(self, mock_post):
+        """Test synthesis when API fails."""
+        # Mock the HTTP response to raise an exception
+        mock_post.side_effect = Exception("Connection error")
+
+        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
 
         # Test synthesis
-        result = service.synthesize_speech("Hello world")
+        result = tts.generate_speech("Hello world")
         assert result is None
 
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_tts_service_health_check(self, mock_fish_speech_class):
-        """Test TTS service health check."""
-        # Mock healthy Fish Speech TTS
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = b"test_audio"
-        mock_fish_speech_class.return_value = mock_fish_instance
+    @patch("src.services.tts_service.fish_speech.requests.post")
+    def test_health_check_healthy(self, mock_post):
+        """Test health check when TTS is healthy."""
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.content = b"test_audio"
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
 
-        service = initialize_tts_service()
+        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
 
         # Test health check
-        health = service.is_healthy()
+        is_healthy, message = tts.is_healthy()
+        assert is_healthy is True
+        assert "healthy" in message.lower()
 
-        assert "primary" in health
-        assert health["primary"]["healthy"] is True
-        assert "Fish Speech TTS is healthy" in health["primary"]["message"]
-        assert health["primary"]["provider"] == "FishSpeechProvider"
+    @patch("src.services.tts_service.fish_speech.requests.post")
+    def test_health_check_unhealthy(self, mock_post):
+        """Test health check when TTS is unhealthy."""
+        # Mock failed response
+        mock_post.side_effect = Exception("Service unavailable")
 
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_tts_service_health_check_unhealthy(self, mock_fish_speech_class):
-        """Test TTS service health check when unhealthy."""
-        # Mock unhealthy Fish Speech TTS
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = None
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        service = initialize_tts_service()
+        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
 
         # Test health check
-        health = service.is_healthy()
-
-        assert "primary" in health
-        assert health["primary"]["healthy"] is False
-        assert "returned empty result" in health["primary"]["message"]
+        is_healthy, message = tts.is_healthy()
+        assert is_healthy is False
+        assert "empty result" in message.lower() or "failed" in message.lower()
 
 
-class TestFishSpeechProvider:
-    """Test Fish Speech provider functionality."""
+class TestTTSConfiguration:
+    """Test TTS configuration integration."""
 
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_fish_speech_provider_init(self, mock_fish_speech_class):
-        """Test Fish Speech provider initialization."""
-        mock_fish_instance = Mock()
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        provider = FishSpeechProvider(url="http://test.com/v1/tts", api_key="test_key")
-
-        assert provider.url == "http://test.com/v1/tts"
-        mock_fish_speech_class.assert_called_once_with(
-            url="http://test.com/v1/tts", api_key="test_key"
+    def test_fish_speech_with_custom_params(self):
+        """Test Fish Speech TTS with custom parameters."""
+        tts = FishSpeechTTS(
+            url="http://custom.com/tts",
+            api_key="custom_key",
+            seed=42,
+            streaming=True,
+            use_memory_cache="on",
+            chunk_length=250,
+            max_new_tokens=2048,
+            top_p=0.9,
+            repetition_penalty=1.5,
+            temperature=0.8,
         )
 
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_fish_speech_provider_generate_speech(self, mock_fish_speech_class):
-        """Test Fish Speech provider speech generation."""
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = b"audio_data"
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        provider = FishSpeechProvider()
-
-        result = provider.generate_speech(
-            text="Hello", reference_id="voice1", output_format="bytes"
-        )
-
-        assert result == b"audio_data"
-        mock_fish_instance.generate_speech.assert_called_once_with(
-            raw_text="Hello",
-            reference_id="voice1",
-            output_format="bytes",
-            output_filename=None,
-        )
-
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_fish_speech_provider_generate_speech_exception(
-        self, mock_fish_speech_class
-    ):
-        """Test Fish Speech provider handling exceptions."""
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.side_effect = Exception("Connection error")
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        provider = FishSpeechProvider()
-
-        result = provider.generate_speech("Hello")
-        assert result is None
-
-
-class TestGlobalFunctions:
-    """Test global convenience functions."""
-
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_global_synthesize_speech_function(self, mock_fish_speech_class):
-        """Test the global synthesize_speech function."""
-        # Mock the Fish Speech TTS
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = b"audio_bytes"
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        # Initialize service
-        initialize_tts_service()
-
-        # Test the global function
-        result = synthesize_speech("Test text")
-        assert result == b"audio_bytes"
-
-    @patch("src.services.tts_service.service.FishSpeechTTS")
-    def test_global_synthesize_speech_function_non_bytes_result(
-        self, mock_fish_speech_class
-    ):
-        """Test global function returns None for non-bytes results."""
-        # Mock the Fish Speech TTS to return base64 string
-        mock_fish_instance = Mock()
-        mock_fish_instance.generate_speech.return_value = "base64_string"
-        mock_fish_speech_class.return_value = mock_fish_instance
-
-        # Initialize service
-        initialize_tts_service()
-
-        # Test the global function - should return None since result is not bytes
-        result = synthesize_speech("Test text")
-        assert result is None
-
-    def test_global_synthesize_speech_not_initialized(self):
-        """Test global function when service not initialized."""
-        # Clear the global service
-        import src.services.tts_service.service as service_module
-
-        service_module._tts_service = None
-
-        with pytest.raises(RuntimeError, match="TTS service not initialized"):
-            synthesize_speech("Test text")
+        assert tts.url == "http://custom.com/tts"
+        assert tts.api_key == "custom_key"
+        assert tts.seed == 42
+        assert tts.streaming is True
+        assert tts.use_memory_cache == "on"
+        assert tts.chunk_length == 250
+        assert tts.max_new_tokens == 2048
+        assert tts.top_p == 0.9
+        assert tts.repetition_penalty == 1.5
+        assert tts.temperature == 0.8
 
 
 # Integration test
 class TestTTSIntegration:
     """Integration tests for the complete TTS system."""
 
-    @patch("src.services.tts_service.fish_speech.requests.Session.post")
+    @patch("src.services.tts_service.fish_speech.requests.post")
     def test_full_integration_mock_api(self, mock_post):
         """Test full integration with mocked Fish Speech API."""
         # Mock the HTTP response
@@ -301,11 +188,13 @@ class TestTTSIntegration:
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response
 
-        # Initialize the service
-        client = initialize_tts_client(fish_speech_url="http://localhost:8080/v1/tts")
+        # Initialize the service via factory
+        tts_engine = TTSFactory.get_tts_engine(
+            "fish_local_tts", base_url="http://localhost:8080/v1/tts"
+        )
 
         # Test synthesis
-        result = client.synthesize_speech("Hello, this is a test!")
+        result = tts_engine.generate_speech("Hello, this is a test!")
 
         # Verify result
         assert result == b"fake_wav_audio_data"
@@ -314,5 +203,5 @@ class TestTTSIntegration:
         mock_post.assert_called_once()
 
         # Verify health check works
-        health = client.is_healthy()
-        assert "primary" in health
+        is_healthy, message = tts_engine.is_healthy()
+        assert is_healthy is True

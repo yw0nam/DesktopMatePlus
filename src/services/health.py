@@ -45,18 +45,18 @@ class HealthService:
             Tuple of (is_ready, error_message)
         """
         try:
-            from src.services.tts_service import get_tts_service
+            from src.services import _tts_service
 
-            # Get TTS service and check health
-            tts_service = get_tts_service()
-            health_status = tts_service.is_healthy()
+            # Get TTS engine and check health
+            tts_engine = getattr(_tts_service, "tts_engine", None)
+            if tts_engine is None:
+                return False, "TTS service not initialized"
 
-            # Check primary provider health
-            primary = health_status.get("primary", {})
-            if primary.get("healthy", False):
+            is_healthy, message = tts_engine.is_healthy()
+
+            if is_healthy:
                 return True, None
             else:
-                message = primary.get("message", "TTS service unhealthy")
                 return False, str(message) if message else "TTS service unhealthy"
 
         except Exception as e:

@@ -6,13 +6,16 @@ from src.services.screen_capture_service import (
     ScreenCaptureService,
     get_screen_capture_service,
 )
-from src.services.tts_service import (
-    TTSClient,
-    TTSService,
-    get_tts_client,
-    initialize_tts_client,
-    synthesize_speech,
-)
+
+
+# Global TTS service storage
+class _TTSService:
+    """Container for global TTS engine instance."""
+
+    tts_engine = None
+
+
+_tts_service = _TTSService()
 
 __all__ = [
     "HealthService",
@@ -20,9 +23,5 @@ __all__ = [
     "ScreenCaptureService",
     "ScreenCaptureError",
     "get_screen_capture_service",
-    "TTSClient",
-    "TTSService",
-    "get_tts_client",
-    "initialize_tts_client",
-    "synthesize_speech",
+    "_tts_service",
 ]

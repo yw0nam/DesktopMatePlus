@@ -189,12 +189,10 @@ class TestHealthService:
         """Test TTS health check with successful response."""
         service = HealthService(timeout=5)
 
-        with patch("src.services.tts_service.get_tts_service") as mock_get_tts:
-            mock_tts_service = MagicMock()
-            mock_tts_service.is_healthy.return_value = {
-                "primary": {"healthy": True, "message": "Service healthy"}
-            }
-            mock_get_tts.return_value = mock_tts_service
+        with patch("src.services._tts_service") as mock_tts_service_container:
+            mock_tts_engine = MagicMock()
+            mock_tts_engine.is_healthy.return_value = (True, "Service healthy")
+            mock_tts_service_container.tts_engine = mock_tts_engine
 
             ready, error = await service.check_tts()
 

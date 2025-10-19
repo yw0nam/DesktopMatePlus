@@ -2,36 +2,34 @@
 TTS Synthesis Demo
 
 This script demonstrates how to use the TTS service with Fish Speech.
-It shows the main interface expected by task 8: synthesize_speech(text: str) -> bytes
+It shows the new factory pattern interface for TTS synthesis.
 """
 
 import logging
 from pathlib import Path
 
-from src.services.tts_service import (
-    get_tts_client,
-    initialize_tts_client,
-    synthesize_speech,
-)
+from src.services.tts_service import TTSFactory
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def demo_tts_client():
-    """Demonstrate TTS client usage."""
-    print("=== TTS Client Demo ===")
+def demo_tts_basic():
+    """Demonstrate basic TTS usage."""
+    print("=== Basic TTS Demo ===")
 
-    # Initialize TTS client with Fish Speech
-    print("1. Initializing TTS client...")
-    client = initialize_tts_client(fish_speech_url="http://localhost:8080/v1/tts")
-    print("✓ TTS client initialized")
+    # Initialize TTS engine using factory
+    print("1. Initializing TTS engine...")
+    tts_engine = TTSFactory.get_tts_engine(
+        "fish_local_tts", base_url="http://localhost:8080/v1/tts"
+    )
+    print("✓ TTS engine initialized")
 
     # Check health
     print("\n2. Checking TTS service health...")
-    health = client.is_healthy()
-    print(f"Health status: {health}")
+    is_healthy, message = tts_engine.is_healthy()
+    print(f"Health status: {is_healthy} - {message}")
 
     # Test speech synthesis
     test_texts = [
@@ -45,8 +43,8 @@ def demo_tts_client():
         print(f"\nTest {i}: '{text[:50]}...' ")
 
         try:
-            # Use the client method
-            audio_bytes = client.synthesize_speech(text)
+            # Use the engine to generate speech
+            audio_bytes = tts_engine.generate_speech(text, output_format="bytes")
 
             if audio_bytes:
                 print(f"✓ Success! Generated {len(audio_bytes)} bytes of audio")
@@ -63,61 +61,33 @@ def demo_tts_client():
             print(f"✗ Error: {e}")
 
 
-def demo_global_function():
-    """Demonstrate the global synthesize_speech function (task 8 requirement)."""
-    print("\n=== Global Function Demo (Task 8) ===")
-
-    # This is the main function required by task 8
-    print("Testing synthesize_speech(text: str) -> bytes function...")
-
-    test_text = "This demonstrates the main function required by task 8."
-
-    try:
-        # Use the global convenience function
-        audio_bytes = synthesize_speech(test_text)
-
-        if audio_bytes:
-            print(f"✓ Success! synthesize_speech() returned {len(audio_bytes)} bytes")
-
-            # Save demonstration file
-            output_file = Path("task8_demo_output.wav")
-            with open(output_file, "wb") as f:
-                f.write(audio_bytes)
-            print(f"✓ Task 8 demo output saved to {output_file}")
-        else:
-            print("✗ synthesize_speech() returned None")
-
-    except Exception as e:
-        print(f"✗ Error in synthesize_speech(): {e}")
-
-
 def demo_different_formats():
     """Demonstrate different output formats."""
     print("\n=== Different Output Formats Demo ===")
 
-    client = get_tts_client()
+    tts_engine = TTSFactory.get_tts_engine(
+        "fish_local_tts", base_url="http://localhost:8080/v1/tts"
+    )
+
     text = "Testing different output formats."
 
     # Test bytes format (default)
     print("1. Testing bytes format...")
-    result = client.synthesize_speech(text)
+    result = tts_engine.generate_speech(text, output_format="bytes")
     if result:
         print(f"✓ Bytes format: {len(result)} bytes")
 
-    # Test service directly for other formats
-    service = client._service
-
     # Test base64 format
     print("\n2. Testing base64 format...")
-    base64_result = service.synthesize_speech(text=text, output_format="base64")
+    base64_result = tts_engine.generate_speech(text, output_format="base64")
     if base64_result:
         print(f"✓ Base64 format: {len(base64_result)} characters")
         print(f"Sample: {base64_result[:50]}...")
 
     # Test file format
     print("\n3. Testing file format...")
-    file_result = service.synthesize_speech(
-        text=text, output_format="file", output_filename="format_demo.wav"
+    file_result = tts_engine.generate_speech(
+        text, output_format="file", output_filename="format_demo.wav"
     )
     if file_result:
         print("✓ File format: Saved to format_demo.wav")
@@ -128,20 +98,46 @@ def demo_different_formats():
             print(f"File size: {file_path.stat().st_size} bytes")
 
 
+def demo_with_reference():
+    """Demonstrate TTS with reference voice."""
+    print("\n=== TTS with Reference Voice Demo ===")
+
+    tts_engine = TTSFactory.get_tts_engine(
+        "fish_local_tts", base_url="http://localhost:8080/v1/tts"
+    )
+
+    text = "This uses a specific reference voice."
+    reference_id = "ナツメ"  # Example reference voice ID
+
+    print(f"Generating speech with reference: {reference_id}")
+    result = tts_engine.generate_speech(
+        text, reference_id=reference_id, output_format="bytes"
+    )
+
+    if result:
+        print(f"✓ Success! Generated {len(result)} bytes with reference voice")
+        output_file = Path("reference_voice_demo.wav")
+        with open(output_file, "wb") as f:
+            f.write(result)
+        print(f"✓ Saved to {output_file}")
+    else:
+        print("✗ Failed to generate audio with reference voice")
+
+
 def main():
     """Run all demos."""
     print("TTS Service Demo - Fish Speech Integration")
     print("=" * 50)
 
     try:
-        # Demo 1: TTS Client
-        demo_tts_client()
+        # Demo 1: Basic TTS
+        demo_tts_basic()
 
-        # Demo 2: Global function (task 8 requirement)
-        demo_global_function()
-
-        # Demo 3: Different formats
+        # Demo 2: Different formats
         demo_different_formats()
+
+        # Demo 3: With reference voice
+        demo_with_reference()
 
         print("\n" + "=" * 50)
         print("🎉 All demos completed successfully!")

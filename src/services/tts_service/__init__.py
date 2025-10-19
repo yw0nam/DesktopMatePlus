@@ -5,31 +5,12 @@ Provides text-to-speech synthesis capabilities with support for multiple provide
 Currently supports Fish Speech TTS.
 """
 
-from .service import (
-    FishSpeechProvider,
-    TTSProvider,
-    TTSService,
-    get_tts_service,
-    initialize_tts_service,
-    synthesize_speech,
-)
-from .tts_client import (
-    TTSClient,
-    get_tts_client,
-    initialize_tts_client,
-)
+from .fish_speech import FishSpeechTTS
+from .service import TTSService
+from .tts_factory import TTSFactory
 
 __all__ = [
-    # Main service classes
-    "TTSProvider",
-    "FishSpeechProvider",
     "TTSService",
-    # Service functions
-    "initialize_tts_service",
-    "get_tts_service",
-    "synthesize_speech",
-    # Client interface
-    "TTSClient",
-    "initialize_tts_client",
-    "get_tts_client",
+    "FishSpeechTTS",
+    "TTSFactory",
 ]

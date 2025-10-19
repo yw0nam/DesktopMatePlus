@@ -1,10 +1,15 @@
 import base64
+import logging
 from typing import Literal, Optional
 
 import ormsgpack
 import requests  # type: ignore
 from pydantic import BaseModel, ConfigDict, Field, conint, model_validator
 from typing_extensions import Annotated
+
+from src.services.tts_service.service import TTSService
+
+logger = logging.getLogger(__name__)
 
 
 class ServeReferenceAudio(BaseModel):
@@ -49,20 +54,56 @@ class ServeTTSRequest(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class FishSpeechTTS:
+class FishSpeechTTS(TTSService):
     """
     외부 TTS API와 통신하여 텍스트로부터 음성을 생성하는 서비스입니다.
     텍스트 처리부터 API 요청까지 모든 과정을 캡슐화합니다.
     """
 
-    def __init__(self, url: str, api_key: Optional[str] = None):
-        self.url = url
+    def __init__(
+        self,
+        url: str = "http://127.0.0.1:8080",
+        api_key: str | None = None,
+        seed: int | None = None,
+        streaming: bool = False,
+        use_memory_cache: Literal["on", "off"] = "off",
+        chunk_length: int = 200,
+        max_new_tokens: int = 1024,
+        top_p: float = 0.7,
+        repetition_penalty: float = 1.2,
+        temperature: float = 0.7,
+    ):
+        """
+        Initialize FishTTS Engine with all synthesis parameters.
+
+        Args:
+            base_url: TTS API URL
+            api_key: Authentication token
+            reference_audio_paths: string of audio paths (use <sep> for multiple)
+            reference_texts: string of matching reference texts (use <sep> for multiple)
+            seed: Seed for deterministic generation
+            streaming: Whether to stream audio output
+            use_memory_cache: Whether to cache reference encodings
+            chunk_length: Length of each synthesis chunk
+            max_new_tokens: Max new tokens to generate
+            top_p: Top-p sampling value
+            repetition_penalty: Penalty for repeating phrases
+            temperature: Sampling temperature
+        """
+
         self.api_key = api_key
-        self.session = requests.Session()
-        headers = {"content-type": "application/msgpack"}
-        if self.api_key:
-            headers["authorization"] = f"Bearer {self.api_key}"
-        self.session.headers.update(headers)
+        self.url = url
+
+        self.seed = seed
+        self.streaming = streaming
+        self.use_memory_cache = use_memory_cache
+        self.chunk_length = chunk_length
+        self.max_new_tokens = max_new_tokens
+        self.top_p = top_p
+        self.repetition_penalty = repetition_penalty
+        self.temperature = temperature
+
+        logger.info("FishTTS initialized at %s", self.url)
 
     def _request_tts_stream(self, request_payload: ServeTTSRequest) -> Optional[bytes]:
         """
@@ -75,11 +116,16 @@ class FishSpeechTTS:
             성공 시 오디오 바이트 데이터, 실패 시 None
         """
         try:
-            response = self.session.post(
+            response = requests.post(
                 self.url,
                 data=ormsgpack.packb(
                     request_payload, option=ormsgpack.OPT_SERIALIZE_PYDANTIC
                 ),
+                stream=self.streaming,
+                headers={
+                    "authorization": f"Bearer {self.api_key or ''}",
+                    "content-type": "application/msgpack",
+                },
                 timeout=30,
             )
             response.raise_for_status()
@@ -94,7 +140,7 @@ class FishSpeechTTS:
 
     def generate_speech(
         self,
-        raw_text: str,
+        text: str,
         reference_id: Optional[str] = None,
         output_format: Literal["bytes", "base64", "file"] = "bytes",
         output_filename: Optional[str] = "output.wav",
@@ -116,7 +162,7 @@ class FishSpeechTTS:
         """
 
         # 1. TTS로 처리할 텍스트가 있는지 확인
-        tts_text = raw_text.strip()
+        tts_text = text.strip()
         if not tts_text:
             # logger.info("TTS로 처리할 내용이 없어 스킵합니다.")
             return None
@@ -145,6 +191,18 @@ class FishSpeechTTS:
         else:  # "bytes"가 기본값
             return audio_bytes
 
+    def is_healthy(self) -> tuple[bool, str]:
+        """Check Fish Speech TTS health by attempting a minimal synthesis."""
+        try:
+            # Try a simple synthesis as a health check
+            result = self.generate_speech(text="test", output_format="bytes")
+            if result:
+                return True, "Fish Speech TTS is healthy"
+            else:
+                return False, "Fish Speech TTS returned empty result"
+        except Exception as e:
+            return False, f"Fish Speech TTS health check failed: {str(e)}"
+
 
 # --- 사용 예제 ---
 if __name__ == "__main__":
@@ -160,7 +218,7 @@ if __name__ == "__main__":
     # 3. 서비스의 메인 메서드 하나만 호출하여 오디오 데이터 받기
     print("--- 'bytes' 포맷으로 오디오 생성 시도 ---")
     audio_data = tts_service.generate_speech(
-        raw_text=llm_output_text,
+        text=llm_output_text,
         reference_id="ナツメ",
         output_format="bytes",
     )
@@ -172,7 +230,7 @@ if __name__ == "__main__":
 
     print("\n--- 'file' 포맷으로 오디오 생성 시도 ---")
     file_audio = tts_service.generate_speech(
-        raw_text=llm_output_text,
+        text=llm_output_text,
         output_format="file",
         output_filename="output.wav",
         reference_id="ナツメ",
