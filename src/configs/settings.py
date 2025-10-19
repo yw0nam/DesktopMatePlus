@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     vlm_base_url: str = Field(
         default="http://localhost:8001", description="VLM service base URL"
     )
+    vlm_model_name: str = Field(
+        default="chat_model", description="VLM model name/identifier"
+    )
+    vlm_api_key: str | None = Field(default=None, description="VLM API key (optional)")
     tts_base_url: str = Field(
         default="http://localhost:8080",
         description="TTS service base URL (Fish Speech API)",

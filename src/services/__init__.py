@@ -8,14 +8,21 @@ from src.services.screen_capture_service import (
 )
 
 
-# Global TTS service storage
+# Global service storage
 class _TTSService:
     """Container for global TTS engine instance."""
 
     tts_engine = None
 
 
+class _VLMService:
+    """Container for global VLM engine instance."""
+
+    vlm_engine = None
+
+
 _tts_service = _TTSService()
+_vlm_service = _VLMService()
 
 __all__ = [
     "HealthService",
@@ -24,4 +31,5 @@ __all__ = [
     "ScreenCaptureError",
     "get_screen_capture_service",
     "_tts_service",
+    "_vlm_service",
 ]

@@ -161,10 +161,11 @@ class TestHealthService:
         """Test VLM health check with successful response."""
         service = HealthService(timeout=5)
 
-        with patch("httpx.AsyncClient.get") as mock_get:
-            mock_response = AsyncMock()
-            mock_response.status_code = 200
-            mock_get.return_value = mock_response
+        # Mock the VLM service container with a healthy engine
+        with patch("src.services._vlm_service") as mock_vlm_service_container:
+            mock_vlm_engine = MagicMock()
+            mock_vlm_engine.health_check.return_value = True
+            mock_vlm_service_container.vlm_engine = mock_vlm_engine
 
             ready, error = await service.check_vlm()
 
@@ -176,9 +177,12 @@ class TestHealthService:
         """Test VLM health check with connection error."""
         service = HealthService(timeout=5)
 
-        with patch(
-            "httpx.AsyncClient.get", side_effect=Exception("Connection refused")
-        ):
+        # Mock the VLM service container with an unhealthy engine
+        with patch("src.services._vlm_service") as mock_vlm_service_container:
+            mock_vlm_engine = MagicMock()
+            mock_vlm_engine.health_check.side_effect = Exception("Connection refused")
+            mock_vlm_service_container.vlm_engine = mock_vlm_engine
+
             ready, error = await service.check_vlm()
 
             assert ready is False

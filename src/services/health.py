@@ -2,8 +2,6 @@
 
 from typing import Tuple
 
-import httpx
-
 from src.configs.settings import settings
 from src.models.responses import HealthResponse, ModuleStatus
 
@@ -26,15 +24,20 @@ class HealthService:
             Tuple of (is_ready, error_message)
         """
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(f"{settings.vlm_base_url}/health")
-                if response.status_code == 200:
-                    return True, None
-                return False, f"VLM returned status code {response.status_code}"
-        except httpx.TimeoutException:
-            return False, "VLM service timeout"
-        except httpx.ConnectError:
-            return False, "VLM service unavailable"
+            from src.services import _vlm_service
+
+            # Get VLM engine and check health
+            vlm_engine = getattr(_vlm_service, "vlm_engine", None)
+            if vlm_engine is None:
+                return False, "VLM service not initialized"
+
+            is_healthy = vlm_engine.health_check()
+
+            if is_healthy:
+                return True, None
+            else:
+                return False, "VLM service health check returned False"
+
         except Exception as e:
             return False, f"VLM check failed: {str(e)}"
 

@@ -4,11 +4,8 @@ TTS Service - Handles text-to-speech synthesis with multiple providers.
 This module provides a unified interface for TTS services like Fish Speech, OpenAI, etc.
 """
 
-import logging
 from abc import ABC, abstractmethod
 from typing import Literal, Optional
-
-logger = logging.getLogger(__name__)
 
 
 class TTSService(ABC):

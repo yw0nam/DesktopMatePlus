@@ -37,6 +37,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Failed to initialize TTS service: {e}")
 
+    # Initialize VLM service
+    try:
+        from src.services import _vlm_service
+        from src.services.vlm_service.vlm_factory import VLMFactory
+
+        # Create VLM engine using factory
+        vlm_engine = VLMFactory.get_vlm_service(
+            "openai",
+            openai_api_key=settings.vlm_api_key,
+            openai_api_base=settings.vlm_base_url,
+            model_name=settings.vlm_model_name,
+        )
+
+        # Store in global service variable
+        _vlm_service.vlm_engine = vlm_engine
+
+        print(f"✅ VLM service initialized with model: {settings.vlm_model_name}")
+    except Exception as e:
+        print(f"⚠️  Failed to initialize VLM service: {e}")
+
     yield
 
     # Shutdown

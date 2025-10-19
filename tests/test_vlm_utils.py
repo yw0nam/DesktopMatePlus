@@ -60,17 +60,19 @@ class TestCreateBase64ImageDict:
         base64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFhAJ/wlseKgAAAABJRU5ErkJggg=="
         result = create_base64_image_dict(base64_data)
 
-        assert result["type"] == "image"
-        assert result["source_type"] == "base64"
-        assert result["data"] == base64_data
-        assert result["mime_type"] == "image/png"
+        # OpenAI Vision API format
+        assert result["type"] == "image_url"
+        assert result["image_url"]["url"].startswith("data:image/png;base64,")
+        assert base64_data in result["image_url"]["url"]
 
     def test_create_dict_custom_mime(self):
         """Test creating dict with custom MIME type."""
         base64_data = "test_data"
         result = create_base64_image_dict(base64_data, mime_type="image/jpeg")
 
-        assert result["mime_type"] == "image/jpeg"
+        # OpenAI Vision API format
+        assert result["type"] == "image_url"
+        assert result["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
 
 class TestCreateUrlImageDict:
@@ -81,16 +83,17 @@ class TestCreateUrlImageDict:
         url = "https://example.com/image.png"
         result = create_url_image_dict(url)
 
-        assert result["type"] == "image"
-        assert result["source_type"] == "url"
-        assert result["url"] == url
+        # OpenAI Vision API format
+        assert result["type"] == "image_url"
+        assert result["image_url"]["url"] == url
 
     def test_create_dict_data_uri(self):
         """Test creating dict with data URI."""
         url = "data:image/png;base64,iVBORw0..."
         result = create_url_image_dict(url)
 
-        assert result["url"] == url
+        # OpenAI Vision API format
+        assert result["image_url"]["url"] == url
 
 
 class TestPrepareImageForVLM:
@@ -101,22 +104,23 @@ class TestPrepareImageForVLM:
         url = "https://example.com/test.png"
         result = prepare_image_for_vlm(url)
 
-        assert result["type"] == "image"
-        assert result["source_type"] == "url"
-        assert result["url"] == url
+        # OpenAI Vision API format
+        assert result["type"] == "image_url"
+        assert result["image_url"]["url"] == url
 
     def test_prepare_bytes_default_mime(self):
         """Test preparing bytes with default MIME type."""
         image_bytes = create_test_image()
         result = prepare_image_for_vlm(image_bytes)
 
-        assert result["type"] == "image"
-        assert result["source_type"] == "base64"
-        assert "data" in result
-        assert result["mime_type"] == "image/png"
+        # OpenAI Vision API format
+        assert result["type"] == "image_url"
+        assert result["image_url"]["url"].startswith("data:image/png;base64,")
 
-        # Verify the base64 data can be decoded
-        decoded = base64.b64decode(result["data"])
+        # Extract and verify the base64 data
+        data_url = result["image_url"]["url"]
+        base64_data = data_url.split(",", 1)[1]
+        decoded = base64.b64decode(base64_data)
         assert decoded == image_bytes
 
     def test_prepare_bytes_custom_mime(self):
@@ -124,7 +128,8 @@ class TestPrepareImageForVLM:
         image_bytes = create_test_image()
         result = prepare_image_for_vlm(image_bytes, mime_type="image/jpeg")
 
-        assert result["mime_type"] == "image/jpeg"
+        # OpenAI Vision API format
+        assert result["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
     def test_prepare_invalid_type(self):
         """Test that invalid type raises ValueError."""
@@ -146,11 +151,11 @@ class TestIntegrationWithScreenCapture:
         # Prepare for VLM
         vlm_input = prepare_image_for_vlm(image_bytes)
 
-        # Verify structure
-        assert vlm_input["type"] == "image"
-        assert vlm_input["source_type"] == "base64"
-        assert len(vlm_input["data"]) > 0
-        assert vlm_input["mime_type"] == "image/png"
+        # Verify structure (OpenAI Vision API format)
+        assert vlm_input["type"] == "image_url"
+        assert "image_url" in vlm_input
+        assert vlm_input["image_url"]["url"].startswith("data:image/png;base64,")
+        assert len(vlm_input["image_url"]["url"]) > 0
 
     def test_base64_string_can_be_decoded(self):
         """Test that base64 string from utils can be properly decoded."""

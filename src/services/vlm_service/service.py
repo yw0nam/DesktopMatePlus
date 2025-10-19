@@ -1,4 +1,4 @@
-import abc
+from abc import ABC, abstractmethod
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -7,13 +7,11 @@ from src.services.vlm_service.prompts import DEFAULT_VLM_SYSTEM_PROMPT
 from src.services.vlm_service.utils import prepare_image_for_vlm
 
 
-class BaseVLMService(abc.ABC):
-    def __init__(self, temperature: float, top_p: float):
-        self.temperature = temperature
-        self.top_p = top_p
+class VLMService(ABC):
+    def __init__(self):
         self.model = self.initialize_model()
 
-    @abc.abstractmethod
+    @abstractmethod
     def initialize_model(self) -> BaseChatModel:
         pass
 
@@ -25,12 +23,14 @@ class BaseVLMService(abc.ABC):
             print(f"Health check failed: {e}")
             return False
 
-    def generate_response(self, prompt: str, image: str | bytes) -> str:
+    def generate_response(
+        self, image: str | bytes, prompt: str = "Describe this image"
+    ) -> str:
         """Generate a response from the model based on the prompt and image.
 
         Args:
-            prompt (str): The text prompt to send to the model.
             image (str | bytes): The image to include in the request, either as a URL or raw bytes.
+            prompt (str): The text prompt to send to the model. Default is "Describe this image".
 
         TODO: Add support of video, multi-image inputs.
         Returns:

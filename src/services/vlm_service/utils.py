@@ -43,14 +43,10 @@ def create_base64_image_dict(
         mime_type: MIME type of the image (default: image/png)
 
     Returns:
-        Dict containing type, source_type, data, and mime_type
+        Dict containing type and image_url with data URI in OpenAI format
     """
-    return {
-        "type": "image",
-        "source_type": "base64",
-        "data": base64_data,
-        "mime_type": mime_type,
-    }
+    data_uri = f"data:{mime_type};base64,{base64_data}"
+    return {"type": "image_url", "image_url": {"url": data_uri}}
 
 
 def create_url_image_dict(url: str) -> Dict[str, str]:
@@ -61,9 +57,9 @@ def create_url_image_dict(url: str) -> Dict[str, str]:
         url: Image URL (can be http/https URL or data URI)
 
     Returns:
-        Dict containing type, source_type, and url
+        Dict containing type and image_url in OpenAI format
     """
-    return {"type": "image", "source_type": "url", "url": url}
+    return {"type": "image_url", "image_url": {"url": url}}
 
 
 def prepare_image_for_vlm(
