@@ -4,18 +4,18 @@ from typing import Any, Dict, Optional
 from langchain_core.tools import BaseTool
 from mem0 import Memory
 
-from src.configs.postgresql_config import VOCABULARY_DB_CONFIG
-from src.tools.memory.metadata_manager import PostgreSQLVocabularyManager
-from src.tools.memory.schemas import SearchMemoryInput
+from src.configs.mem0_configs import VOCABULARY_DB_CONFIG
+from src.services.agent_service.tools.memory.metadata_manager import (
+    PostgreSQLVocabularyManager,
+)
+from src.services.agent_service.tools.memory.schemas import SearchMemoryInput
 
 
 class SearchMemoryTool(BaseTool):
     """A tool to search for relevant memories from the user's knowledge base."""
 
     name: str = "search_memory"
-    description: str = (
-        "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
-    )
+    description: str = "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
     args_schema: type[SearchMemoryInput] = SearchMemoryInput
     mem0_client: Memory
     user_id: str

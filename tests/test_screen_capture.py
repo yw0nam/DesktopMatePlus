@@ -68,7 +68,7 @@ class TestScreenCaptureService:
 
                 img = Image.open(io.BytesIO(screenshot))
                 assert img.format == "PNG"
-                print(f"✓ Monitor {i+1}: {img.size[0]}x{img.size[1]} pixels")
+                print(f"✓ Monitor {i + 1}: {img.size[0]}x{img.size[1]} pixels")
 
         except Exception as e:
             pytest.skip(f"Display not available in test environment: {e}")

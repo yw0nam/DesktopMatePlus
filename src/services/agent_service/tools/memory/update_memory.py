@@ -3,16 +3,14 @@ from typing import Any, Dict
 from langchain_core.tools import BaseTool
 from mem0 import Memory
 
-from src.tools.memory.schemas import UpdateMemoryInput
+from src.services.agent_service.tools.memory.schemas import UpdateMemoryInput
 
 
 class UpdateMemoryTool(BaseTool):
     """A tool to update an existing memory using its unique ID."""
 
     name: str = "update_memory"
-    description: str = (
-        "Use this tool to update an existing memory. You must provide the memory's unique ID, the user's ID, and a payload with the fields to update."
-    )
+    description: str = "Use this tool to update an existing memory. You must provide the memory's unique ID, the user's ID, and a payload with the fields to update."
     args_schema: type[UpdateMemoryInput] = UpdateMemoryInput
     mem0_client: Memory
 

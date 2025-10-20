@@ -6,8 +6,8 @@ import sys
 def test_fastapi_stack():
     """Test FastAPI and related packages."""
     import fastapi
-    import uvicorn
     import pydantic
+    import uvicorn
     from pydantic import BaseModel
     from pydantic_settings import BaseSettings
 
@@ -21,9 +21,9 @@ def test_fastapi_stack():
 
 def test_langgraph_stack():
     """Test LangGraph and LangChain packages."""
-    import langgraph
     import langchain
-    from langchain_core.messages import HumanMessage, AIMessage
+    import langgraph
+    from langchain_core.messages import AIMessage, HumanMessage
     from langchain_openai import ChatOpenAI
     from langgraph.graph import StateGraph
 
@@ -70,8 +70,8 @@ def test_screen_capture():
 
 def test_http_clients():
     """Test HTTP client libraries."""
-    import httpx
     import aiohttp
+    import httpx
     import openai
 
     assert httpx is not None
@@ -96,7 +96,9 @@ def test_utilities():
 def test_python_version():
     """Test Python version meets requirements."""
     assert sys.version_info >= (3, 11), f"Python {sys.version} is below minimum 3.11"
-    print(f"✓ Python version {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} meets requirements")
+    print(
+        f"✓ Python version {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} meets requirements"
+    )
 
 
 def test_all_imports():

@@ -119,8 +119,6 @@ uv run black src/
 # Lint code
 uv run ruff check src/ --fix
 
-# Type check
-uv run mypy src/
 ```
 
 ## API Endpoints

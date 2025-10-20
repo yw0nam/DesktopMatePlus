@@ -4,18 +4,18 @@ from typing import Any, Dict, Iterable, Optional
 from langchain_core.tools import BaseTool
 from mem0 import Memory
 
-from src.configs.postgresql_config import VOCABULARY_DB_CONFIG
-from src.tools.memory.metadata_manager import PostgreSQLVocabularyManager
-from src.tools.memory.schemas import AddMemoryInput
+from src.configs.mem0_configs import VOCABULARY_DB_CONFIG
+from src.services.agent_service.tools.memory.metadata_manager import (
+    PostgreSQLVocabularyManager,
+)
+from src.services.agent_service.tools.memory.schemas import AddMemoryInput
 
 
 class AddMemoryTool(BaseTool):
     """A tool to add a new memory to the user's knowledge base."""
 
     name: str = "add_memory"
-    description: str = (
-        "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
-    )
+    description: str = "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
     args_schema: type[AddMemoryInput] = AddMemoryInput
     mem0_client: Memory
     user_id: str

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Sequence, cast
+import os
+from typing import Any, Dict, List, Optional, Sequence, cast
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -14,6 +15,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from mem0 import Memory
 
+from src.configs.mem0_configs import MEM0_CONFIG, VOCABULARY_DB_CONFIG
+from src.services.agent_service.llm_factory import LLMFactory
 from src.services.agent_service.message_util import trim_messages
 from src.services.agent_service.state import Configuration, OverallState
 from src.services.agent_service.tools.memory import AddMemoryTool, SearchMemoryTool
@@ -44,13 +47,13 @@ class MemoryAgentGraphBuilder:
     def __init__(
         self,
         mem0_client: Memory,
-        llm_factory: Callable[[], BaseChatModel],
+        llm: BaseChatModel,
         vocabulary_manager: PostgreSQLVocabularyManager,
         *,
         system_prompt: Optional[str] = None,
     ) -> None:
         self._mem0_client = mem0_client
-        self._llm_factory = llm_factory
+        self._llm = llm
         self._vocabulary_manager = vocabulary_manager
         self._prompt = SystemMessage(content=(system_prompt or MEMORY_CONTEXT_PROMPT))
 
@@ -121,6 +124,15 @@ class MemoryAgentGraphBuilder:
         return state
 
     def _agent_node(self, state: OverallState, config: RunnableConfig) -> OverallState:
+        """Handles the agent node processing.
+
+        Args:
+            state (OverallState): The current state of the overall process.
+            config (RunnableConfig): The configuration for the runnable.
+
+        Returns:
+            OverallState: The updated state after processing the agent node.
+        """
         conf = _resolve_configuration(config)
         add_tool = AddMemoryTool(
             mem0_client=self._mem0_client,
@@ -136,9 +148,8 @@ class MemoryAgentGraphBuilder:
             run_id=conf.thread_id,
             vocabulary_manager=self._vocabulary_manager,
         )
-        llm = self._llm_factory()
         agent = create_react_agent(
-            llm,
+            self._llm,
             tools=[search_tool, add_tool],
             prompt=self._prompt,
         )
@@ -159,22 +170,25 @@ class MemoryAgentGraphBuilder:
         return {"messages": agent_state["messages"]}
 
 
-def build_memory_agent_graph(
-    mem0_client: Memory,
-    llm_factory: Callable[[], BaseChatModel],
-    vocabulary_manager: PostgreSQLVocabularyManager,
-    *,
-    system_prompt: Optional[str] = None,
-) -> CompiledStateGraph:
-    """Compile the Phase 1 LangGraph agent ready for ``agent.invoke``."""
+if __name__ == "__main__":
+    # Initialize Mem0 client
+    mem0_client = Memory.from_config(MEM0_CONFIG)
 
-    builder = MemoryAgentGraphBuilder(
-        mem0_client=mem0_client,
-        llm_factory=llm_factory,
-        vocabulary_manager=vocabulary_manager,
-        system_prompt=system_prompt,
+    # Initialize vocabulary manager
+    vocabulary_manager = PostgreSQLVocabularyManager(db_config=VOCABULARY_DB_CONFIG)
+    llm = LLMFactory(
+        service_type="openai",
+        model=os.getenv("LLM_MODEL_NAME"),
+        openai_api_key=os.getenv("LLM_API_KEY"),
+        openai_api_base=os.getenv("LLM_BASE_URL"),
     )
-    return builder.build()
+    # Create graph builder
+    graph_builder = MemoryAgentGraphBuilder(
+        mem0_client=mem0_client,
+        llm=llm,
+        vocabulary_manager=vocabulary_manager,
+    )
 
-
-__all__ = ["MemoryAgentGraphBuilder", "build_memory_agent_graph"]
+    # Build the graph
+    compiled_graph = graph_builder.build()
+    print("Compiled graph:", compiled_graph)
