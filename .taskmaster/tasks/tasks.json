@@ -305,11 +305,11 @@
         "id": 9,
         "title": "Unify TTS and VLM interface and configuration pattern.",
         "description": "Unify the interface and configuration pattern for TTS and VLM services",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
-          "8"
+          "7,8"
         ],
-        "priority": "medium",
+        "priority": "high",
         "details": "Unify the interface and configuration pattern for TTS and VLM services by creating consistent client classes, configuration loading mechanisms, and error handling strategies. Ensure both services can be easily swapped or extended in the future.",
         "testStrategy": "Test both services after refactoring to ensure functionality remains intact. Validate configuration loading and error handling through unit tests.",
         "subtasks": [],
@@ -463,7 +463,7 @@
       ],
       "created": "2025-10-20T01:37:33.486Z",
       "description": "Tasks for master context",
-      "updated": "2025-10-20T01:47:07.738Z"
+      "updated": "2025-10-20T02:25:24.512Z"
     }
   }
 }

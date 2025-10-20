@@ -15,13 +15,18 @@ class VLMService(ABC):
     def initialize_model(self) -> BaseChatModel:
         pass
 
-    def health_check(self) -> bool:
+    def is_healthy(self) -> tuple[bool, str]:
+        """
+        Check if the VLM provider is healthy and ready.
+
+        Returns:
+            Tuple of (is_healthy: bool, message: str)
+        """
         try:
             self.model.invoke([HumanMessage(content="Health check")])
-            return True
+            return True, "VLM service is healthy"
         except Exception as e:
-            print(f"Health check failed: {e}")
-            return False
+            return False, f"VLM health check failed: {str(e)}"
 
     def generate_response(
         self, image: str | bytes, prompt: str = "Describe this image"

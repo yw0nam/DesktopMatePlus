@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_prefix="FASTAPI_",
+        env_prefix="",  # No prefix required
         case_sensitive=False,
         env_file=".env",
         env_file_encoding="utf-8",

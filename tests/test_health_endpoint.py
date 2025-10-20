@@ -164,7 +164,7 @@ class TestHealthService:
         # Mock the VLM service container with a healthy engine
         with patch("src.services._vlm_service") as mock_vlm_service_container:
             mock_vlm_engine = MagicMock()
-            mock_vlm_engine.health_check.return_value = True
+            mock_vlm_engine.is_healthy.return_value = (True, "VLM service is healthy")
             mock_vlm_service_container.vlm_engine = mock_vlm_engine
 
             ready, error = await service.check_vlm()

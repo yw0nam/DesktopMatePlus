@@ -1,11 +1,22 @@
-from typing import Type
-
 from src.services.tts_service.service import TTSService
 
 
 class TTSFactory:
     @staticmethod
-    def get_tts_engine(engine_type, **kwargs) -> Type[TTSService]:
+    def get_tts_engine(engine_type: str, **kwargs) -> TTSService:
+        """
+        Factory method to create TTS engine instances.
+
+        Args:
+            engine_type: Type of TTS engine to create
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            TTSService: Instance of the requested TTS engine
+
+        Raises:
+            ValueError: If engine_type is unknown
+        """
         if engine_type == "fish_local_tts":
             from src.services.tts_service.fish_speech import FishSpeechTTS
 

@@ -91,8 +91,9 @@ class TestOpenAIService:
             model_name="test_model",
         )
 
-        is_healthy = service.health_check()
+        is_healthy, message = service.is_healthy()
         assert is_healthy is True
+        assert message == "VLM service is healthy"
 
     @patch("src.services.vlm_service.openai_compatible.ChatOpenAI")
     def test_health_check_failure(self, mock_chat_openai):
@@ -109,8 +110,9 @@ class TestOpenAIService:
             model_name="test_model",
         )
 
-        is_healthy = service.health_check()
+        is_healthy, message = service.is_healthy()
         assert is_healthy is False
+        assert "Connection error" in message
 
     @patch("src.services.vlm_service.openai_compatible.ChatOpenAI")
     def test_generate_response_with_url(self, mock_chat_openai):
@@ -218,5 +220,5 @@ class TestVLMIntegration:
         assert mock_model.invoke.called
 
         # Verify health check works
-        is_healthy = vlm_service.health_check()
+        is_healthy, message = vlm_service.is_healthy()
         assert is_healthy is True

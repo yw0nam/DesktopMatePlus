@@ -1,5 +1,4 @@
 import os
-from typing import Type
 
 from dotenv import load_dotenv
 
@@ -8,7 +7,20 @@ from src.services.vlm_service.service import VLMService
 
 class VLMFactory:
     @staticmethod
-    def get_vlm_service(service_type, **kwargs) -> Type[VLMService]:
+    def get_vlm_service(service_type: str, **kwargs) -> VLMService:
+        """
+        Factory method to create VLM service instances.
+
+        Args:
+            service_type: Type of VLM service to create
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            VLMService: Instance of the requested VLM service
+
+        Raises:
+            ValueError: If service_type is unknown
+        """
         if service_type == "openai":
             from src.services.vlm_service.openai_compatible import OpenAIService
 

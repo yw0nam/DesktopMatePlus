@@ -31,12 +31,12 @@ class HealthService:
             if vlm_engine is None:
                 return False, "VLM service not initialized"
 
-            is_healthy = vlm_engine.health_check()
+            is_healthy, message = vlm_engine.is_healthy()
 
             if is_healthy:
                 return True, None
             else:
-                return False, "VLM service health check returned False"
+                return False, str(message) if message else "VLM service unhealthy"
 
         except Exception as e:
             return False, f"VLM check failed: {str(e)}"
