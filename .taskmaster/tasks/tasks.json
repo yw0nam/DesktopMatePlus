@@ -187,14 +187,14 @@
       {
         "id": 7,
         "title": "Integrate VLM API Client",
-        "description": "Implement get_visual_description(image: bytes) -> str function to send image to vLLM server and receive description.",
+        "description": "Integrate VLM to main.py API to send image to vLLM server and receive description.",
         "details": "Create internal Python client for vLLM API. Send Base64-encoded image via HTTP request. Parse and return textual description.",
         "testStrategy": "Mock vLLM server responses. Validate correct request formatting and response parsing.",
         "priority": "high",
         "dependencies": [
           "6"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -307,12 +307,13 @@
         "description": "Unify the interface and configuration pattern for TTS and VLM services",
         "status": "pending",
         "dependencies": [
-          8
+          "8"
         ],
         "priority": "medium",
         "details": "Unify the interface and configuration pattern for TTS and VLM services by creating consistent client classes, configuration loading mechanisms, and error handling strategies. Ensure both services can be easily swapped or extended in the future.",
         "testStrategy": "Test both services after refactoring to ensure functionality remains intact. Validate configuration loading and error handling through unit tests.",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2025-10-20T01:24:18.576Z"
       },
       {
         "id": 10,
@@ -454,14 +455,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-10-17T06:48:12.177Z",
+      "lastModified": "2025-10-20T01:24:18.578Z",
       "taskCount": 18,
-      "completedCount": 7,
+      "completedCount": 8,
       "tags": [
         "master"
       ],
-      "created": "2025-10-19T13:18:52.850Z",
-      "description": "Tasks for master context"
+      "created": "2025-10-20T01:37:33.486Z",
+      "description": "Tasks for master context",
+      "updated": "2025-10-20T01:47:07.738Z"
     }
   }
 }

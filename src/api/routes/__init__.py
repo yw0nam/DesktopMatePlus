@@ -3,11 +3,15 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
+from src.api.routes import vlm
 from src.models.responses import HealthResponse
 from src.services.health import HealthService, health_service
 
 # Create main router
 router = APIRouter()
+
+# Include VLM routes
+router.include_router(vlm.router)
 
 
 def get_health_service() -> HealthService:
