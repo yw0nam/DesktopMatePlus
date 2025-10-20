@@ -370,30 +370,71 @@
       },
       {
         "id": 14,
-        "title": "Implement POST /v1/chat Endpoint",
-        "description": "Create API endpoint to process user messages, manage thread_id, run LangGraph workflow, and return text/audio responses.",
-        "details": "Define Pydantic request/response schemas. Load or create thread state using Checkpointer. Run LangGraph workflow: perceive -> query_memory -> reason -> generate -> update_memory. Call TTS for audio response. Return thread_id, text_response, audio_response_b64.",
-        "testStrategy": "Integration test with multiple thread_ids. Validate context continuity and response formats.",
+        "title": "Implement WebSocket Streaming /v1/chat/stream Endpoint",
+        "description": "Create WebSocket API endpoint for real-time streaming chat with audio responses. Process user messages, manage thread_id, run LangGraph workflow with astream, implement intelligent text buffering, and stream audio chunks to frontend.",
+        "details": "Architecture: WebSocket endpoint at WS /v1/chat/stream. Backend acts as orchestrator between LangGraph (text generation) and Fish Speech (TTS). Implementation steps: 1) Define WebSocket message schemas (user message in, audio chunks out). 2) Load/create thread state using Checkpointer. 3) Run LangGraph workflow with astream: perceive -> query_memory -> reason -> generate -> update_memory. 4) Implement intelligent buffering: accumulate text chunks from LangGraph until sentence boundaries (. ! ? ,) are detected. 5) Async TTS calls: send complete sentences to Fish Speech API asynchronously without blocking. 6) Stream audio: encode audio bytes as Base64 and send via WebSocket immediately upon receipt. 7) Frontend receives Base64 audio chunks, decodes, and queues for seamless playback. Keep POST /v1/chat endpoint for non-streaming use cases.",
+        "testStrategy": "Integration test: Connect WebSocket client, send message, verify text chunks are buffered correctly at sentence boundaries. Validate async TTS calls don't block text generation. Confirm audio chunks arrive in correct order and can be decoded/played. Test with multiple concurrent thread_ids. Validate context continuity across messages. Test error handling (LangGraph failure, TTS failure, network disconnect).",
         "priority": "high",
         "dependencies": [
           "10",
           "8"
         ],
         "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 15,
-        "title": "Implement POST /v1/voice Endpoint",
-        "description": "Create API endpoint for zero-shot voice cloning via audio file upload.",
-        "details": "Accept multipart/form-data with audio_file. Call clone_voice_from_audio. Return success or error JSON.",
-        "testStrategy": "Test with valid/invalid files. Validate API response codes and messages.",
-        "priority": "medium",
-        "dependencies": [
-          "9"
-        ],
-        "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define WebSocket Message Schemas and Endpoint Contract",
+            "description": "Design and document the message formats for incoming user messages and outgoing audio chunk responses for the /v1/chat/stream WebSocket endpoint.",
+            "dependencies": [],
+            "details": "Specify JSON schemas for messages sent by the client (including thread_id, text, and metadata) and for server responses (including Base64-encoded audio, text, and status fields). Document the protocol, including connection, error, and close events. Ensure compatibility with frontend expectations.",
+            "status": "pending",
+            "testStrategy": "Unit test schema validation for both incoming and outgoing messages. Fuzz test with invalid and edge-case payloads."
+          },
+          {
+            "id": 2,
+            "title": "Implement WebSocket Endpoint and Connection Lifecycle",
+            "description": "Create the /v1/chat/stream WebSocket endpoint, handling connection, message receipt, and disconnection events.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use FastAPI or equivalent to define the WebSocket route. On connection, authenticate and initialize session state. On message, parse and validate input schema. On disconnect, clean up resources. Integrate with Checkpointer to load or create thread state per thread_id.",
+            "status": "pending",
+            "testStrategy": "Integration test: Connect/disconnect clients, send valid/invalid messages, and verify correct session and state management."
+          },
+          {
+            "id": 3,
+            "title": "Integrate LangGraph Workflow with Streaming and Buffering",
+            "description": "Run the LangGraph workflow (perceive, query_memory, reason, generate, update_memory) using astream, and implement intelligent text buffering to accumulate text until sentence boundaries are detected.",
+            "dependencies": [
+              2
+            ],
+            "details": "Invoke LangGraph's astream for real-time text generation. Buffer incoming text chunks, detecting sentence boundaries (., !, ?, ,) to form complete sentences. Ensure partial sentences are held until completion. Prepare buffered sentences for TTS processing.",
+            "status": "pending",
+            "testStrategy": "Unit and integration tests: Simulate LangGraph output, verify buffering logic, and ensure sentences are correctly segmented and passed downstream."
+          },
+          {
+            "id": 4,
+            "title": "Asynchronous TTS Synthesis and Audio Chunk Streaming",
+            "description": "Send complete sentences to the Fish Speech TTS API asynchronously, encode audio as Base64, and stream audio chunks to the frontend without blocking text generation.",
+            "dependencies": [
+              3
+            ],
+            "details": "For each buffered sentence, asynchronously call the TTS client (Fish Speech). As soon as audio is received, encode as Base64 and send via WebSocket. Ensure non-blocking operation so text generation and TTS can proceed in parallel. Handle TTS errors gracefully.",
+            "status": "pending",
+            "testStrategy": "Integration test: Simulate high-throughput text, verify that audio chunks are streamed promptly and in order, and that TTS failures do not block the pipeline."
+          },
+          {
+            "id": 5,
+            "title": "End-to-End Integration and Concurrency Testing",
+            "description": "Test the complete WebSocket streaming pipeline with multiple concurrent clients and thread_ids, validating real-time audio playback and state management.",
+            "dependencies": [
+              4
+            ],
+            "details": "Connect multiple WebSocket clients, send chat messages, and verify that each receives correctly ordered audio chunks corresponding to their thread_id. Test with rapid message sequences and simulate server restarts to validate Checkpointer integration.",
+            "status": "pending",
+            "testStrategy": "Automated integration tests: Use WebSocket clients to send/receive messages, decode audio, and check playback continuity. Stress test with concurrent sessions and validate state restoration."
+          }
+        ]
       },
       {
         "id": 16,

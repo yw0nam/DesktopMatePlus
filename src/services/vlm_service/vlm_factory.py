@@ -39,8 +39,6 @@ class VLMFactory:
 # vlm_service = VLMFactory.get_vlm_service("openai", openai_api_key="your_api_key", openai_api_base="your_api_base", model_name="your_model_name")
 # vlm_service.generate_response(image="your_image", prompt="Describe this image")
 if __name__ == "__main__":
-    TTS_API_URL = "http://localhost:5530/v1"
-
     load_dotenv()
     # 1. 서비스 인스턴스 생성
     vlm_service = VLMFactory.get_vlm_service(

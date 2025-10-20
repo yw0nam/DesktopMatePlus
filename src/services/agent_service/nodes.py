@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from mem0 import Memory
 
@@ -53,7 +54,7 @@ class MemoryAgentGraphBuilder:
         self._vocabulary_manager = vocabulary_manager
         self._prompt = SystemMessage(content=(system_prompt or MEMORY_CONTEXT_PROMPT))
 
-    def build(self) -> Any:
+    def build(self) -> CompiledStateGraph:
         checkpointer = InMemorySaver()
         builder = StateGraph(OverallState)
         builder.add_node("load_memories", self._load_memories)
@@ -164,7 +165,7 @@ def build_memory_agent_graph(
     vocabulary_manager: PostgreSQLVocabularyManager,
     *,
     system_prompt: Optional[str] = None,
-) -> Any:
+) -> CompiledStateGraph:
     """Compile the Phase 1 LangGraph agent ready for ``agent.invoke``."""
 
     builder = MemoryAgentGraphBuilder(

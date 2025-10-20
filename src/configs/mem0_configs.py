@@ -1,7 +1,7 @@
 import os
-from mem0 import Memory
-from langchain_openai import OpenAIEmbeddings
+from typing import Dict
 
+from langchain_openai import OpenAIEmbeddings
 
 embedding_model = OpenAIEmbeddings(
     model=os.getenv("EMB_MODEL_NAME"),
@@ -48,4 +48,12 @@ MEM0_CONFIG = {
             "password": os.getenv("NEO4J_PASSWORD"),
         },
     },
+}
+
+VOCABULARY_DB_CONFIG: Dict[str, str] = {
+    "host": os.getenv("VOCABULARY_DB_HOST", "localhost"),
+    "database": os.getenv("VOCABULARY_DB_NAME", "memory_system_dev"),
+    "user": os.getenv("VOCABULARY_DB_USER", "memory_system"),
+    "password": os.getenv("VOCABULARY_DB_PASSWORD", "memory_system"),
+    "port": os.getenv("VOCABULARY_DB_PORT", "5432"),
 }
