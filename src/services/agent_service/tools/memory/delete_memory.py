@@ -1,8 +1,7 @@
-from typing import Optional, Dict, Any
-
-from src.tools.memory.schemas import DeleteMemoryInput
 from langchain_core.tools import BaseTool
 from mem0 import Memory
+
+from src.tools.memory.schemas import DeleteMemoryInput
 
 
 class DeleteMemoryTool(BaseTool):

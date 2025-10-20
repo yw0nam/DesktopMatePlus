@@ -13,9 +13,12 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import create_react_agent
 from mem0 import Memory
 
+from src.services.agent_service.message_util import trim_messages
 from src.services.agent_service.state import Configuration, OverallState
-from src.tools.memory import AddMemoryTool, SearchMemoryTool
-from src.tools.memory.metadata_manager import PostgreSQLVocabularyManager
+from src.services.agent_service.tools.memory import AddMemoryTool, SearchMemoryTool
+from src.services.agent_service.tools.memory.metadata_manager import (
+    PostgreSQLVocabularyManager,
+)
 
 MEMORY_CONTEXT_PROMPT = (
     "You are natsume, who is the maid and secretary of user. You are a helpful assistant that personalises replies using stored memories. "
@@ -23,6 +26,7 @@ MEMORY_CONTEXT_PROMPT = (
     "durable fact about themselves (name, preferences, biography, commitments), call "
     "the `add_memory` tool with a concise summary. Use the `search_memory` tool when "
     "you need to retrieve additional details beyond what is already attached."
+    "Make sure the metadata tags are used appropriately to categorize memories."
 )
 
 
@@ -109,6 +113,9 @@ class MemoryAgentGraphBuilder:
 
         previous_messages: Sequence[Any] = state.get("messages", [])
         # Ensure previous_messages is a list before concatenation
+        previous_messages = trim_messages(
+            previous_messages
+        )  # Trim the message histroy to maintain context window
         state["messages"] = list(system_messages) + list(previous_messages)
         return state
 
@@ -130,7 +137,9 @@ class MemoryAgentGraphBuilder:
         )
         llm = self._llm_factory()
         agent = create_react_agent(
-            llm, tools=[search_tool, add_tool], prompt=self._prompt
+            llm,
+            tools=[search_tool, add_tool],
+            prompt=self._prompt,
         )
         agent_messages = state.get("messages", [])
         metadata_terms = state.get("metadata_terms", [])

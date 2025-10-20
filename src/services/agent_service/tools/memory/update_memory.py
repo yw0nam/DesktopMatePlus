@@ -1,8 +1,9 @@
-from typing import Optional, Dict, Any
+from typing import Any, Dict
 
-from src.tools.memory.schemas import UpdateMemoryInput
 from langchain_core.tools import BaseTool
 from mem0 import Memory
+
+from src.tools.memory.schemas import UpdateMemoryInput
 
 
 class UpdateMemoryTool(BaseTool):

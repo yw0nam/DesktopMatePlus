@@ -4,9 +4,9 @@ from typing import Any, Dict, Optional
 from langchain_core.tools import BaseTool
 from mem0 import Memory
 
-from src.tools.memory.schemas import SearchMemoryInput
-from src.tools.memory.metadata_manager import PostgreSQLVocabularyManager
 from src.configs.postgresql_config import VOCABULARY_DB_CONFIG
+from src.tools.memory.metadata_manager import PostgreSQLVocabularyManager
+from src.tools.memory.schemas import SearchMemoryInput
 
 
 class SearchMemoryTool(BaseTool):

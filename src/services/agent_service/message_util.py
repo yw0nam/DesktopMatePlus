@@ -1,17 +1,17 @@
 from typing import List
 
 from langchain_core.messages import (
-    BaseMessage,
     AIMessage,
-    SystemMessage,
+    BaseMessage,
     HumanMessage,
+    SystemMessage,
     ToolMessage,
 )
 
 
 def trim_messages(
     messages: List[BaseMessage], max_messages: int = 20
-) -> List[BaseMessage]:
+) -> dict[str, List[BaseMessage]]:
     """
     Trim messages using message type.
     Preserve AI and Human messages, discard Tool and System messages except first system message.
@@ -32,4 +32,4 @@ def trim_messages(
         else:
             break
     return_messages = list(reversed(trimmed_messages))
-    return return_messages
+    return {"llm_input_messages": return_messages}
