@@ -1,0 +1,12 @@
+# OpenAI Compatible VLM Service Configuration
+# API credentials are loaded from environment variables (.env file):
+#   - VLM_API_KEY (optional, defaults to "dummy-key" for local servers)
+#   - VLM_BASE_URL (required, defaults to "http://localhost:8001")
+#   - VLM_MODEL_NAME (required, defaults to "chat_model")
+
+vlm_config:
+  type: "openai"  # Service type for factory
+  configs:
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 2048

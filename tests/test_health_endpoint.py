@@ -161,11 +161,11 @@ class TestHealthService:
         """Test VLM health check with successful response."""
         service = HealthService(timeout=5)
 
-        # Mock the VLM service container with a healthy engine
-        with patch("src.services._vlm_service") as mock_vlm_service_container:
+        # Mock the VLM service getter to return a healthy engine
+        with patch("src.services.get_vlm_service") as mock_get_vlm:
             mock_vlm_engine = MagicMock()
             mock_vlm_engine.is_healthy.return_value = (True, "VLM service is healthy")
-            mock_vlm_service_container.vlm_engine = mock_vlm_engine
+            mock_get_vlm.return_value = mock_vlm_engine
 
             ready, error = await service.check_vlm()
 
@@ -177,11 +177,9 @@ class TestHealthService:
         """Test VLM health check with connection error."""
         service = HealthService(timeout=5)
 
-        # Mock the VLM service container with an unhealthy engine
-        with patch("src.services._vlm_service") as mock_vlm_service_container:
-            mock_vlm_engine = MagicMock()
-            mock_vlm_engine.health_check.side_effect = Exception("Connection refused")
-            mock_vlm_service_container.vlm_engine = mock_vlm_engine
+        # Mock the VLM service getter to raise an exception
+        with patch("src.services.get_vlm_service") as mock_get_vlm:
+            mock_get_vlm.side_effect = Exception("Connection refused")
 
             ready, error = await service.check_vlm()
 
@@ -193,10 +191,11 @@ class TestHealthService:
         """Test TTS health check with successful response."""
         service = HealthService(timeout=5)
 
-        with patch("src.services._tts_service") as mock_tts_service_container:
+        # Mock the TTS service getter to return a healthy engine
+        with patch("src.services.get_tts_service") as mock_get_tts:
             mock_tts_engine = MagicMock()
             mock_tts_engine.is_healthy.return_value = (True, "Service healthy")
-            mock_tts_service_container.tts_engine = mock_tts_engine
+            mock_get_tts.return_value = mock_tts_engine
 
             ready, error = await service.check_tts()
 

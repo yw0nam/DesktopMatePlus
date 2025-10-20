@@ -1,0 +1,4 @@
+services:
+  vlm_service: openai_compatible.yml
+  tts_service: fish_speech.yml
+  agent_service: openai_compatible.yml

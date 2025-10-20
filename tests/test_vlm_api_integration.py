@@ -24,15 +24,15 @@ def mock_vlm_engine():
 class TestVLMAPIIntegration:
     """Test VLM API endpoint integration."""
 
-    @patch("src.api.routes.vlm._vlm_service")
-    def test_analyze_image_success(self, mock_vlm_service, client):
+    @patch("src.api.routes.vlm.get_vlm_service")
+    def test_analyze_image_success(self, mock_get_vlm, client):
         """Test successful image analysis."""
         # Setup mock
         mock_engine = Mock()
         mock_engine.generate_response.return_value = (
             "A beautiful landscape with mountains and a lake"
         )
-        mock_vlm_service.vlm_engine = mock_engine
+        mock_get_vlm.return_value = mock_engine
 
         # Make request
         response = client.post(
@@ -55,13 +55,13 @@ class TestVLMAPIIntegration:
             prompt="Describe this image",
         )
 
-    @patch("src.api.routes.vlm._vlm_service")
-    def test_analyze_image_with_base64(self, mock_vlm_service, client):
+    @patch("src.api.routes.vlm.get_vlm_service")
+    def test_analyze_image_with_base64(self, mock_get_vlm, client):
         """Test image analysis with base64-encoded image."""
         # Setup mock
         mock_engine = Mock()
         mock_engine.generate_response.return_value = "A cat sitting on a couch"
-        mock_vlm_service.vlm_engine = mock_engine
+        mock_get_vlm.return_value = mock_engine
 
         base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
@@ -85,13 +85,13 @@ class TestVLMAPIIntegration:
             prompt="What do you see?",
         )
 
-    @patch("src.api.routes.vlm._vlm_service")
-    def test_analyze_image_default_prompt(self, mock_vlm_service, client):
+    @patch("src.api.routes.vlm.get_vlm_service")
+    def test_analyze_image_default_prompt(self, mock_get_vlm, client):
         """Test image analysis with default prompt."""
         # Setup mock
         mock_engine = Mock()
         mock_engine.generate_response.return_value = "An image description"
-        mock_vlm_service.vlm_engine = mock_engine
+        mock_get_vlm.return_value = mock_engine
 
         # Make request without prompt (should use default)
         response = client.post(
@@ -110,11 +110,11 @@ class TestVLMAPIIntegration:
             prompt="Describe this image",
         )
 
-    @patch("src.api.routes.vlm._vlm_service")
-    def test_analyze_image_service_not_initialized(self, mock_vlm_service, client):
+    @patch("src.api.routes.vlm.get_vlm_service")
+    def test_analyze_image_service_not_initialized(self, mock_get_vlm, client):
         """Test error when VLM service is not initialized."""
         # Setup mock with no engine
-        mock_vlm_service.vlm_engine = None
+        mock_get_vlm.return_value = None
 
         # Make request
         response = client.post(
@@ -131,13 +131,13 @@ class TestVLMAPIIntegration:
         assert "detail" in data
         assert "VLM service not initialized" in data["detail"]
 
-    @patch("src.api.routes.vlm._vlm_service")
-    def test_analyze_image_processing_error(self, mock_vlm_service, client):
+    @patch("src.api.routes.vlm.get_vlm_service")
+    def test_analyze_image_processing_error(self, mock_get_vlm, client):
         """Test error handling when VLM processing fails."""
         # Setup mock to raise exception
         mock_engine = Mock()
         mock_engine.generate_response.side_effect = Exception("VLM model error")
-        mock_vlm_service.vlm_engine = mock_engine
+        mock_get_vlm.return_value = mock_engine
 
         # Make request
         response = client.post(
@@ -168,13 +168,13 @@ class TestVLMAPIIntegration:
         # Assert validation error
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    @patch("src.api.routes.vlm._vlm_service")
-    def test_analyze_image_empty_response(self, mock_vlm_service, client):
+    @patch("src.api.routes.vlm.get_vlm_service")
+    def test_analyze_image_empty_response(self, mock_get_vlm, client):
         """Test handling of empty VLM response."""
         # Setup mock to return empty string
         mock_engine = Mock()
         mock_engine.generate_response.return_value = ""
-        mock_vlm_service.vlm_engine = mock_engine
+        mock_get_vlm.return_value = mock_engine
 
         # Make request
         response = client.post(
@@ -190,13 +190,13 @@ class TestVLMAPIIntegration:
         data = response.json()
         assert data["description"] == ""
 
-    @patch("src.api.routes.vlm._vlm_service")
-    def test_analyze_image_long_prompt(self, mock_vlm_service, client):
+    @patch("src.api.routes.vlm.get_vlm_service")
+    def test_analyze_image_long_prompt(self, mock_get_vlm, client):
         """Test image analysis with a long prompt."""
         # Setup mock
         mock_engine = Mock()
         mock_engine.generate_response.return_value = "Detailed analysis result"
-        mock_vlm_service.vlm_engine = mock_engine
+        mock_get_vlm.return_value = mock_engine
 
         long_prompt = (
             "Describe this image in detail, including colors, objects, composition, lighting, and any text visible. "

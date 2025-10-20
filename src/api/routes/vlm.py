@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from src.services import _vlm_service
+from src.services import get_vlm_service
 
 router = APIRouter(prefix="/v1/vlm", tags=["VLM"])
 
@@ -73,7 +73,9 @@ async def analyze_image(request: VLMRequest) -> VLMResponse:
     Raises:
         HTTPException: If VLM service is not initialized or processing fails
     """
-    if _vlm_service.vlm_engine is None:
+    vlm_service = get_vlm_service()
+
+    if vlm_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="VLM service not initialized",
@@ -81,7 +83,7 @@ async def analyze_image(request: VLMRequest) -> VLMResponse:
 
     try:
         # Call VLM service to generate description
-        description = _vlm_service.vlm_engine.generate_response(
+        description = vlm_service.generate_response(
             image=request.image,
             prompt=request.prompt,
         )
