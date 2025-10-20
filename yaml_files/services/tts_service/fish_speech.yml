@@ -1,0 +1,18 @@
+# Fish Speech TTS Service Configuration
+# API credentials are loaded from environment variables (.env file):
+#   - TTS_API_KEY (optional, for authentication)
+#   - TTS_BASE_URL (optional, overrides base_url below)
+
+tts_config:
+  type: "fish_local_tts"  # Service type for factory
+  configs:
+    base_url: "http://localhost:8080/v1/tts"
+    format: "wav"
+    seed: null  # null for randomized, set to integer for deterministic
+    streaming: false
+    use_memory_cache: "off"
+    chunk_length: 200
+    max_new_tokens: 1024
+    top_p: 0.7
+    repetition_penalty: 1.2
+    temperature: 0.7

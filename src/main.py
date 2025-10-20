@@ -1,13 +1,52 @@
 """FastAPI application entry point."""
 
+import argparse
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
+import yaml
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import router as api_router
 from src.configs.settings import settings
+
+# Store config paths globally for lifespan to access
+_config_paths = {
+    "tts_config_path": None,
+    "vlm_config_path": None,
+    "agent_config_path": None,
+}
+
+
+def load_main_config(yaml_file: str | Path) -> dict:
+    """Load main configuration file that references service configs.
+
+    Args:
+        yaml_file: Path to main.yml configuration file
+
+    Returns:
+        Dictionary with service configuration paths
+    """
+    yaml_path = Path(yaml_file)
+    if not yaml_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {yaml_path}")
+
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    # Resolve service config paths relative to main.yml location
+    base_dir = yaml_path.parent
+    services = config.get("services", {})
+
+    resolved_paths = {}
+    for service_name, config_file in services.items():
+        if config_file:
+            service_path = base_dir / "services" / service_name / config_file
+            resolved_paths[f"{service_name}_path"] = service_path
+
+    return resolved_paths
 
 
 @asynccontextmanager
@@ -18,44 +57,39 @@ async def lifespan(app: FastAPI):
     print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
     print(f"🔧 Debug mode: {settings.debug}")
 
-    # Initialize TTS service
+    # Initialize all services using the centralized service manager
     try:
-        from src.services import _tts_service
-        from src.services.tts_service.tts_factory import TTSFactory
+        from src.services import initialize_tts_service, initialize_vlm_service
 
-        # Create TTS engine using factory
-        tts_engine = TTSFactory.get_tts_engine(
-            "fish_local_tts", base_url=settings.tts_base_url.rstrip("/") + "/v1/tts"
-        )
+        # Initialize services from YAML configurations
+        # API keys are loaded from environment variables (.env file)
+        print("\n📋 Loading service configurations...")
 
-        # Store in global service variable
-        _tts_service.tts_engine = tts_engine
+        # Initialize TTS service
+        if _config_paths.get("tts_config_path"):
+            print(f"  - TTS config: {_config_paths['tts_config_path']}")
+            initialize_tts_service(config_path=_config_paths["tts_config_path"])
+        else:
+            print("  - TTS config: Using default")
+            initialize_tts_service()
 
-        print(
-            f"✅ TTS service initialized with Fish Speech URL: {settings.tts_base_url}"
-        )
+        # Initialize VLM service
+        if _config_paths.get("vlm_config_path"):
+            print(f"  - VLM config: {_config_paths['vlm_config_path']}")
+            initialize_vlm_service(config_path=_config_paths["vlm_config_path"])
+        else:
+            print("  - VLM config: Using default")
+            initialize_vlm_service()
+
+        # TODO: Initialize agent service when implemented
+        # if _config_paths.get("agent_config_path"):
+        #     initialize_agent_service(config_path=_config_paths["agent_config_path"])
+
     except Exception as e:
-        print(f"⚠️  Failed to initialize TTS service: {e}")
+        print(f"⚠️  Failed to initialize services: {e}")
+        import traceback
 
-    # Initialize VLM service
-    try:
-        from src.services import _vlm_service
-        from src.services.vlm_service.vlm_factory import VLMFactory
-
-        # Create VLM engine using factory
-        vlm_engine = VLMFactory.get_vlm_service(
-            "openai",
-            openai_api_key=settings.vlm_api_key,
-            openai_api_base=settings.vlm_base_url,
-            model_name=settings.vlm_model_name,
-        )
-
-        # Store in global service variable
-        _vlm_service.vlm_engine = vlm_engine
-
-        print(f"✅ VLM service initialized with model: {settings.vlm_model_name}")
-    except Exception as e:
-        print(f"⚠️  Failed to initialize VLM service: {e}")
+        traceback.print_exc()
 
     yield
 
@@ -88,10 +122,62 @@ app.include_router(api_router)
 
 
 if __name__ == "__main__":
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="DesktopMate+ Backend Server",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  python -m src.main
+  python -m src.main --yaml_file yaml_files/main.yml
+  uv run src/main.py --yaml_file yaml_files/main.yml
+
+Environment variables (.env file):
+  - VLM_API_KEY: API key for VLM service
+  - VLM_BASE_URL: Base URL for VLM service
+  - VLM_MODEL_NAME: Model name for VLM service
+  - TTS_API_KEY: API key for TTS service (optional)
+  - TTS_BASE_URL: Base URL for TTS service
+        """,
+    )
+    parser.add_argument(
+        "--yaml_file",
+        type=str,
+        default="yaml_files/main.yml",
+        help="Path to main YAML configuration file (default: yaml_files/main.yml)",
+    )
+    parser.add_argument(
+        "--host", type=str, default=None, help=f"Server host (default: {settings.host})"
+    )
+    parser.add_argument(
+        "--port", type=int, default=None, help=f"Server port (default: {settings.port})"
+    )
+    parser.add_argument(
+        "--reload", action="store_true", help="Enable auto-reload for development"
+    )
+
+    args = parser.parse_args()
+
+    # Load main configuration if provided
+    if args.yaml_file:
+        try:
+            config_paths = load_main_config(args.yaml_file)
+            _config_paths.update(config_paths)
+            print(f"✅ Loaded configuration from: {args.yaml_file}")
+        except Exception as e:
+            print(f"⚠️  Failed to load configuration from {args.yaml_file}: {e}")
+            print("   Using default configuration paths")
+
+    # Determine server settings
+    host = args.host or settings.host
+    port = args.port or settings.port
+    reload = args.reload or settings.debug
+
+    # Run the server
     uvicorn.run(
         "src.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
+        host=host,
+        port=port,
+        reload=reload,
         log_level="debug" if settings.debug else "info",
     )

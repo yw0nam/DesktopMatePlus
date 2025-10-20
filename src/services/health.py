@@ -24,10 +24,10 @@ class HealthService:
             Tuple of (is_ready, error_message)
         """
         try:
-            from src.services import _vlm_service
+            from src.services import get_vlm_service
 
             # Get VLM engine and check health
-            vlm_engine = getattr(_vlm_service, "vlm_engine", None)
+            vlm_engine = get_vlm_service()
             if vlm_engine is None:
                 return False, "VLM service not initialized"
 
@@ -48,10 +48,10 @@ class HealthService:
             Tuple of (is_ready, error_message)
         """
         try:
-            from src.services import _tts_service
+            from src.services import get_tts_service
 
             # Get TTS engine and check health
-            tts_engine = getattr(_tts_service, "tts_engine", None)
+            tts_engine = get_tts_service()
             if tts_engine is None:
                 return False, "TTS service not initialized"
 

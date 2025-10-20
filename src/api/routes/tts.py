@@ -5,7 +5,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from src.services import _tts_service
+from src.services import get_tts_service
 
 router = APIRouter(prefix="/v1/tts", tags=["TTS"])
 
@@ -90,7 +90,9 @@ async def synthesize_speech(request: TTSRequest) -> TTSResponse:
     Raises:
         HTTPException: If TTS service is not initialized, input is invalid, or processing fails
     """
-    if _tts_service.tts_engine is None:
+    tts_service = get_tts_service()
+
+    if tts_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="TTS service not initialized",
@@ -105,7 +107,7 @@ async def synthesize_speech(request: TTSRequest) -> TTSResponse:
 
     try:
         # Call TTS service to generate speech
-        audio_data = _tts_service.tts_engine.generate_speech(
+        audio_data = tts_service.generate_speech(
             text=request.text,
             reference_id=request.reference_id,
             output_format=request.output_format,

@@ -6,23 +6,13 @@ from src.services.screen_capture_service import (
     ScreenCaptureService,
     get_screen_capture_service,
 )
-
-
-# Global service storage
-class _TTSService:
-    """Container for global TTS engine instance."""
-
-    tts_engine = None
-
-
-class _VLMService:
-    """Container for global VLM engine instance."""
-
-    vlm_engine = None
-
-
-_tts_service = _TTSService()
-_vlm_service = _VLMService()
+from src.services.service_manager import (
+    get_tts_service,
+    get_vlm_service,
+    initialize_services,
+    initialize_tts_service,
+    initialize_vlm_service,
+)
 
 __all__ = [
     "HealthService",
@@ -30,6 +20,9 @@ __all__ = [
     "ScreenCaptureService",
     "ScreenCaptureError",
     "get_screen_capture_service",
-    "_tts_service",
-    "_vlm_service",
+    "initialize_services",
+    "initialize_tts_service",
+    "initialize_vlm_service",
+    "get_tts_service",
+    "get_vlm_service",
 ]
