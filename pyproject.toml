@@ -19,7 +19,7 @@ dependencies = [
     # LLM & AI Model Clients
     "openai>=1.0.0",
     # Memory Management
-    "mem0ai>=0.1.118",
+    "mem0ai>=1.0.0",
     "langmem>=0.0.29",
     # Database & Storage
     "psycopg[binary]>=3.2.1",
