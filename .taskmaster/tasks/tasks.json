@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": "1",
+        "id": 1,
         "title": "Initialize Python Project and Environment",
         "description": "Set up the Python project structure, create a virtual environment, and configure dependency management using pyproject.toml and uv.",
         "details": "Use pyenv or venv to create a virtual environment. Initialize pyproject.toml for dependency management. Install uv for package management. Ensure .gitignore is present for Python artifacts. Adhere to PEP8 code style from the start.",
@@ -13,7 +13,7 @@
         "subtasks": []
       },
       {
-        "id": "2",
+        "id": 2,
         "title": "Install Core Dependencies",
         "description": "Install FastAPI, Uvicorn, LangGraph, vLLM client, Fish Speech client, mem0, Pydantic, and other required libraries.",
         "details": "Add all required packages to pyproject.toml. Use uv to install: fastapi, uvicorn, langgraph, vllm, fish-speech, mem0, pydantic, dxcam, mss, requests, and any other explicitly required libraries.",
@@ -26,7 +26,7 @@
         "subtasks": []
       },
       {
-        "id": "3",
+        "id": 3,
         "title": "Configure FastAPI Application",
         "description": "Set up the FastAPI server with dynamic port assignment and automatic OpenAPI documentation.",
         "details": "Create main.py with FastAPI app instance. Configure host as 127.0.0.1 and port as 8000 (or dynamic). Enable auto-generated docs at /docs. Use Uvicorn for local development.",
@@ -98,7 +98,7 @@
         ]
       },
       {
-        "id": "4",
+        "id": 4,
         "title": "Implement Health Check Endpoint",
         "description": "Create GET /health endpoint to report readiness of VLM, TTS, and Agent modules.",
         "details": "Define /health route in FastAPI. Query status of VLM, TTS, and LangGraph agent modules. Return JSON with status and module readiness.",
@@ -158,7 +158,7 @@
         ]
       },
       {
-        "id": "5",
+        "id": 5,
         "title": "Develop Screen Capture Utility",
         "description": "Implement cross-platform screen capture using DXcam (Windows) and MSS (macOS/Linux).",
         "details": "Create a Python module that detects OS and uses DXcam or MSS to capture the screen. Output image as bytes.",
@@ -171,7 +171,7 @@
         "subtasks": []
       },
       {
-        "id": "6",
+        "id": 6,
         "title": "Encode Image for VLM API",
         "description": "Process captured screen image and encode as Base64 for VLM API requests.",
         "details": "Implement function to convert image bytes to Base64 string. Ensure compatibility with vLLM API requirements.",
@@ -185,7 +185,7 @@
         "updatedAt": "2025-10-17T06:48:12.175Z"
       },
       {
-        "id": "7",
+        "id": 7,
         "title": "Integrate VLM API Client",
         "description": "Integrate VLM to main.py API to send image to vLLM server and receive description.",
         "details": "Create internal Python client for vLLM API. Send Base64-encoded image via HTTP request. Parse and return textual description.",
@@ -198,7 +198,7 @@
         "subtasks": []
       },
       {
-        "id": "8",
+        "id": 8,
         "title": "Implement TTS Synthesis Client",
         "description": "Develop a robust, modular TTS synthesis client with provider abstraction, supporting synthesize_speech(text: str) -> bytes and advanced features such as fallback, health checks, and multiple output formats.",
         "status": "done",
@@ -302,7 +302,7 @@
         ]
       },
       {
-        "id": "9",
+        "id": 9,
         "title": "Unify TTS and VLM interface and configuration pattern.",
         "description": "Unify the interface and configuration pattern for TTS and VLM services",
         "status": "done",
@@ -316,7 +316,7 @@
         "updatedAt": "2025-10-20T01:24:18.576Z"
       },
       {
-        "id": "10",
+        "id": 10,
         "title": "Define LangGraph Agent State and Nodes",
         "description": "Implement GraphState TypedDict and LangGraph nodes for perceive_environment, query_memory, reason_and_plan, generate_response, and update_memory.",
         "details": "Define GraphState with messages, visual_context, action_plan, user_id. Implement each node as a Python function. Integrate with VLM, mem0, and TTS tools.",
@@ -330,7 +330,7 @@
         "subtasks": []
       },
       {
-        "id": "11",
+        "id": 11,
         "title": "Integrate Memory Management with mem0",
         "description": "Implement memory_tool integration for semantic memory management using mem0.",
         "details": "Create add_memory, update_memory, delete_memory functions. Use Pydantic schemas for validation. Ensure all memory operations are internal to agent nodes.",
@@ -344,7 +344,7 @@
         "updatedAt": "2025-10-21T06:08:39.072Z"
       },
       {
-        "id": "12",
+        "id": 12,
         "title": "Implement Controlled Vocabulary Manager(After Version 1)",
         "description": "Develop VocabularyManager for metadata.category validation and management.",
         "details": "Create SQLite table controlled_vocabulary(category TEXT UNIQUE). Implement get_all_terms and ensure_categories functions. Integrate with memory_tool logic.",
@@ -357,7 +357,7 @@
         "subtasks": []
       },
       {
-        "id": "13",
+        "id": 13,
         "title": "Implement Fresh/Old Memory Tiering and Migration(After Version 1)",
         "description": "Set up fresh_memory and old_memory collections in mem0. Develop cleanup.py script for periodic migration.",
         "details": "Track updated_at timestamps. Move memories older than threshold (e.g., 30 days) from fresh to old. Implement sequential probing in search logic.",
@@ -370,7 +370,78 @@
         "subtasks": []
       },
       {
-        "id": "14",
+        "id": 14,
+        "title": "Implement async streaming generation of agent invoke.",
+        "description": "Set up async streaming for agent invocation responses.",
+        "details": "Implement astream for real-time response generation. Ensure compatibility with existing agent workflows.",
+        "testStrategy": "Unit tests for astream integration. Validate streaming behavior with various input scenarios.",
+        "priority": "high",
+        "dependencies": [
+          "11"
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define async streaming interface for agent invocation",
+            "description": "Design and document the async streaming interface (e.g., IAsyncEnumerable<T> in C#) that will be used to yield agent responses in real time, ensuring it fits within the existing agent workflow architecture.",
+            "dependencies": [],
+            "details": "Specify the method signature, return type, and expected behavior for streaming agent responses. Ensure the interface supports cancellation and error handling. Document how the stream integrates with the agent’s existing invoke logic.",
+            "status": "pending",
+            "testStrategy": "Write unit tests to verify the interface contract: ensure the method can be awaited in a loop, supports cancellation, and propagates errors correctly."
+          },
+          {
+            "id": 2,
+            "title": "Modify agent invoke logic to support async streaming",
+            "description": "Update the agent’s core invocation logic to generate responses as an async stream instead of returning a single completed result.",
+            "dependencies": [
+              1
+            ],
+            "details": "Refactor the agent’s generate method to yield partial responses as they become available, using language-native async streaming constructs (e.g., yield return in C#). Remove any buffering of full responses before returning. Ensure the streaming logic is non-blocking and cooperates with cancellation tokens.",
+            "status": "pending",
+            "testStrategy": "Unit tests: validate that responses are streamed incrementally, cancellation is respected, and the agent’s workflow state is maintained correctly during streaming."
+          },
+          {
+            "id": 3,
+            "title": "Integrate async streaming with existing agent workflows",
+            "description": "Ensure the new async streaming capability is compatible with all existing agent workflows, including chained invocations and state management.",
+            "dependencies": [
+              2
+            ],
+            "details": "Audit all agent workflow steps that consume invocation results. Update them to handle streaming responses, either by processing chunks incrementally or by aggregating as needed. Verify that workflow state (e.g., memory, context) is correctly preserved across streaming boundaries.",
+            "status": "pending",
+            "testStrategy": "Integration tests: run full agent workflows with streaming enabled, checking for correct behavior, state consistency, and error propagation. Test with workflows that chain multiple streaming invocations."
+          },
+          {
+            "id": 4,
+            "title": "Implement real-time progress and error reporting",
+            "description": "Add mechanisms to report progress (e.g., tokens generated, steps completed) and errors in real time through the async stream.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Modify the streaming interface to include progress events and error details as part of the streamed data. Ensure consumers can distinguish between data chunks, progress updates, and errors. Document how to handle and display these events in the client.",
+            "status": "pending",
+            "testStrategy": "Unit and integration tests: verify that progress and error events are correctly emitted and can be consumed by the client. Test error recovery and progress tracking in various scenarios."
+          },
+          {
+            "id": 5,
+            "title": "Validate streaming behavior and compatibility",
+            "description": "Thoroughly test the async streaming implementation under various conditions to ensure reliability and compatibility.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Conduct end-to-end tests with different input scenarios, including large responses, rapid cancellation, and error conditions. Measure performance impact and memory usage compared to the non-streaming implementation. Gather feedback from dependent components (e.g., WebSocket streaming endpoint) to confirm seamless integration.",
+            "status": "pending",
+            "testStrategy": "Comprehensive test suite: simulate high load, cancellation, network failures, and malformed inputs. Validate that streaming does not degrade system stability or correctness. Compare metrics with the previous synchronous implementation."
+          }
+        ]
+      },
+      {
+        "id": 15,
         "title": "Implement WebSocket Streaming /v1/chat/stream Endpoint",
         "description": "Create WebSocket API endpoint for real-time streaming chat with audio responses. Process user messages, manage thread_id, run LangGraph workflow with astream, implement intelligent text buffering, and stream audio chunks to frontend.",
         "details": "Architecture: WebSocket endpoint at WS /v1/chat/stream. Backend acts as orchestrator between LangGraph (text generation) and Fish Speech (TTS). Implementation steps: 1) Define WebSocket message schemas (user message in, audio chunks out). 2) Load/create thread state using Checkpointer. 3) Run LangGraph workflow with astream: perceive -> query_memory -> reason -> generate -> update_memory. 4) Implement intelligent buffering: accumulate text chunks from LangGraph until sentence boundaries (. ! ? ,) are detected. 5) Async TTS calls: send complete sentences to Fish Speech API asynchronously without blocking. 6) Stream audio: encode audio bytes as Base64 and send via WebSocket immediately upon receipt. 7) Frontend receives Base64 audio chunks, decodes, and queues for seamless playback. Keep POST /v1/chat endpoint for non-streaming use cases.",
@@ -378,7 +449,9 @@
         "priority": "high",
         "dependencies": [
           "10",
-          "8"
+          "8",
+          "11",
+          "14"
         ],
         "status": "pending",
         "subtasks": [
@@ -443,7 +516,7 @@
         ]
       },
       {
-        "id": "16",
+        "id": 16,
         "title": "Implement Checkpointer for Conversation State",
         "description": "Integrate LangGraph's Checkpointer (e.g., SqliteSaver) to persist and restore GraphState per thread_id.",
         "details": "Configure SqliteSaver for thread-based state persistence. Ensure state is loaded/saved on each API call.",
@@ -456,7 +529,7 @@
         "subtasks": []
       },
       {
-        "id": "17",
+        "id": 17,
         "title": "Package Application with PyInstaller",
         "description": "Bundle all Python code, dependencies, and model files into a single executable for Tauri integration.",
         "details": "Configure PyInstaller spec to include all dependencies and model weights. Ensure executable runs independently and loads models from bundled folder.",
@@ -477,7 +550,7 @@
         "subtasks": []
       },
       {
-        "id": "18",
+        "id": 18,
         "title": "Develop Unit and Integration Tests",
         "description": "Write comprehensive tests for all modules and API endpoints, including mocking external dependencies.",
         "details": "Use pytest for unit tests of VLM, TTS, LangGraph nodes, memory tools. Use requests or Postman for API integration tests. Mock external servers for isolation.",
@@ -507,7 +580,9 @@
       "completedCount": 11,
       "tags": [
         "master"
-      ]
+      ],
+      "created": "2025-10-21T06:49:31.813Z",
+      "description": "Tasks for master context"
     }
   }
 }
