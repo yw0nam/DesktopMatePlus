@@ -57,7 +57,12 @@ class MemoryAgentGraphBuilder:
         self._vocabulary_manager = vocabulary_manager
         self._prompt = SystemMessage(content=(system_prompt or MEMORY_CONTEXT_PROMPT))
 
-    def build(self) -> CompiledStateGraph:
+    async def build(self) -> CompiledStateGraph:
+        """Build compiledStateGraph using the provided components.
+
+        Returns:
+            CompiledStateGraph: The constructed state graph.
+        """
         checkpointer = InMemorySaver()
         builder = StateGraph(OverallState)
         builder.add_node("load_memories", self._load_memories)
@@ -70,6 +75,15 @@ class MemoryAgentGraphBuilder:
     def _load_memories(
         self, state: OverallState, config: RunnableConfig
     ) -> OverallState:
+        """
+        Loads relevant memories and updates the state accordingly before processing the agent node.
+
+        Args:
+            state (OverallState): The current state of the overall process.
+            config (RunnableConfig): The configuration for the runnable.
+        Returns:
+            OverallState: The updated state after loading memories.
+        """
         conf = _resolve_configuration(config)
         user_messages = [
             m.content for m in state.get("messages", []) if isinstance(m, HumanMessage)
@@ -123,8 +137,11 @@ class MemoryAgentGraphBuilder:
         state["messages"] = list(system_messages) + list(previous_messages)
         return state
 
-    def _agent_node(self, state: OverallState, config: RunnableConfig) -> OverallState:
+    async def _agent_node(
+        self, state: OverallState, config: RunnableConfig
+    ) -> OverallState:
         """Handles the agent node processing.
+        For handling MCP Tools, we need to create agent using async.
 
         Args:
             state (OverallState): The current state of the overall process.
@@ -166,7 +183,7 @@ class MemoryAgentGraphBuilder:
                 )
             ] + agent_messages
 
-        agent_state = agent.invoke({"messages": agent_messages}, config=config)
+        agent_state = await agent.ainvoke({"messages": agent_messages}, config=config)
         return {"messages": agent_state["messages"]}
 
 

@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Initialize Python Project and Environment",
         "description": "Set up the Python project structure, create a virtual environment, and configure dependency management using pyproject.toml and uv.",
         "details": "Use pyenv or venv to create a virtual environment. Initialize pyproject.toml for dependency management. Install uv for package management. Ensure .gitignore is present for Python artifacts. Adhere to PEP8 code style from the start.",
@@ -13,7 +13,7 @@
         "subtasks": []
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Install Core Dependencies",
         "description": "Install FastAPI, Uvicorn, LangGraph, vLLM client, Fish Speech client, mem0, Pydantic, and other required libraries.",
         "details": "Add all required packages to pyproject.toml. Use uv to install: fastapi, uvicorn, langgraph, vllm, fish-speech, mem0, pydantic, dxcam, mss, requests, and any other explicitly required libraries.",
@@ -26,7 +26,7 @@
         "subtasks": []
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Configure FastAPI Application",
         "description": "Set up the FastAPI server with dynamic port assignment and automatic OpenAPI documentation.",
         "details": "Create main.py with FastAPI app instance. Configure host as 127.0.0.1 and port as 8000 (or dynamic). Enable auto-generated docs at /docs. Use Uvicorn for local development.",
@@ -98,7 +98,7 @@
         ]
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Implement Health Check Endpoint",
         "description": "Create GET /health endpoint to report readiness of VLM, TTS, and Agent modules.",
         "details": "Define /health route in FastAPI. Query status of VLM, TTS, and LangGraph agent modules. Return JSON with status and module readiness.",
@@ -158,7 +158,7 @@
         ]
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Develop Screen Capture Utility",
         "description": "Implement cross-platform screen capture using DXcam (Windows) and MSS (macOS/Linux).",
         "details": "Create a Python module that detects OS and uses DXcam or MSS to capture the screen. Output image as bytes.",
@@ -171,7 +171,7 @@
         "subtasks": []
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Encode Image for VLM API",
         "description": "Process captured screen image and encode as Base64 for VLM API requests.",
         "details": "Implement function to convert image bytes to Base64 string. Ensure compatibility with vLLM API requirements.",
@@ -185,7 +185,7 @@
         "updatedAt": "2025-10-17T06:48:12.175Z"
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Integrate VLM API Client",
         "description": "Integrate VLM to main.py API to send image to vLLM server and receive description.",
         "details": "Create internal Python client for vLLM API. Send Base64-encoded image via HTTP request. Parse and return textual description.",
@@ -198,7 +198,7 @@
         "subtasks": []
       },
       {
-        "id": 8,
+        "id": "8",
         "title": "Implement TTS Synthesis Client",
         "description": "Develop a robust, modular TTS synthesis client with provider abstraction, supporting synthesize_speech(text: str) -> bytes and advanced features such as fallback, health checks, and multiple output formats.",
         "status": "done",
@@ -302,7 +302,7 @@
         ]
       },
       {
-        "id": 9,
+        "id": "9",
         "title": "Unify TTS and VLM interface and configuration pattern.",
         "description": "Unify the interface and configuration pattern for TTS and VLM services",
         "status": "done",
@@ -316,7 +316,7 @@
         "updatedAt": "2025-10-20T01:24:18.576Z"
       },
       {
-        "id": 10,
+        "id": "10",
         "title": "Define LangGraph Agent State and Nodes",
         "description": "Implement GraphState TypedDict and LangGraph nodes for perceive_environment, query_memory, reason_and_plan, generate_response, and update_memory.",
         "details": "Define GraphState with messages, visual_context, action_plan, user_id. Implement each node as a Python function. Integrate with VLM, mem0, and TTS tools.",
@@ -326,11 +326,11 @@
           "7",
           "8"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
-        "id": 11,
+        "id": "11",
         "title": "Integrate Memory Management with mem0",
         "description": "Implement memory_tool integration for semantic memory management using mem0.",
         "details": "Create add_memory, update_memory, delete_memory functions. Use Pydantic schemas for validation. Ensure all memory operations are internal to agent nodes.",
@@ -339,16 +339,17 @@
         "dependencies": [
           "10"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2025-10-21T06:08:39.072Z"
       },
       {
-        "id": 12,
-        "title": "Implement Controlled Vocabulary Manager",
+        "id": "12",
+        "title": "Implement Controlled Vocabulary Manager(After Version 1)",
         "description": "Develop VocabularyManager for metadata.category validation and management.",
         "details": "Create SQLite table controlled_vocabulary(category TEXT UNIQUE). Implement get_all_terms and ensure_categories functions. Integrate with memory_tool logic.",
         "testStrategy": "Test category insertion, retrieval, and duplicate handling. Validate integration with memory operations.",
-        "priority": "medium",
+        "priority": "low",
         "dependencies": [
           "11"
         ],
@@ -356,12 +357,12 @@
         "subtasks": []
       },
       {
-        "id": 13,
-        "title": "Implement Fresh/Old Memory Tiering and Migration",
+        "id": "13",
+        "title": "Implement Fresh/Old Memory Tiering and Migration(After Version 1)",
         "description": "Set up fresh_memory and old_memory collections in mem0. Develop cleanup.py script for periodic migration.",
         "details": "Track updated_at timestamps. Move memories older than threshold (e.g., 30 days) from fresh to old. Implement sequential probing in search logic.",
         "testStrategy": "Simulate memory aging and migration. Validate search order and correctness.",
-        "priority": "medium",
+        "priority": "low",
         "dependencies": [
           "11"
         ],
@@ -369,7 +370,7 @@
         "subtasks": []
       },
       {
-        "id": 14,
+        "id": "14",
         "title": "Implement WebSocket Streaming /v1/chat/stream Endpoint",
         "description": "Create WebSocket API endpoint for real-time streaming chat with audio responses. Process user messages, manage thread_id, run LangGraph workflow with astream, implement intelligent text buffering, and stream audio chunks to frontend.",
         "details": "Architecture: WebSocket endpoint at WS /v1/chat/stream. Backend acts as orchestrator between LangGraph (text generation) and Fish Speech (TTS). Implementation steps: 1) Define WebSocket message schemas (user message in, audio chunks out). 2) Load/create thread state using Checkpointer. 3) Run LangGraph workflow with astream: perceive -> query_memory -> reason -> generate -> update_memory. 4) Implement intelligent buffering: accumulate text chunks from LangGraph until sentence boundaries (. ! ? ,) are detected. 5) Async TTS calls: send complete sentences to Fish Speech API asynchronously without blocking. 6) Stream audio: encode audio bytes as Base64 and send via WebSocket immediately upon receipt. 7) Frontend receives Base64 audio chunks, decodes, and queues for seamless playback. Keep POST /v1/chat endpoint for non-streaming use cases.",
@@ -388,7 +389,8 @@
             "dependencies": [],
             "details": "Specify JSON schemas for messages sent by the client (including thread_id, text, and metadata) and for server responses (including Base64-encoded audio, text, and status fields). Document the protocol, including connection, error, and close events. Ensure compatibility with frontend expectations.",
             "status": "pending",
-            "testStrategy": "Unit test schema validation for both incoming and outgoing messages. Fuzz test with invalid and edge-case payloads."
+            "testStrategy": "Unit test schema validation for both incoming and outgoing messages. Fuzz test with invalid and edge-case payloads.",
+            "parentId": "undefined"
           },
           {
             "id": 2,
@@ -399,7 +401,8 @@
             ],
             "details": "Use FastAPI or equivalent to define the WebSocket route. On connection, authenticate and initialize session state. On message, parse and validate input schema. On disconnect, clean up resources. Integrate with Checkpointer to load or create thread state per thread_id.",
             "status": "pending",
-            "testStrategy": "Integration test: Connect/disconnect clients, send valid/invalid messages, and verify correct session and state management."
+            "testStrategy": "Integration test: Connect/disconnect clients, send valid/invalid messages, and verify correct session and state management.",
+            "parentId": "undefined"
           },
           {
             "id": 3,
@@ -410,7 +413,8 @@
             ],
             "details": "Invoke LangGraph's astream for real-time text generation. Buffer incoming text chunks, detecting sentence boundaries (., !, ?, ,) to form complete sentences. Ensure partial sentences are held until completion. Prepare buffered sentences for TTS processing.",
             "status": "pending",
-            "testStrategy": "Unit and integration tests: Simulate LangGraph output, verify buffering logic, and ensure sentences are correctly segmented and passed downstream."
+            "testStrategy": "Unit and integration tests: Simulate LangGraph output, verify buffering logic, and ensure sentences are correctly segmented and passed downstream.",
+            "parentId": "undefined"
           },
           {
             "id": 4,
@@ -421,7 +425,8 @@
             ],
             "details": "For each buffered sentence, asynchronously call the TTS client (Fish Speech). As soon as audio is received, encode as Base64 and send via WebSocket. Ensure non-blocking operation so text generation and TTS can proceed in parallel. Handle TTS errors gracefully.",
             "status": "pending",
-            "testStrategy": "Integration test: Simulate high-throughput text, verify that audio chunks are streamed promptly and in order, and that TTS failures do not block the pipeline."
+            "testStrategy": "Integration test: Simulate high-throughput text, verify that audio chunks are streamed promptly and in order, and that TTS failures do not block the pipeline.",
+            "parentId": "undefined"
           },
           {
             "id": 5,
@@ -432,17 +437,18 @@
             ],
             "details": "Connect multiple WebSocket clients, send chat messages, and verify that each receives correctly ordered audio chunks corresponding to their thread_id. Test with rapid message sequences and simulate server restarts to validate Checkpointer integration.",
             "status": "pending",
-            "testStrategy": "Automated integration tests: Use WebSocket clients to send/receive messages, decode audio, and check playback continuity. Stress test with concurrent sessions and validate state restoration."
+            "testStrategy": "Automated integration tests: Use WebSocket clients to send/receive messages, decode audio, and check playback continuity. Stress test with concurrent sessions and validate state restoration.",
+            "parentId": "undefined"
           }
         ]
       },
       {
-        "id": 16,
+        "id": "16",
         "title": "Implement Checkpointer for Conversation State",
         "description": "Integrate LangGraph's Checkpointer (e.g., SqliteSaver) to persist and restore GraphState per thread_id.",
         "details": "Configure SqliteSaver for thread-based state persistence. Ensure state is loaded/saved on each API call.",
         "testStrategy": "Simulate server restarts and API calls. Validate state restoration and continuity.",
-        "priority": "high",
+        "priority": "medium",
         "dependencies": [
           "10"
         ],
@@ -450,7 +456,7 @@
         "subtasks": []
       },
       {
-        "id": 17,
+        "id": "17",
         "title": "Package Application with PyInstaller",
         "description": "Bundle all Python code, dependencies, and model files into a single executable for Tauri integration.",
         "details": "Configure PyInstaller spec to include all dependencies and model weights. Ensure executable runs independently and loads models from bundled folder.",
@@ -471,7 +477,7 @@
         "subtasks": []
       },
       {
-        "id": 18,
+        "id": "18",
         "title": "Develop Unit and Integration Tests",
         "description": "Write comprehensive tests for all modules and API endpoints, including mocking external dependencies.",
         "details": "Use pytest for unit tests of VLM, TTS, LangGraph nodes, memory tools. Use requests or Postman for API integration tests. Mock external servers for isolation.",
@@ -496,15 +502,12 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-10-20T01:24:18.578Z",
-      "taskCount": 18,
-      "completedCount": 8,
+      "lastModified": "2025-10-21T06:08:39.075Z",
+      "taskCount": 17,
+      "completedCount": 11,
       "tags": [
         "master"
-      ],
-      "created": "2025-10-20T01:37:33.486Z",
-      "description": "Tasks for master context",
-      "updated": "2025-10-20T02:25:24.512Z"
+      ]
     }
   }
 }

@@ -8,7 +8,9 @@ class DeleteMemoryTool(BaseTool):
     """A tool to permanently delete a memory using its unique ID."""
 
     name: str = "delete_memory"
-    description: str = "Warning: This tool permanently deletes a memory. Use with extreme caution. It requires the exact memory ID and the user's ID."
+    description: str = (
+        "Warning: This tool permanently deletes a memory. Use with extreme caution. It requires the exact memory ID and the user's ID."
+    )
     args_schema: type[DeleteMemoryInput] = DeleteMemoryInput
     mem0_client: Memory
 

@@ -10,7 +10,9 @@ class UpdateMemoryTool(BaseTool):
     """A tool to update an existing memory using its unique ID."""
 
     name: str = "update_memory"
-    description: str = "Use this tool to update an existing memory. You must provide the memory's unique ID, the user's ID, and a payload with the fields to update."
+    description: str = (
+        "Use this tool to update an existing memory. You must provide the memory's unique ID, the user's ID, and a payload with the fields to update."
+    )
     args_schema: type[UpdateMemoryInput] = UpdateMemoryInput
     mem0_client: Memory
 

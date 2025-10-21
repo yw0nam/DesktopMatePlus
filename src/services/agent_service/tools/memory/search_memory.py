@@ -15,7 +15,9 @@ class SearchMemoryTool(BaseTool):
     """A tool to search for relevant memories from the user's knowledge base."""
 
     name: str = "search_memory"
-    description: str = "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
+    description: str = (
+        "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
+    )
     args_schema: type[SearchMemoryInput] = SearchMemoryInput
     mem0_client: Memory
     user_id: str
@@ -51,20 +53,21 @@ class SearchMemoryTool(BaseTool):
         self,
         query: str,
         limit: int = 5,
-        metadata_filter: Optional[Dict[str, Any]] = None,
+        # metadata_filter: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Searches for memories synchronously."""
         try:
-            normalized_metadata = self._prepare_metadata_filter(metadata_filter)
+            # TODO: Implement metadata filter handling after ver 1.0
+            # normalized_metadata = self._prepare_metadata_filter(metadata_filter)
             search_response = self.mem0_client.search(
                 query=query,
                 user_id=self.user_id,
                 run_id=self.run_id,
                 agent_id=self.agent_id,
                 limit=limit,
-                filters=(
-                    {"metadata": normalized_metadata} if normalized_metadata else None
-                ),
+                # filters=(
+                #     {"metadata": normalized_metadata} if normalized_metadata else None
+                # ),
             )
 
             return json.dumps(search_response, indent=2, ensure_ascii=False)

@@ -5,9 +5,10 @@
 The DesktopMate+ backend follows a **microservices architecture** where:
 
 1. **FastAPI Backend (Port 8000)** - Main API gateway and orchestrator
-2. **VLM Service (Port 8001)** - Vision-Language Model inference server (vLLM)
+2. **VLM Service (Port 5530)** - Vision-Language Model inference server (vLLM)
 3. **TTS Service (Port 8080)** - Text-to-Speech server (Fish Speech)
 4. **PostgreSQL (Port 5432)** - Database for mem0 memory management (future)
+5. **LLM (Port 55120)** - LLM service
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

@@ -10,10 +10,10 @@ class AddMemoryInput(BaseModel):
         ...,
         description="The actual content or text of the memory to be stored. This should be a clear and concise piece of information.",
     )
-    metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Optional key-value pairs that provide additional context or allow for structured filtering during search (e.g., {'source': 'email', 'project_id': 'proj-123'}).",
-    )
+    # metadata: Optional[Dict[str, Any]] = Field(
+    #     default=None,
+    #     description="Optional key-value pairs that provide additional context or allow for structured filtering during search (e.g., {'source': 'email', 'project_id': 'proj-123'}).",
+    # )
 
 
 class SearchMemoryInput(BaseModel):
@@ -27,10 +27,10 @@ class SearchMemoryInput(BaseModel):
         default=5,
         description="The maximum number of memory results to return. Defaults to 5 to avoid overwhelming the context window.",
     )
-    metadata_filter: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="A dictionary to filter memories based on their metadata. Only memories matching all key-value pairs will be returned.",
-    )
+    # metadata_filter: Optional[Dict[str, Any]] = Field(
+    #     default=None,
+    #     description="A dictionary to filter memories based on their metadata. Only memories matching all key-value pairs will be returned.",
+    # )
 
 
 class DeleteMemoryInput(BaseModel):

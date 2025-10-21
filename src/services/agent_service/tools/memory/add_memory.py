@@ -15,7 +15,9 @@ class AddMemoryTool(BaseTool):
     """A tool to add a new memory to the user's knowledge base."""
 
     name: str = "add_memory"
-    description: str = "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
+    description: str = (
+        "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
+    )
     args_schema: type[AddMemoryInput] = AddMemoryInput
     mem0_client: Memory
     user_id: str
@@ -50,17 +52,18 @@ class AddMemoryTool(BaseTool):
     def _run(
         self,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        # metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Adds a memory synchronously."""
         try:
-            self._record_categories(metadata)
+            # self._record_categories(metadata)
+            # For simplicity, we skip metadata handling for now. This feature will be added after ver 1.0
             result = self.mem0_client.add(
                 content,
                 user_id=self.user_id,
                 run_id=self.run_id,
                 agent_id=self.agent_id,
-                metadata=metadata,
+                # metadata=metadata,
             )
             return json.dumps(result, ensure_ascii=False)
         except Exception as exc:  # pragma: no cover - defensive fallback
