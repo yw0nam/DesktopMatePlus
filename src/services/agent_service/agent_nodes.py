@@ -23,12 +23,12 @@ from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from mem0 import Memory
 
-from src.services.agent_service.message_util import trim_messages
 from src.services.agent_service.state import Configuration, GraphState
 from src.services.agent_service.tools.memory import AddMemoryTool, SearchMemoryTool
 from src.services.agent_service.tools.memory.metadata_manager import (
     PostgreSQLVocabularyManager,
 )
+from src.services.agent_service.utils.message_util import trim_messages
 from src.services.screen_capture_service.screen_capture import ScreenCaptureService
 from src.services.vlm_service.service import VLMService
 
@@ -173,6 +173,7 @@ class AgentNodes:
         relevant_memories: List[Dict[str, Any]] = []
         try:
             results_json = search_tool._run(query=query, limit=5)
+            logger.info(f"Memory search executed Result {results_json}")
             if results_json:
                 relevant_memories = json.loads(results_json)
                 logger.info(f"Retrieved {len(relevant_memories)} relevant memories")
@@ -205,14 +206,15 @@ class AgentNodes:
         # Build context for reasoning
         context_parts = []
 
-        if state.get("visual_context"):
-            context_parts.append(f"Screen Context:\n{state['visual_context']}")
+        logger.debug(f"State for reasoning: {state}, type: {type(state)}")
 
-        if state.get("relevant_memories"):
-            memories_str = "\n".join(
-                [f"- {mem.get('memory', '')}" for mem in state["relevant_memories"]]
-            )
-            context_parts.append(f"Relevant Memories:\n{memories_str}")
+        if state["visual_context"]:
+            context_parts.append(f"Screen Context:\n{state['visual_context']}")
+        logger.debug("visual_context passed")
+
+        if state["relevant_memories"]:
+            context_parts.append(f"Relevant Memories:\n{state['relevant_memories']}")
+        logger.debug("relevant_memories passed")
 
         # Get latest user message
         user_messages = [
@@ -236,7 +238,7 @@ Provide a concise action plan (2-3 sentences)."""
 
         try:
             # Use LLM for reasoning
-            response = await self.llm.ainvoke([SystemMessage(content=reasoning_prompt)])
+            response = await self.llm.ainvoke([HumanMessage(content=reasoning_prompt)])
             action_plan = (
                 response.content if hasattr(response, "content") else str(response)
             )
@@ -276,20 +278,21 @@ Provide a concise action plan (2-3 sentences)."""
         ]
         conf = _resolve_configuration(config)
 
-        if state.get("action_plan"):
+        logger.debug(f"state for response generation: {state}, type: {type(state)}")
+
+        if state["action_plan"] != "":
             system_message_parts.append(f"Action Plan: {state['action_plan']}")
 
-        if state.get("relevant_memories"):
-            memories_context = "\n".join(
-                [f"- {mem.get('memory', '')}" for mem in state["relevant_memories"]]
-            )
+        if state["relevant_memories"]:
             system_message_parts.append(
-                f"Relevant memories about the user:\n{memories_context}"
+                f"Relevant memories about the user:\n{state['relevant_memories']}"
             )
 
         system_message = SystemMessage(content="\n\n".join(system_message_parts))
 
         # Prepare messages for LLM
+        logger.debug(f"State for response generation: {state}, type: {type(state)}")
+        logger.debug(f"system_message content: {system_message.content[:200]}...")
         previous_messages = trim_messages(state.get("messages", []))
         messages_for_llm = [system_message] + list(previous_messages)
 

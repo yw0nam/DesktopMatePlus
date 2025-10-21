@@ -26,10 +26,10 @@ class GraphState(TypedDict, total=False):
     """
 
     messages: Annotated[List[BaseMessage], add_messages]
-    visual_context: Optional[str]
-    action_plan: Optional[str]
-    user_id: str
-    relevant_memories: List[Dict[str, Any]]
+    visual_context: Optional[str] = ""
+    action_plan: Optional[str] = ""
+    user_id: str = ""
+    relevant_memories: List[Dict[str, Any]] = []
 
 
 class Configuration(BaseModel):

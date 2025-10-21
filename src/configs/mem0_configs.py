@@ -1,8 +1,10 @@
 import os
 from typing import Dict
 
+from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 
+load_dotenv()
 embedding_model = OpenAIEmbeddings(
     model=os.getenv("EMB_MODEL_NAME"),
     openai_api_base=os.getenv("EMB_BASE_URL"),

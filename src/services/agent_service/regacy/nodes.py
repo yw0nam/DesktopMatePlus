@@ -17,8 +17,8 @@ from mem0 import Memory
 
 from src.configs.mem0_configs import MEM0_CONFIG, VOCABULARY_DB_CONFIG
 from src.services.agent_service.llm_factory import LLMFactory
-from src.services.agent_service.message_util import trim_messages
 from src.services.agent_service.state import Configuration, OverallState
+from src.services.agent_service.text_utils.message_util import trim_messages
 from src.services.agent_service.tools.memory import AddMemoryTool, SearchMemoryTool
 from src.services.agent_service.tools.memory.metadata_manager import (
     PostgreSQLVocabularyManager,
