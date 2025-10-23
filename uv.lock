@@ -559,6 +559,7 @@ dependencies = [
     { name = "tenacity" },
     { name = "types-requests" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 
 [package.optional-dependencies]
@@ -574,6 +575,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -616,6 +618,8 @@ requires-dist = [
     { name = "tenacity", specifier = ">=8.0.0" },
     { name = "types-requests", specifier = ">=2.32.4.20250913" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
+    { name = "websockets", specifier = ">=14.0" },
+    { name = "websockets", marker = "extra == 'dev'", specifier = ">=14.0" },
 ]
 provides-extras = ["dev"]
 

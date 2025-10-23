@@ -1,0 +1,190 @@
+
+<PRD\>
+
+# Overview
+
+This document outlines the requirements for a real-time conversational agent backend.
+
+The primary problem this system solves is the high perceived latency in traditional request-response chatbot interactions. Users typically have to wait until the AI has generated its entire response before they see or hear anything.
+
+This system is designed for developers building highly interactive applications (such as desktop assistants, voice interfaces, or advanced chatbots) that require immediate, human-like feedback.
+
+Its value lies in dramatically reducing the time-to-first-response by simultaneously streaming data for two separate purposes: a real-time "typing effect" for the UI and complete, cleaned sentence chunks for a Text-to-Speech (TTS) engine. This creates a much more engaging and natural user experience.
+
+# Core Features
+
+  * **Dual-Channel Response Streaming**
+
+      * **What it does:** Generates and streams two distinct types of text data from a single LLM response.
+      * **Why it's important:** Allows a client application to simultaneously display a real-time typing effect (using raw tokens) and play back smooth, natural-sounding audio (using processed sentence chunks).
+      * **How it works:** When the LangGraph state machine generates text, the `on_chat_model_stream` event data is fanned out to two independent pipelines.
+        1.  **Path A (UI Stream):** Raw tokens are immediately sent to the client via the `stream_token` event for UI display.
+        2.  **Path B (TTS Stream):** The same tokens are fed into a stateful `TextChunkProcessor` which buffers them, identifies sentence boundaries, and passes complete chunks to a `TTSTextProcessor` for cleaning. The final, clean chunk is sent via the `tts_ready_chunk` event.
+
+  * **Real-time Agent State Transparency**
+
+      * **What it does:** Notifies the client in real-time when the agent begins and ends internal tasks, such as calling a tool.
+      * **Why it's important:** Provides the end-user with immediate feedback on what the AI is "thinking" or "doing" (e.g., "Searching for weather..."), reducing uncertainty and improving the perceived responsiveness during tool-use delays.
+      * **How it works:** The system intercepts `on_tool_start` and `on_tool_end` events from the LangGraph stream and forwards them to the client as dedicated `tool_call_start` and `tool_call_end` WebSocket events.
+
+  * **Interruptible Conversation Flow**
+
+      * **What it does:** Allows the client to send an `interrupt_stream` message to immediately and safely stop the agent's current response generation.
+      * **Why it's important:** Gives the user full control over the conversation, emulating the natural ability to "cut off" or redirect a speaker.
+      * **How it works:** A central `MessageProcessor` class manages all `asyncio.Task`s related to a single conversational turn. Receiving an `interrupt_stream` message triggers a cancellation command on these tasks, safely tearing down the entire streaming pipeline for that turn.
+
+  * **Persistent Conversational Memory**
+
+      * **What it does:** Remembers the context and history of a conversation across multiple interactions and sessions.
+      * **Why it's important:** Enables stateful, multi-turn dialogues where the agent can refer to previous messages.
+      * **How it works:** The system uses a LangGraph Checkpointer (e.g., `RedisSaver` in production) linked to a `conversation_id`. This ID is used to load the conversation's history before executing a new turn and save the new messages upon completion.
+
+# User Experience
+
+  * **User Personas**
+
+      * **Developer (Primary User):** An application developer who needs a backend API to power a conversational interface. They will consume the WebSocket API defined in this document.
+      * **End-User (Secondary User):** The individual interacting with the final application (e.g., a desktop assistant). They experience the system's output as real-time text and audio.
+
+  * **Key User Flows**
+
+    1.  **Connection:** The client application establishes a WebSocket connection and sends an `authorize` message. The server responds with `authorize_success`.
+    2.  **User Inquiry:** The end-user provides input (text or speech). The client sends a `send_message` event to the server, including the `conversation_id` and user input.
+    3.  **AI Response & Streaming:**
+          * Server sends `stream_start`.
+          * Server *simultaneously* begins sending:
+              * A rapid series of `stream_token` events (e.g., "Hello", ", ", "how", " can", " I..."). The client UI renders these for a typing effect.
+              * A slower series of `tts_ready_chunk` events (e.g., "Hello, how can I help you today?"). The client queues these chunks for playback by a TTS engine.
+          * (If a tool is used) Server sends `tool_call_start` (UI shows "Searching..."). After completion, it sends `tool_call_end`.
+          * Server sends `stream_end` once the full response is generated.
+    4.  **User Interruption:** The end-user speaks or clicks "stop." The client sends an `interrupt_stream` message. The server immediately stops sending `stream_token` and `tts_ready_chunk` events for that turn.
+    5.  **Disconnection:** The client disconnects. The server cleans up all associated connection-level resources.
+
+  * **UI/UX Considerations**
+
+      * The client UI must be designed to handle two asynchronous data streams concurrently: one for the visual typing animation (`stream_token`) and one for the audio playback queue (`tts_ready_chunk`).
+      * The client should implement a visual indicator (e.g., a "thinking" spinner) that activates upon receiving `tool_call_start` and deactivates on `tool_call_end`.
+      * The client-side TTS playback mechanism must queue incoming `tts_ready_chunk`s to ensure smooth, uninterrupted audio playback.
+
+# Technical Architecture
+
+  * **System Components**
+
+      * **WebSocket Gateway:** The stateful entry point for all client communication. Manages connection lifecycles, authentication, message deserialization, and routing.
+      * **Orchestration Core (MessageProcessor):** A class-based component instantiated for each conversational turn. It acts as a supervisor, managing the entire lifecycle of the LangGraph stream, the text processing pipeline, and all related `asyncio.Task`s to prevent resource leaks.
+      * **LangGraph State Machine:** The "brain" of the agent, defined using `StateGraph`. It includes nodes for the LLM (`agent`) and `tool_executor`, with conditional edges to manage the conversation logic.
+      * **Text Processing Pipeline:** A two-stage, stateful pipeline:
+        1.  `TextChunkProcessor`: A stateful object that buffers tokens and yields complete sentences based on terminators.
+        2.  `TTSTextProcessor`: A stateless, rule-based object that cleans the output chunks, removing artifacts (e.g., `(laughter)`) and expanding abbreviations to make them TTS-friendly.
+
+  * **Data Models (State Management)**
+
+      * **Connection State (Ephemeral):** Managed by the WebSocket Gateway. Includes `connection_id`, authentication status. Lasts only as long as the WebSocket connection.
+      * **Conversation State (Persistent):** Managed by the LangGraph Checkpointer (e.g., `RedisSaver`). Includes the full message history, tied to a `conversation_id`. This state is durable and survives server restarts.
+      * **Turn State (Ephemeral):** Managed by a `MessageProcessor` instance. Includes active `asyncio.Task` references and the internal buffer of the `TextChunkProcessor`. It is created on `send_message` and destroyed on `stream_end` or `interrupt`.
+
+  * **APIs and Integrations**
+
+      * **WebSocket API:** A single-endpoint (`wss://api.example.com/v1/chat/stream`) protocol for all real-time communication. The full message contract is defined in the Appendix (Table 1).
+          * **Client-to-Server:** `authorize`, `send_message`, `interrupt_stream`, `pong`.
+          * **Server-to-Client:** `authorize_success`, `stream_start`, `stream_token`, `tts_ready_chunk`, `tool_call_start`, `tool_call_end`, `stream_end`, `error`, `ping`.
+      * **LangGraph Integration:**
+          * The system uses `graph.astream_events` to consume a fine-grained event stream.
+          * The `MessageProcessor` listens specifically for `on_chat_model_stream`, `on_tool_start`, and `on_tool_end` events.
+          * Persistent state is linked by passing `{"configurable": {"thread_id": conversation_id}}` to the graph's `astream_events` method.
+
+  * **Infrastructure Requirements**
+
+      * **Asynchronous Web Server:** A Python server capable of handling a large number of concurrent WebSocket connections (e.g., FastAPI, Quart).
+      * **Persistent Checkpointer:** A Redis instance is required for the production-level `RedisSaver` to store conversation state.
+      * **Observability Stack (Recommended):** A Prometheus/Grafana stack for monitoring key metrics (defined in 6.2 of the source PRD) and a structured logging aggregator (e.g., ELK stack).
+      * **Backpressure Mechanism:** The `asyncio.Queue` used between the stream producer (LangGraph) and consumer (WebSocket) *must* be initialized with a `maxsize` to prevent memory exhaustion if the client consumes data slower than the server produces it.
+
+# Development Roadmap
+
+  * **MVP (Phase 1): Core Streaming Functionality**
+
+    1.  **WebSocket Gateway:** Implement the connection, `authorize`, and `ping`/`pong` lifecycle.
+    2.  **Basic Graph:** Define the `StateGraph` with an `agent` node and an in-memory `MemorySaver`.
+    3.  **Core Orchestrator:** Build the `MessageProcessor` class to handle `send_message`.
+    4.  **Producer/Consumer Loop:** Implement the `astream_events` producer and a consumer using an `asyncio.Queue(maxsize=...)`.
+    5.  **UI Stream (Path A):** Implement the `stream_token` event emission. This provides the first visible frontend feature.
+    6.  **Interrupts:** Implement the `interrupt_stream` message to cancel the active tasks in the `MessageProcessor`.
+    7.  **TTS Stream (Path B):**
+          * Build `TextChunkProcessor` (with `process` and `flush` methods).
+          * Build a *basic* `TTSTextProcessor` (with hard-coded rules).
+          * Implement the `tts_ready_chunk` event emission.
+    8.  **Lifecycle Events:** Implement `stream_start` and `stream_end` events.
+    9.  **Basic Error Handling:** Add a `try...except` block around the stream processing to send a generic `error` event on failure.
+
+  * **Future Enhancements (Phase 2): Production Readiness**
+
+    1.  **Persistent Memory:** Replace `MemorySaver` with `RedisSaver` and integrate it with the `conversation_id` provided by the client.
+    2.  **Agent Transparency:** Add event handling for `on_tool_start`/`on_tool_end` to emit the `tool_call_start` and `tool_call_end` events.
+    3.  **Configurable TTS:** Refactor `TTSTextProcessor` to load its cleaning rules from an external configuration file (e.g., YAML or JSON).
+    4.  **Structured Logging:** Implement structured JSON logging across all components, ensuring `conversation_id` and `turn_id` are included in all logs for traceability.
+    5.  **Observability:** Integrate Prometheus metrics for key indicators:
+          * `websocket_active_connections`
+          * `turn_processing_latency_seconds`
+          * `time_to_first_token_seconds`
+          * `langgraph_node_errors_total`
+
+# Logical Dependency Chain
+
+1.  **Foundation (Gateway):** Build the WebSocket server and connection management (`authorize`, `ping`/`pong`). This is the entry point.
+2.  **Orchestration (MVP):** Build the `MessageProcessor` class to handle `send_message`, `interrupt`, and `cleanup`.
+3.  **Brain (MVP):** Define the basic LangGraph with `MemorySaver`.
+4.  **Visible Front-End (UI Stream):** Connect `MessageProcessor` to `graph.astream_events`. Implement the "Path A" fan-out to send `stream_token` events. This creates the first usable, visible feature (the typing effect).
+5.  **Core Feature (Audio Stream):** Build the `TextChunkProcessor` and `TTSTextProcessor`. Add "Path B" to the fan-out to send `tts_ready_chunk` events.
+6.  **UX Improvement (Transparency):** Add logic to handle `on_tool_start`/`on_tool_end` and emit the corresponding `tool_call_start`/`tool_call_end` events.
+7.  **Productionizing (Persistence):** Swap the `MemorySaver` for `RedisSaver` to enable persistent, multi-session conversations.
+8.  **Productionizing (Ops):** Layer in structured logging and Prometheus metrics for monitoring and debugging.
+9.  **Refinement:** Externalize the `TTSTextProcessor` rules into a config file for easier maintenance.
+
+# Risks and Mitigations
+
+  * **Risk:** Asynchronous Task Leakage
+
+      * **Description:** An `asyncio.Task` (like the LangGraph stream) continues running in the background after a client disconnects or an error occurs, leading to a resource leak.
+      * **Mitigation:** The `MessageProcessor` class acts as a strict supervisor. It must maintain references to all tasks it spawns and implement a `cleanup()` method (called in a `finally` block or on disconnect) that explicitly cancels every active task.
+
+  * **Risk:** Memory Exhaustion (Backpressure Failure)
+
+      * **Description:** The LangGraph stream produces tokens much faster than the client/network can consume them, causing the intermediate `asyncio.Queue` to grow indefinitely and consume all server memory.
+      * **Mitigation:** The `asyncio.Queue` *must* be initialized with a `maxsize` (e.g., `maxsize=100`). This creates natural backpressure, as the `await queue.put()` call will block, pausing the LangGraph producer until the consumer has space.
+
+  * **Risk:** TTS Stream Contamination
+
+      * **Description:** Text from different sources (e.g., a tool's output and the LLM's subsequent commentary) are concatenated in the `TextChunkProcessor` buffer, creating a nonsensical sentence for TTS.
+      * **Mitigation:** The `MessageProcessor` must be responsible for the `TextChunkProcessor`'s lifecycle. It should create a *new* instance of `TextChunkProcessor` for each distinct semantic block of text (e.g., on `on_chat_model_start`) and call `flush()` on it at the end (e.g., on `on_chat_model_end`).
+
+  * **Risk:** Lost Text (Incomplete Final Sentence)
+
+      * **Description:** The final sentence of a response (e.g., "Thank you") may not have punctuation, causing it to remain in the `TextChunkProcessor`'s buffer and never be sent to the user.
+      * **Mitigation:** The `TextChunkProcessor` must have a `flush()` method that returns any remaining text in its buffer. The `MessageProcessor` is responsible for calling `flush()` when the stream ends (`stream_end`).
+
+  * **Risk:** Poor Quality Audio
+
+      * **Description:** The TTS engine receives text containing artifacts (e.g., `(chuckles)`, `*sighs*`) or unexpanded abbreviations, resulting in unnatural audio.
+      * **Mitigation:** The `TTSTextProcessor` must be implemented with a robust, configurable set of regex rules to clean and normalize the text chunks *before* they are sent to the client.
+
+# Appendix
+
+### **Table 1: WebSocket Message Schema and Event Types**
+
+| Event Type | Direction | Description | Data Schema | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| `authorize` | C2S | Authenticates the connection. | `{ "token": "..." }` | `{"type": "authorize", "payload": {"token": "..."}}` |
+| `send_message` | C2S | Requests a new AI response stream. | `{ "conversation_id": "...", "input": "..." }` | `{"type": "send_message", "payload": {"conversation_id": "...", "input": "Hi"}}` |
+| `interrupt_stream` | C2S | Requests immediate stop of the current stream. | `{ "conversation_id": "..." }` | `{"type": "interrupt_stream", "payload": {"conversation_id": "..."}}` |
+| `pong` | C2S | Response to the server's `ping`. | `{}` | `{"type": "pong", "payload": {}}` |
+| `authorize_success` | S2C | Confirms successful authentication. | `{}` | `{"event": "authorize_success", "data": {}}` |
+| `stream_start` | S2C | Signals the start of a new AI response stream. | `{ "turn_id": "uuid" }` | `{"event": "stream_start", "data": {"turn_id": "abc-123"}}` |
+| `stream_token` | S2C | A single token for UI real-time typing. | `{ "token": "string" }` | `{"event": "stream_token", "data": {"token": "Hello"}}` |
+| `tts_ready_chunk` | S2C | A complete, cleaned sentence chunk ready for TTS. | `{ "chunk": "string" }` | `{"event": "tts_ready_chunk", "data": {"chunk": "Hello, how can I help you?"}}` |
+| `tool_call_start` | S2C | Informs the client that a tool call has started. | `{ "tool_name": "string", "tool_input": "object" }` | `{"event": "tool_call_start", "data": {"tool_name": "get_weather", "tool_input": {"city": "Seoul"}}}` |
+| `tool_call_end` | S2C | Informs the client that a tool call has finished. | `{ "tool_name": "string", "tool_output": "string" }` | `{"event": "tool_call_end", "data": {"tool_name": "get_weather", "tool_output": "It is sunny."}}` |
+| `stream_end` | S2C | Signals the end of the current AI response stream. | `{ "turn_id": "uuid" }` | `{"event": "stream_end", "data": {"turn_id": "abc-123"}}` |
+| `error` | S2C | Transmits a server-side error to the client. | `{ "code": "int", "message": "string" }` | `{"event": "error", "data": {"code": 5001, "message": "Tool execution failed."}}` |
+| `ping` | S2C | Server's heartbeat signal. | `{}` | `{"event": "ping", "data": {}}` |
+</PRD>
