@@ -12,12 +12,19 @@ from src.services.agent_service.tools.memory.schemas import AddMemoryInput
 
 
 class AddMemoryTool(BaseTool):
-    """A tool to add a new memory to the user's knowledge base."""
+    """
+    A tool to add a new memory to the user's knowledge base.
+
+    Args:
+        mem0_client (Memory): The Mem0 client instance for memory operations.
+        user_id (str): The ID of the user adding the memory.
+        agent_id (Optional[str]): The ID of the agent adding the memory.
+        run_id (Optional[str]): The ID of the current run/session.
+        vocabulary_manager (Optional[PostgreSQLVocabularyManager]): Manager for metadata vocabulary.
+    """
 
     name: str = "add_memory"
-    description: str = (
-        "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
-    )
+    description: str = "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
     args_schema: type[AddMemoryInput] = AddMemoryInput
     mem0_client: Memory
     user_id: str

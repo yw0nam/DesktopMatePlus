@@ -46,6 +46,7 @@ async def process_message(
 ):
     """메시지를 처리하고 스트리밍 응답을 생성합니다."""
 
+    chunk_count = 0
     node = None
     tool_called = False
     gathered = ""
@@ -60,14 +61,14 @@ async def process_message(
     WORD_ENDINGS = (" ", ",", ";", ":")
 
     chunk_count = 0
+
     try:
         async for msg, metadata in agent.astream(
             {"messages": messages}, stream_mode="messages", config=config
         ):
-            logger.info(f"Processing message chunk: {msg}, metadata: {metadata}")
             # 노드 변경 처리 (로깅만, 클라이언트 전송 없음)
-            # if node != metadata.get("langgraph_node"):
-            #     node = metadata.get("langgraph_node", "unknown")
+            if node != metadata.get("langgraph_node"):
+                node = metadata.get("langgraph_node", "unknown")
 
             # 일반 메시지 콘텐츠 처리
             if isinstance(msg.content, str) and not msg.additional_kwargs:
@@ -117,7 +118,7 @@ async def process_message(
                     chunk_count += 1
                     content_buffer = ""
 
-            # AI 메시지 청크 및 툴 콜 처리 (향후 MCP 재활성화 대비)
+            # AI 메시지 청크 및 툴 콜 처리
             elif isinstance(msg, AIMessageChunk) and msg.additional_kwargs.get(
                 "tool_calls"
             ):
@@ -133,7 +134,6 @@ async def process_message(
                     args_str = tool_info.get("args", "")
                     if args_str and args_str.strip().endswith("}"):
                         tool_name = tool_info.get("name", "unknown")
-                        logger.info(f"Tool call detected: '{tool_name}'")
                         yield {
                             "type": "tool_call",
                             "tool_name": tool_name,
@@ -152,12 +152,16 @@ async def process_message(
                 "node": node,
             }
             chunk_count += 1
-
-        logger.info(f"Message processing completed. Total chunks: {chunk_count}")
-
+        yield {
+            "type": "end",
+            "message": "LLM stream completed successfully.",
+            "message_history": agent.get_state(config=config).values["messages"],
+        }
     except Exception as e:
-        logger.error(f"Error in process_message: {e}")
         # 버퍼에 남은 내용이 있으면 먼저 전송
         if content_buffer.strip():
             yield {"type": "content", "text": content_buffer.strip(), "node": node}
-        yield {"type": "error", "message": "메시지 처리 중 오류가 발생했습니다."}
+        yield {
+            "type": "error",
+            "message": f"메시지 처리 중 오류가 발생했습니다.{str(e)}",
+        }

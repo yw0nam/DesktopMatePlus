@@ -12,12 +12,19 @@ from src.services.agent_service.tools.memory.schemas import SearchMemoryInput
 
 
 class SearchMemoryTool(BaseTool):
-    """A tool to search for relevant memories from the user's knowledge base."""
+    """
+    A tool to search for relevant memories from the user's knowledge base.
+
+    Args:
+        mem0_client (Memory): The Mem0 client instance for memory operations.
+        user_id (str): The ID of the user performing the search.
+        agent_id (Optional[str]): The ID of the agent performing the search.
+        run_id (Optional[str]): The ID of the current run/session.
+        vocabulary_manager (Optional[PostgreSQLVocabularyManager]): Manager for metadata vocabulary.
+    """
 
     name: str = "search_memory"
-    description: str = (
-        "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
-    )
+    description: str = "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
     args_schema: type[SearchMemoryInput] = SearchMemoryInput
     mem0_client: Memory
     user_id: str

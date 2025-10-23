@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, cast
 
 from langchain_core.messages import BaseMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import add_messages
-from pydantic import BaseModel, Field
+from pydantic import Field
 from typing_extensions import Annotated
+
+
+def _resolve_configuration(config: Optional[RunnableConfig]) -> Configuration:
+    raw_config: Dict[str, Any] = {}
+    if config and "configurable" in config:
+        # config["configurable"] may be a mapping-like object
+        raw_config = dict(config["configurable"])  # type: ignore[arg-type]
+    # model_validate expects a dict but its stub may be Any; cast to Configuration
+    return cast(Configuration, Configuration.model_validate(raw_config))
 
 
 class GraphState(TypedDict, total=False):
@@ -32,16 +42,12 @@ class GraphState(TypedDict, total=False):
     relevant_memories: List[Dict[str, Any]] = []
 
 
-class Configuration(BaseModel):
+class Configuration(RunnableConfig):
     """Runtime configuration for the graph."""
 
     user_id: str = Field(default="default-user", description="Unique user identifier")
     agent_id: str = Field(
         default="default-agent", description="Identifier for this agent instance"
-    )
-    thread_id: Optional[str] = Field(
-        default=None,
-        description="Optional thread identifier used for grouping interactions.",
     )
     capture_screen: bool = Field(
         default=False,
