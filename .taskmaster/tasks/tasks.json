@@ -22,14 +22,14 @@
         "dependencies": [
           1
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
         "id": 3,
         "title": "Basic LangGraph StateGraph with MemorySaver",
         "description": "Define a minimal LangGraph `StateGraph` containing an LLM agent node and an in‑memory `MemorySaver` for turn‑based state persistence.",
-        "details": "• Install `langgraph` and a compatible LLM wrapper (e.g., OpenAIChat).\n• Create a `StateGraph` with nodes: `agent` (LLM) and `tool_executor` (placeholder).\n• Use `MemorySaver` for the checkpointer during MVP.\n• Provide a helper `get_graph(conversation_id)` that returns `graph.astream_events(configurable={\"thread_id\": conversation_id})`.\n• Ensure the graph yields events `on_chat_model_stream`, `on_tool_start`, `on_tool_end`.\n• Add simple conditional edges to allow tool execution flow (can be a no‑op for MVP).",
+        "details": "• Create a `StateGraph` with nodes: `agent` (LLM) and `tool_executor` (placeholder).\n• Use `MemorySaver` for the checkpointer during MVP.\n• Provide a helper `get_graph(conversation_id)` that returns `graph.astream_events(configurable={\"thread_id\": conversation_id})`.\n• Ensure the graph yields events `on_chat_model_stream`, `on_tool_start`, `on_tool_end`.\n• Add simple conditional edges to allow tool execution flow (can be a no‑op for MVP).",
         "testStrategy": "Integration test that creates a graph, runs `astream_events` with a short prompt, and asserts that token events are emitted and that the in‑memory history contains both user and assistant messages.",
         "priority": "medium",
         "dependencies": [
@@ -134,7 +134,7 @@
     ],
     "metadata": {
       "created": "2025-10-23T04:23:05.122Z",
-      "updated": "2025-10-23T04:55:27.555Z",
+      "updated": "2025-10-23T05:14:11.438Z",
       "description": "Tasks for master context"
     }
   }

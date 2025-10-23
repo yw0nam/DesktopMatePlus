@@ -3,7 +3,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 
-from src.services.websocket_manager import websocket_manager
+from src.services.websocket_service import websocket_manager
 
 router = APIRouter(prefix="/v1/chat", tags=["WebSocket"])
 

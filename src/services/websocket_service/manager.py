@@ -3,7 +3,7 @@
 import asyncio
 import json
 import time
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 from weakref import WeakSet
 
@@ -22,6 +22,8 @@ from src.models.websocket import (
     ServerMessage,
 )
 
+from .message_processor import MessageProcessor, TurnStatus
+
 
 class ConnectionState:
     """State information for a WebSocket connection."""
@@ -34,6 +36,7 @@ class ConnectionState:
         self.last_pong_time: Optional[float] = None
         self.user_id: Optional[str] = None
         self.created_at = time.time()
+        self.message_processor: Optional[MessageProcessor] = None
 
 
 class WebSocketManager:
@@ -80,7 +83,13 @@ class WebSocketManager:
             connection_id: The connection identifier to disconnect
         """
         if connection_id in self.connections:
-            self.connections[connection_id]
+            connection_state = self.connections[connection_id]
+
+            # Shutdown MessageProcessor if it exists
+            if connection_state.message_processor:
+                # Create a task to shutdown the message processor
+                asyncio.create_task(connection_state.message_processor.shutdown())
+
             logger.info(f"WebSocket connection disconnected: {connection_id}")
             del self.connections[connection_id]
 
@@ -156,6 +165,11 @@ class WebSocketManager:
             connection_state.is_authenticated = True
             connection_state.user_id = user_id
 
+            # Initialize MessageProcessor for this connection
+            connection_state.message_processor = MessageProcessor(
+                connection_id=connection_id, user_id=user_id
+            )
+
             response = AuthorizeSuccessMessage(connection_id=connection_id)
             await self.send_message(connection_id, response)
             logger.info(f"Connection {connection_id} authenticated as {user_id}")
@@ -185,6 +199,161 @@ class WebSocketManager:
         if connection_state:
             connection_state.last_pong_time = time.time()
             logger.debug(f"Received pong from {connection_id}")
+
+    async def handle_chat_message(self, connection_id: UUID, message_data: dict):
+        """Handle incoming chat message.
+
+        Args:
+            connection_id: Connection identifier
+            message_data: Chat message data
+        """
+        connection_state = self.connections.get(connection_id)
+        if not connection_state:
+            logger.error(f"No connection state for {connection_id}")
+            return
+
+        # Check authentication first
+        if not connection_state.is_authenticated:
+            logger.warning(f"Unauthenticated chat message attempt from {connection_id}")
+            await self.send_message(
+                connection_id, ErrorMessage(error="Authentication required")
+            )
+            return
+
+        # Check message processor availability
+        if not connection_state.message_processor:
+            logger.error(f"No message processor for connection {connection_id}")
+            await self.send_message(
+                connection_id, ErrorMessage(error="Message processor not initialized")
+            )
+            return
+
+        try:
+            # Extract message content
+            content = message_data.get("content", "")
+            metadata = message_data.get("metadata", {})
+
+            # Start a new conversation turn
+            turn_id = await connection_state.message_processor.start_conversation_turn(
+                user_message=content, metadata=metadata
+            )
+
+            # Update turn status to processing
+            await connection_state.message_processor.update_turn_status(
+                turn_id, TurnStatus.PROCESSING
+            )
+
+            # TODO: This is where we'll integrate with LangGraph in future tasks
+            # For now, just complete the turn with a placeholder response
+            logger.info(
+                f"Processing chat message for turn {turn_id}: {content[:100]}..."
+            )
+
+            # Simulate processing (this will be replaced with actual LangGraph integration)
+            await asyncio.sleep(0.1)  # Small delay to simulate processing
+
+            # Complete the turn
+            await connection_state.message_processor.complete_turn(
+                turn_id,
+                metadata={
+                    "response": "MessageProcessor integration complete - awaiting LangGraph integration"
+                },
+            )
+
+            # Send a placeholder response
+            from src.models.websocket import ChatResponseMessage
+
+            response = ChatResponseMessage(
+                content=f"Turn {turn_id} processed successfully. MessageProcessor is working!",
+                metadata={"turn_id": turn_id, "status": "completed"},
+            )
+            await self.send_message(connection_id, response)
+
+        except Exception as e:
+            logger.error(f"Error processing chat message from {connection_id}: {e}")
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error=f"Failed to process message: {str(e)}"),
+            )
+
+    async def interrupt_active_turn(
+        self, connection_id: UUID, turn_id: Optional[str] = None
+    ) -> bool:
+        """Interrupt an active conversation turn for a connection.
+
+        Args:
+            connection_id: Connection identifier
+            turn_id: Specific turn to interrupt, or None to interrupt all active turns
+
+        Returns:
+            bool: True if any turns were interrupted
+        """
+        connection_state = self.connections.get(connection_id)
+        if not connection_state or not connection_state.message_processor:
+            logger.warning(f"No message processor for connection {connection_id}")
+            return False
+
+        if turn_id:
+            # Interrupt specific turn
+            result = await connection_state.message_processor.interrupt_turn(
+                turn_id, "Client requested interruption"
+            )
+            if result:
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(error=f"Turn {turn_id} interrupted", code=4003),
+                )
+            return result
+        else:
+            # Interrupt all active turns
+            active_turns = await connection_state.message_processor.get_active_turns()
+            interrupted_count = 0
+
+            for turn in active_turns:
+                result = await connection_state.message_processor.interrupt_turn(
+                    turn.turn_id, "Client requested interruption"
+                )
+                if result:
+                    interrupted_count += 1
+
+            if interrupted_count > 0:
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(
+                        error=f"Interrupted {interrupted_count} active turns", code=4003
+                    ),
+                )
+
+            return interrupted_count > 0
+
+    async def get_connection_stats(
+        self, connection_id: UUID
+    ) -> Optional[Dict[str, Any]]:
+        """Get statistics for a specific connection.
+
+        Args:
+            connection_id: Connection identifier
+
+        Returns:
+            Dictionary with connection statistics or None if not found
+        """
+        connection_state = self.connections.get(connection_id)
+        if not connection_state:
+            return None
+
+        stats = {
+            "connection_id": str(connection_id),
+            "user_id": connection_state.user_id,
+            "is_authenticated": connection_state.is_authenticated,
+            "created_at": connection_state.created_at,
+            "last_ping_time": connection_state.last_ping_time,
+            "last_pong_time": connection_state.last_pong_time,
+        }
+
+        if connection_state.message_processor:
+            stats.update(connection_state.message_processor.get_stats())
+
+        return stats
 
     async def handle_message(self, connection_id: UUID, raw_message: str):
         """Handle incoming WebSocket message.
@@ -218,6 +387,10 @@ class WebSocketManager:
             elif message_type == MessageType.PONG:
                 message = PongMessage(**message_data)
                 await self.handle_pong(connection_id, message)
+
+            elif message_type == MessageType.CHAT_MESSAGE:
+                # Handle chat message through MessageProcessor
+                await self.handle_chat_message(connection_id, message_data)
 
             else:
                 # Check if connection is authenticated for other message types

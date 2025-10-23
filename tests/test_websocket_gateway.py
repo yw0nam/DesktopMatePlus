@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 
 from src.models.websocket import MessageType
-from src.services.websocket_manager import ConnectionState, websocket_manager
+from src.services.websocket_service.manager import ConnectionState, websocket_manager
 
 """Tests for WebSocket gateway functionality."""
 
