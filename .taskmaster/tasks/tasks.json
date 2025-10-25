@@ -87,7 +87,7 @@
         "testStrategy": "Unit tests covering:\n  - Generator yielding multiple sentences from a single token batch.\n  - `flush()` behavior when no terminator.\n  - Rules file loading (present/missing) and regex application.\n  - Integration test piping a token stream through both processors and verifying `tts_ready_chunk` outputs.",
         "priority": "medium",
         "dependencies": [],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": []
       },
       {
@@ -134,7 +134,7 @@
     ],
     "metadata": {
       "created": "2025-10-23T04:23:05.122Z",
-      "updated": "2025-10-25T15:14:11.267Z",
+      "updated": "2025-10-25T15:42:05.616Z",
       "description": "Tasks for master context"
     }
   }

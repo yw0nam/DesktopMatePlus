@@ -17,6 +17,8 @@ from uuid import UUID, uuid4
 
 from loguru import logger
 
+from .text_processors import TextChunkProcessor, TTSTextProcessor
+
 _TOKEN_QUEUE_SENTINEL = object()
 _INTERRUPT_WAIT_TIMEOUT = 1.0
 
@@ -49,6 +51,8 @@ class ConversationTurn:
     token_queue: Optional[asyncio.Queue] = None
     token_consumer_task: Optional[asyncio.Task] = None
     token_stream_closed: bool = False
+    chunk_processor: Optional[TextChunkProcessor] = None
+    tts_processor: Optional[TTSTextProcessor] = None
 
     def update_status(self, status: TurnStatus, error_message: Optional[str] = None):
         """Update turn status and timestamp."""
@@ -133,6 +137,8 @@ class MessageProcessor:
             turn.event_queue = asyncio.Queue(maxsize=self.queue_maxsize)
             turn.token_queue = asyncio.Queue(maxsize=self.queue_maxsize)
             turn.token_stream_closed = False
+            turn.chunk_processor = TextChunkProcessor()
+            turn.tts_processor = TTSTextProcessor()
             self.turns[turn_id] = turn
             self.active_turns.add(turn_id)
             self.total_turns += 1
@@ -437,6 +443,8 @@ class MessageProcessor:
                         break
                 turn.token_queue = None
                 turn.token_stream_closed = True
+            turn.chunk_processor = None
+            turn.tts_processor = None
 
             self.active_turns.discard(turn_id)
             if self._current_turn_id == turn_id:
@@ -576,15 +584,15 @@ class MessageProcessor:
                     continue
 
                 if event_type == "stream_end":
-                    await self._wait_for_token_queue(turn_id)
                     await self._signal_token_stream_closed(turn_id)
+                    await self._wait_for_token_queue(turn_id)
                     await self._put_event(turn_id, event)
                     await self.complete_turn(turn_id)
                     continue
 
                 if event_type == "error":
-                    await self._wait_for_token_queue(turn_id)
                     await self._signal_token_stream_closed(turn_id)
+                    await self._wait_for_token_queue(turn_id)
                     await self._put_event(turn_id, event)
                     await self.fail_turn(turn_id, event.get("error", "Unknown error"))
                     continue
@@ -600,8 +608,8 @@ class MessageProcessor:
             raise
         except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
             await self.fail_turn(turn_id, str(exc))
-            await self._wait_for_token_queue(turn_id)
             await self._signal_token_stream_closed(turn_id)
+            await self._wait_for_token_queue(turn_id)
             await self._put_event(
                 turn_id,
                 {
@@ -775,11 +783,10 @@ class MessageProcessor:
                 token_event = await queue.get()
                 try:
                     if token_event is _TOKEN_QUEUE_SENTINEL:
+                        await self._flush_tts_buffer(turn_id)
                         break
 
-                    tts_event = self._build_tts_event(token_event)
-                    if tts_event:
-                        await self._put_event(turn_id, tts_event)
+                    await self._process_token_event(turn_id, token_event)
                 finally:
                     queue.task_done()
         except asyncio.CancelledError:
@@ -792,21 +799,84 @@ class MessageProcessor:
             if turn:
                 turn.token_stream_closed = True
 
-    def _build_tts_event(self, token_event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Convert a raw token event into a TTS ready chunk."""
+    async def _process_token_event(
+        self,
+        turn_id: str,
+        token_event: Dict[str, Any],
+    ) -> None:
+        """Transform a single token event into zero or more TTS events."""
+
+        turn = self.turns.get(turn_id)
+        if not turn:
+            logger.debug("Token event received for unknown turn %s", turn_id)
+            return
+
+        if not turn.chunk_processor:
+            turn.chunk_processor = TextChunkProcessor()
+        if not turn.tts_processor:
+            turn.tts_processor = TTSTextProcessor()
 
         chunk = token_event.get("data") or token_event.get("chunk")
         if not chunk:
             logger.debug("Token event missing chunk data: %s", token_event)
-            return None
+            return
 
+        for sentence in turn.chunk_processor.process(chunk):
+            processed = turn.tts_processor.process(sentence)
+            text = processed.filtered_text
+            if not text or not any(char.isalnum() for char in text):
+                continue
+            tts_event = self._build_tts_event(
+                turn_id,
+                token_event,
+                text,
+                processed.emotion_tag,
+            )
+            await self._put_event(turn_id, tts_event)
+
+    async def _flush_tts_buffer(self, turn_id: str) -> None:
+        """Flush any remaining buffered text for a turn."""
+
+        turn = self.turns.get(turn_id)
+        if not turn or not turn.chunk_processor or not turn.tts_processor:
+            return
+
+        remainder = turn.chunk_processor.flush()
+        if not remainder:
+            return
+
+        processed = turn.tts_processor.process(remainder)
+        text = processed.filtered_text
+        if not text or not any(char.isalnum() for char in text):
+            return
+
+        tts_event = self._build_tts_event(
+            turn_id,
+            {},
+            text,
+            processed.emotion_tag,
+        )
+        await self._put_event(turn_id, tts_event)
+
+    def _build_tts_event(
+        self,
+        turn_id: str,
+        base_event: Dict[str, Any],
+        chunk: str,
+        emotion: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Construct a tts_ready_chunk event with optional emotion metadata."""
+
+        event = self._normalize_event(turn_id, base_event)
         tts_event = {
             key: value
-            for key, value in token_event.items()
-            if key not in {"type", "data"}
+            for key, value in event.items()
+            if key not in {"type", "data", "chunk"}
         }
         tts_event["type"] = "tts_ready_chunk"
         tts_event["chunk"] = chunk
+        if emotion:
+            tts_event["emotion"] = emotion
         return tts_event
 
     async def _signal_token_stream_closed(self, turn_id: str) -> None:
