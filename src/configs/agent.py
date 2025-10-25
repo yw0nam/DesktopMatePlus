@@ -5,8 +5,8 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-class OpenAILLMConfig(BaseModel):
-    """Configuration for OpenAI LLM."""
+class OpenAIChatAgent(BaseModel):
+    """Configuration for OpenAI Chat Agent."""
 
     openai_api_key: str = Field(
         ..., description="OpenAI API key", default=os.getenv("LLM_API_KEY")
@@ -23,15 +23,19 @@ class OpenAILLMConfig(BaseModel):
     temperature: float = Field(
         0.7, description="Sampling temperature (controls creativity)"
     )
+    mcp_config: dict = Field(
+        {},
+        description="MCP client configuration for OpenAI Chat Agent",
+    )
 
 
-class LLMConfig(BaseModel):
+class AgentConfig(BaseModel):
     """Configuration for Vision-Language Model."""
 
-    llm_model: Literal["openai",] = Field(
+    agent_type: Literal["openai",] = Field(
         ..., description="Large-Language model to use"
     )
 
-    openai_llm: Optional[OpenAILLMConfig] = Field(
-        None, description="Configuration for OpenAI LLM"
+    openai_chat_agent: Optional[OpenAIChatAgent] = Field(
+        None, description="Configuration for OpenAI Chat Agent"
     )
