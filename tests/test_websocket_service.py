@@ -7,7 +7,12 @@ from uuid import uuid4
 
 import pytest
 
-from src.models.websocket import AuthorizeMessage, MessageType, PongMessage
+from src.models.websocket import (
+    AuthorizeMessage,
+    InterruptStreamMessage,
+    MessageType,
+    PongMessage,
+)
 from src.services.websocket_service.manager import ConnectionState, WebSocketManager
 from src.services.websocket_service.message_processor import (
     MessageProcessor,
@@ -252,6 +257,34 @@ class TestWebSocketManager:
 
         # Check that error message was sent
         mock_websocket.send_text.assert_called_once()
+        sent_data = json.loads(mock_websocket.send_text.call_args[0][0])
+        assert sent_data["type"] == MessageType.ERROR
+        assert sent_data["code"] == 4003
+        assert "interrupted" in sent_data["error"]
+
+    @pytest.mark.asyncio
+    async def test_interrupt_active_turn_no_active_turns(self, manager, mock_websocket):
+        """Interrupt all turns responds with informative error when nothing to cancel."""
+
+        connection_id = uuid4()
+        connection_state = ConnectionState(mock_websocket, connection_id)
+        connection_state.is_authenticated = True
+        connection_state.message_processor = Mock(spec=MessageProcessor)
+        connection_state.message_processor.get_active_turns = AsyncMock(return_value=[])
+        connection_state.message_processor.interrupt_turn = AsyncMock(
+            return_value=False
+        )
+
+        manager.connections[connection_id] = connection_state
+
+        result = await manager.interrupt_active_turn(connection_id)
+
+        assert result is False
+        mock_websocket.send_text.assert_called_once()
+        sent_data = json.loads(mock_websocket.send_text.call_args[0][0])
+        assert sent_data["type"] == MessageType.ERROR
+        assert sent_data["code"] == 4004
+        assert "No active turns" in sent_data["error"]
 
     @pytest.mark.asyncio
     async def test_get_connection_stats(self, manager, mock_websocket):
@@ -319,6 +352,47 @@ class TestWebSocketManager:
         parsed_data = json.loads(sent_data)
         assert parsed_data["type"] == MessageType.ERROR
         assert "type" in parsed_data["error"]
+
+    @pytest.mark.asyncio
+    async def test_handle_message_interrupt_stream(self, manager, mock_websocket):
+        """interrupt_stream messages trigger MessageProcessor interruption."""
+
+        connection_id = uuid4()
+        connection_state = ConnectionState(mock_websocket, connection_id)
+        connection_state.is_authenticated = True
+        connection_state.message_processor = Mock(spec=MessageProcessor)
+        connection_state.message_processor.interrupt_turn = AsyncMock(return_value=True)
+
+        manager.connections[connection_id] = connection_state
+
+        message = InterruptStreamMessage(turn_id="turn_abc")
+        await manager.handle_message(connection_id, message.model_dump_json())
+
+        connection_state.message_processor.interrupt_turn.assert_called_once_with(
+            "turn_abc", "Client requested interruption"
+        )
+        mock_websocket.send_text.assert_called_once()
+        payload = json.loads(mock_websocket.send_text.call_args[0][0])
+        assert payload["type"] == MessageType.ERROR
+        assert payload["code"] == 4003
+
+    @pytest.mark.asyncio
+    async def test_handle_message_interrupt_stream_requires_auth(
+        self, manager, mock_websocket
+    ):
+        """Unauthenticated connections cannot interrupt streams."""
+
+        connection_id = uuid4()
+        connection_state = ConnectionState(mock_websocket, connection_id)
+        manager.connections[connection_id] = connection_state
+
+        message = InterruptStreamMessage(turn_id=None)
+        await manager.handle_message(connection_id, message.model_dump_json())
+
+        mock_websocket.send_text.assert_called_once()
+        payload = json.loads(mock_websocket.send_text.call_args[0][0])
+        assert payload["type"] == MessageType.ERROR
+        assert "Authentication" in payload["error"]
 
 
 def test_websocket_service_imports():

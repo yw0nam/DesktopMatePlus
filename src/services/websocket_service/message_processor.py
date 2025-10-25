@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import suppress
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncGenerator, AsyncIterator, Dict, List, Optional, Set
@@ -17,6 +18,7 @@ from uuid import UUID, uuid4
 from loguru import logger
 
 _TOKEN_QUEUE_SENTINEL = object()
+_INTERRUPT_WAIT_TIMEOUT = 1.0
 
 
 class TurnStatus(Enum):
@@ -217,12 +219,14 @@ class MessageProcessor:
             logger.debug("Turn %s not found or already finished", turn_id)
             return False
 
-        if turn_id == self._current_turn_id:
-            await self.handle_interrupt(reason=reason)
-        else:
-            await self.update_turn_status(turn_id, TurnStatus.INTERRUPTED, reason)
-            self.total_interrupted += 1
-            await self.cleanup(turn_id)
+        interrupted_id = await self.handle_interrupt(reason=reason, turn_id=turn_id)
+        if not interrupted_id:
+            logger.debug(
+                "Failed to interrupt turn %s for connection %s",
+                turn_id,
+                self.connection_id,
+            )
+            return False
 
         logger.info(
             "Interrupted turn %s for connection %s. Reason: %s",
@@ -294,25 +298,76 @@ class MessageProcessor:
         return True
 
     async def handle_interrupt(
-        self, reason: str = "Interrupt requested"
+        self,
+        reason: str = "Interrupt requested",
+        turn_id: Optional[str] = None,
     ) -> Optional[str]:
-        """Handle an interrupt for the current turn."""
+        """Handle an interrupt for the specified (or current) turn."""
 
-        turn_id = self._current_turn_id
-        if not turn_id:
+        target_turn_id = turn_id or self._current_turn_id
+        if not target_turn_id:
             logger.debug(
                 "handle_interrupt called with no active turn for connection %s",
                 self.connection_id,
             )
             return None
 
-        turn = self.turns.get(turn_id)
-        if turn and turn.status == TurnStatus.PROCESSING:
-            await self.update_turn_status(turn_id, TurnStatus.INTERRUPTED, reason)
+        turn = self.turns.get(target_turn_id)
+        if not turn or turn.status in {
+            TurnStatus.COMPLETED,
+            TurnStatus.INTERRUPTED,
+            TurnStatus.FAILED,
+        }:
+            logger.debug(
+                "handle_interrupt skipping turn %s (status=%s)",
+                target_turn_id,
+                turn.status if turn else "missing",
+            )
+            return None
+
+        previous_status = turn.status
+        await self.update_turn_status(target_turn_id, TurnStatus.INTERRUPTED, reason)
+        if previous_status != TurnStatus.INTERRUPTED:
             self.total_interrupted += 1
 
-        await self.cleanup(turn_id)
-        return turn_id
+        await self._signal_token_stream_closed(target_turn_id)
+        await self._wait_for_token_queue(target_turn_id)
+        await self._cancel_turn_tasks(target_turn_id)
+
+        queue = self.get_event_queue(target_turn_id)
+        if queue:
+            drained = self._drain_event_queue(target_turn_id)
+            if drained:
+                logger.debug(
+                    "Drained %d queued events before interrupting turn %s",
+                    drained,
+                    target_turn_id,
+                )
+
+            interrupt_event = self._normalize_event(
+                target_turn_id,
+                {
+                    "type": "stream_end",
+                    "reason": reason,
+                    "status": TurnStatus.INTERRUPTED.value,
+                },
+            )
+
+            try:
+                await queue.put(interrupt_event)
+            except asyncio.QueueFull:
+                await queue.put(interrupt_event)
+
+            try:
+                await asyncio.wait_for(queue.join(), timeout=_INTERRUPT_WAIT_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.debug(
+                    "Timed out waiting for interrupt event delivery for turn %s",
+                    target_turn_id,
+                )
+
+        await self.cleanup(target_turn_id)
+        return target_turn_id
 
     async def cleanup(self, turn_id: Optional[str] = None):
         """Cleanup resources associated with a conversation turn."""
@@ -603,6 +658,67 @@ class MessageProcessor:
             queue.qsize(),
         )
 
+    async def _cancel_turn_tasks(
+        self,
+        turn_id: str,
+        *,
+        timeout: float = _INTERRUPT_WAIT_TIMEOUT,
+    ) -> None:
+        """Cancel background tasks associated with a turn and wait briefly."""
+
+        turn = self.turns.get(turn_id)
+        if not turn or not turn.tasks:
+            return
+
+        current_task = asyncio.current_task()
+        tasks_to_cancel: List[asyncio.Task] = []
+
+        for task in list(turn.tasks):
+            if not isinstance(task, asyncio.Task):
+                continue
+            if task.done() or task is current_task:
+                continue
+            task.cancel()
+            tasks_to_cancel.append(task)
+
+        if not tasks_to_cancel:
+            return
+
+        done, pending = await asyncio.wait(
+            tasks_to_cancel,
+            timeout=timeout,
+            return_when=asyncio.ALL_COMPLETED,
+        )
+
+        for task in done:
+            with suppress(asyncio.CancelledError, Exception):
+                task.result()
+
+        if pending:
+            logger.debug(
+                "Timed out waiting for %d tasks to cancel for turn %s",
+                len(pending),
+                turn_id,
+            )
+
+    def _drain_event_queue(self, turn_id: str) -> int:
+        """Remove any pending events from the client queue."""
+
+        queue = self.get_event_queue(turn_id)
+        if not queue:
+            return 0
+
+        drained = 0
+        while True:
+            try:
+                queue.get_nowait()
+                queue.task_done()
+                drained += 1
+            except asyncio.QueueEmpty:
+                break
+
+        return drained
+
     def _ensure_token_consumer(self, turn_id: str) -> None:
         """Ensure the token consumer task exists for the given turn."""
 
@@ -717,7 +833,12 @@ class MessageProcessor:
             return
 
         try:
-            await queue.join()
+            await asyncio.wait_for(queue.join(), timeout=_INTERRUPT_WAIT_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.debug(
+                "Timed out waiting for token queue join for turn %s",
+                turn_id,
+            )
         except asyncio.CancelledError:  # pragma: no cover - defensive
             raise
         except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001

@@ -109,7 +109,12 @@ class ErrorMessage(BaseMessage):
 
 
 # Union type for all possible client messages
-ClientMessage = Union[AuthorizeMessage, PongMessage, ChatMessage]
+ClientMessage = Union[
+    AuthorizeMessage,
+    PongMessage,
+    ChatMessage,
+    InterruptStreamMessage,
+]
 
 # Union type for all possible server messages
 ServerMessage = Union[

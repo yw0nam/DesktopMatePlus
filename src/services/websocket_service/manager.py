@@ -16,6 +16,7 @@ from src.models.websocket import (
     AuthorizeMessage,
     AuthorizeSuccessMessage,
     ErrorMessage,
+    InterruptStreamMessage,
     MessageType,
     PingMessage,
     PongMessage,
@@ -291,6 +292,10 @@ class WebSocketManager:
         connection_state = self.connections.get(connection_id)
         if not connection_state or not connection_state.message_processor:
             logger.warning(f"No message processor for connection {connection_id}")
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="No active turns to interrupt", code=4004),
+            )
             return False
 
         if turn_id:
@@ -302,6 +307,14 @@ class WebSocketManager:
                 await self.send_message(
                     connection_id,
                     ErrorMessage(error=f"Turn {turn_id} interrupted", code=4003),
+                )
+            else:
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(
+                        error=f"Active turn {turn_id} not found or already finished",
+                        code=4004,
+                    ),
                 )
             return result
         else:
@@ -321,6 +334,14 @@ class WebSocketManager:
                     connection_id,
                     ErrorMessage(
                         error=f"Interrupted {interrupted_count} active turns", code=4003
+                    ),
+                )
+            else:
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(
+                        error="No active turns to interrupt",
+                        code=4004,
                     ),
                 )
 
@@ -391,6 +412,16 @@ class WebSocketManager:
             elif message_type == MessageType.CHAT_MESSAGE:
                 # Handle chat message through MessageProcessor
                 await self.handle_chat_message(connection_id, message_data)
+
+            elif message_type == MessageType.INTERRUPT_STREAM:
+                if not connection_state.is_authenticated:
+                    await self.send_message(
+                        connection_id, ErrorMessage(error="Authentication required")
+                    )
+                    return
+
+                message = InterruptStreamMessage(**message_data)
+                await self.interrupt_active_turn(connection_id, message.turn_id)
 
             else:
                 # Check if connection is authenticated for other message types
