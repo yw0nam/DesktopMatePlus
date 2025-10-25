@@ -13,13 +13,11 @@ Its value lies in dramatically reducing the time-to-first-response by simultaneo
 
 # Core Features
 
-  * **Dual-Channel Response Streaming**
+    * **Sentence Streaming for Clients**
 
-      * **What it does:** Generates and streams two distinct types of text data from a single LLM response.
-      * **Why it's important:** Allows a client application to simultaneously display a real-time typing effect (using raw tokens) and play back smooth, natural-sounding audio (using processed sentence chunks).
-      * **How it works:** When the LangGraph state machine generates text, the `on_chat_model_stream` event data is fanned out to two independent pipelines.
-        1.  **Path A (UI Stream):** Raw tokens are immediately sent to the client via the `stream_token` event for UI display.
-        2.  **Path B (TTS Stream):** The same tokens are fed into a stateful `TextChunkProcessor` which buffers them, identifies sentence boundaries, and passes complete chunks to a `TTSTextProcessor` for cleaning. The final, clean chunk is sent via the `tts_ready_chunk` event.
+            * **What it does:** Emits cleaned, sentence-level chunks to clients while keeping raw token flow internal to the server.
+            * **Why it's important:** Provides a single, stable contract for UI and voice playback while allowing the backend to evolve its internal buffering strategy without breaking clients.
+            * **How it works:** LangGraph tokens are placed on an internal queue, processed by `TextChunkProcessor` to identify sentence boundaries, cleaned by `TTSTextProcessor`, and finally emitted to clients as `tts_ready_chunk` events. No `stream_token` payloads are exposed outside the server.
 
   * **Real-time Agent State Transparency**
 
@@ -51,20 +49,18 @@ Its value lies in dramatically reducing the time-to-first-response by simultaneo
     1.  **Connection:** The client application establishes a WebSocket connection and sends an `authorize` message. The server responds with `authorize_success`.
     2.  **User Inquiry:** The end-user provides input (text or speech). The client sends a `send_message` event to the server, including the `conversation_id` and user input.
     3.  **AI Response & Streaming:**
-          * Server sends `stream_start`.
-          * Server *simultaneously* begins sending:
-              * A rapid series of `stream_token` events (e.g., "Hello", ", ", "how", " can", " I..."). The client UI renders these for a typing effect.
-              * A slower series of `tts_ready_chunk` events (e.g., "Hello, how can I help you today?"). The client queues these chunks for playback by a TTS engine.
-          * (If a tool is used) Server sends `tool_call_start` (UI shows "Searching..."). After completion, it sends `tool_call_end`.
-          * Server sends `stream_end` once the full response is generated.
-    4.  **User Interruption:** The end-user speaks or clicks "stop." The client sends an `interrupt_stream` message. The server immediately stops sending `stream_token` and `tts_ready_chunk` events for that turn.
+        * Server sends `stream_start`.
+        * Server streams `tts_ready_chunk` events (e.g., "Hello, how can I help you today?") as soon as complete sentences are available. The client can render text immediately and queue the same chunk for TTS playback.
+        * (If a tool is used) Server sends `tool_call_start` (UI shows "Searching..."). After completion, it sends `tool_call_end`.
+        * Server sends `stream_end` once the full response is generated.
+    4.  **User Interruption:** The end-user speaks or clicks "stop." The client sends an `interrupt_stream` message. The server immediately stops sending `tts_ready_chunk` events for that turn.
     5.  **Disconnection:** The client disconnects. The server cleans up all associated connection-level resources.
 
   * **UI/UX Considerations**
 
-      * The client UI must be designed to handle two asynchronous data streams concurrently: one for the visual typing animation (`stream_token`) and one for the audio playback queue (`tts_ready_chunk`).
-      * The client should implement a visual indicator (e.g., a "thinking" spinner) that activates upon receiving `tool_call_start` and deactivates on `tool_call_end`.
-      * The client-side TTS playback mechanism must queue incoming `tts_ready_chunk`s to ensure smooth, uninterrupted audio playback.
+    * The client UI consumes a single stream of `tts_ready_chunk` events. If a typing animation is desired, the UI should derive it from the latest chunk, since raw token flow remains internal.
+    * The client should implement a visual indicator (e.g., a "thinking" spinner) that activates upon receiving `tool_call_start` and deactivates on `tool_call_end`.
+    * The client-side TTS playback mechanism must queue incoming `tts_ready_chunk`s to ensure smooth, uninterrupted audio playback.
 
 # Technical Architecture
 
@@ -87,7 +83,7 @@ Its value lies in dramatically reducing the time-to-first-response by simultaneo
 
       * **WebSocket API:** A single-endpoint (`wss://api.example.com/v1/chat/stream`) protocol for all real-time communication. The full message contract is defined in the Appendix (Table 1).
           * **Client-to-Server:** `authorize`, `send_message`, `interrupt_stream`, `pong`.
-          * **Server-to-Client:** `authorize_success`, `stream_start`, `stream_token`, `tts_ready_chunk`, `tool_call_start`, `tool_call_end`, `stream_end`, `error`, `ping`.
+          * **Server-to-Client:** `authorize_success`, `stream_start`, `tts_ready_chunk`, `tool_call_start`, `tool_call_end`, `stream_end`, `error`, `ping`.
       * **LangGraph Integration:**
           * The system uses `graph.astream_events` to consume a fine-grained event stream.
           * The `MessageProcessor` listens specifically for `on_chat_model_stream`, `on_tool_start`, and `on_tool_end` events.
@@ -108,13 +104,12 @@ Its value lies in dramatically reducing the time-to-first-response by simultaneo
     2.  **Basic Graph:** Define the `StateGraph` with an `agent` node and an in-memory `MemorySaver`.
     3.  **Core Orchestrator:** Build the `MessageProcessor` class to handle `send_message`.
     4.  **Producer/Consumer Loop:** Implement the `astream_events` producer and a consumer using an `asyncio.Queue(maxsize=...)`.
-    5.  **UI Stream (Path A):** Implement the `stream_token` event emission. This provides the first visible frontend feature.
+    5.  **Sentence Streaming:**
+        * Build `TextChunkProcessor` (with `process` and `flush` methods).
+        * Build a *basic* `TTSTextProcessor` (with hard-coded rules).
+        * Emit `tts_ready_chunk` events as the sole client-visible text payload.
     6.  **Interrupts:** Implement the `interrupt_stream` message to cancel the active tasks in the `MessageProcessor`.
-    7.  **TTS Stream (Path B):**
-          * Build `TextChunkProcessor` (with `process` and `flush` methods).
-          * Build a *basic* `TTSTextProcessor` (with hard-coded rules).
-          * Implement the `tts_ready_chunk` event emission.
-    8.  **Lifecycle Events:** Implement `stream_start` and `stream_end` events.
+    7.  **Lifecycle Events:** Implement `stream_start` and `stream_end` events.
     9.  **Basic Error Handling:** Add a `try...except` block around the stream processing to send a generic `error` event on failure.
 
   * **Future Enhancements (Phase 2): Production Readiness**
@@ -134,12 +129,11 @@ Its value lies in dramatically reducing the time-to-first-response by simultaneo
 1.  **Foundation (Gateway):** Build the WebSocket server and connection management (`authorize`, `ping`/`pong`). This is the entry point.
 2.  **Orchestration (MVP):** Build the `MessageProcessor` class to handle `send_message`, `interrupt`, and `cleanup`.
 3.  **Brain (MVP):** Define the basic LangGraph with `MemorySaver`.
-4.  **Visible Front-End (UI Stream):** Connect `MessageProcessor` to `graph.astream_events`. Implement the "Path A" fan-out to send `stream_token` events. This creates the first usable, visible feature (the typing effect).
-5.  **Core Feature (Audio Stream):** Build the `TextChunkProcessor` and `TTSTextProcessor`. Add "Path B" to the fan-out to send `tts_ready_chunk` events.
-6.  **UX Improvement (Transparency):** Add logic to handle `on_tool_start`/`on_tool_end` and emit the corresponding `tool_call_start`/`tool_call_end` events.
-7.  **Productionizing (Persistence):** Swap the `MemorySaver` for `RedisSaver` to enable persistent, multi-session conversations.
-8.  **Productionizing (Ops):** Layer in structured logging and Prometheus metrics for monitoring and debugging.
-9.  **Refinement:** Externalize the `TTSTextProcessor` rules into a config file for easier maintenance.
+4.  **Visible Front-End Streaming:** Connect `MessageProcessor` to `graph.astream_events`, wire the internal token queue, and emit `tts_ready_chunk` events to clients.
+5.  **UX Improvement (Transparency):** Add logic to handle `on_tool_start`/`on_tool_end` and emit the corresponding `tool_call_start`/`tool_call_end` events.
+6.  **Productionizing (Persistence):** Swap the `MemorySaver` for `RedisSaver` to enable persistent, multi-session conversations.
+7.  **Productionizing (Ops):** Layer in structured logging and Prometheus metrics for monitoring and debugging.
+8.  **Refinement:** Externalize the `TTSTextProcessor` rules into a config file for easier maintenance.
 
 # Risks and Mitigations
 
@@ -180,7 +174,6 @@ Its value lies in dramatically reducing the time-to-first-response by simultaneo
 | `pong` | C2S | Response to the server's `ping`. | `{}` | `{"type": "pong", "payload": {}}` |
 | `authorize_success` | S2C | Confirms successful authentication. | `{}` | `{"event": "authorize_success", "data": {}}` |
 | `stream_start` | S2C | Signals the start of a new AI response stream. | `{ "turn_id": "uuid" }` | `{"event": "stream_start", "data": {"turn_id": "abc-123"}}` |
-| `stream_token` | S2C | A single token for UI real-time typing. | `{ "token": "string" }` | `{"event": "stream_token", "data": {"token": "Hello"}}` |
 | `tts_ready_chunk` | S2C | A complete, cleaned sentence chunk ready for TTS. | `{ "chunk": "string" }` | `{"event": "tts_ready_chunk", "data": {"chunk": "Hello, how can I help you?"}}` |
 | `tool_call_start` | S2C | Informs the client that a tool call has started. | `{ "tool_name": "string", "tool_input": "object" }` | `{"event": "tool_call_start", "data": {"tool_name": "get_weather", "tool_input": {"city": "Seoul"}}}` |
 | `tool_call_end` | S2C | Informs the client that a tool call has finished. | `{ "tool_name": "string", "tool_output": "string" }` | `{"event": "tool_call_end", "data": {"tool_name": "get_weather", "tool_output": "It is sunny."}}` |
