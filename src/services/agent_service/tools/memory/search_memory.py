@@ -25,7 +25,9 @@ class SearchMemoryTool(BaseTool):
     # vocabulary_manager (Optional[PostgreSQLVocabularyManager]): Manager for metadata vocabulary.
 
     name: str = "search_memory"
-    description: str = "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
+    description: str = (
+        "Use this tool to search for memories based on a natural language query. You must provide the user's ID."
+    )
     args_schema: type[SearchMemoryInput] = SearchMemoryInput
     mem0_client: Memory
     user_id: str

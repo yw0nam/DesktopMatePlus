@@ -99,4 +99,5 @@ data/
 
 # Task Master (keep configs but ignore reports)
 .taskmaster/reports/
-.taskmaster/docs/research/
+.taskmaster/docs
+.

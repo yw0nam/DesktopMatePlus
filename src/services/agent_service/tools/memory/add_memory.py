@@ -24,7 +24,9 @@ class AddMemoryTool(BaseTool):
 
     #  vocabulary_manager (Optional[PostgreSQLVocabularyManager]): Manager for metadata vocabulary.
     name: str = "add_memory"
-    description: str = "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
+    description: str = (
+        "Use this tool to add and store a new piece of information or memory. Provide the content and the user's ID."
+    )
     args_schema: type[AddMemoryInput] = AddMemoryInput
     mem0_client: Memory
     user_id: str

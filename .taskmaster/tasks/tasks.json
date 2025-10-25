@@ -15,8 +15,8 @@
       {
         "id": 2,
         "title": "MessageProcessor Core Orchestrator",
-        "description": "Implement the `MessageProcessor` class that supervises a single conversational turn, tracks asyncio.Tasks, and provides cleanup and interruption logic.",
-        "details": "• Define `MessageProcessor` with methods `start_turn(conversation_id, user_input)`, `handle_interrupt()`, and `cleanup()`.\n• Store a dict of active tasks (`self._tasks`) and a reference to the per‑turn `asyncio.Queue`.\n• Expose callbacks for `on_chat_model_stream`, `on_tool_start`, `on_tool_end` that forward events to the queue.\n• Ensure `cleanup()` cancels all tasks, empties the queue, and logs the turn end.\n• Integrate with the WebSocket router from Task 1: on `send_message` instantiate a new `MessageProcessor` and store it keyed by `conversation_id`.\n• On `interrupt_stream` call `handle_interrupt()`.\n• Use `asyncio.create_task` for each background coroutine.",
+        "description": "Implement the `MessageProcessor` class that supervises a single conversational turn, tracks asyncio.Tasks (supervisor pattern), and provides cleanup and interruption logic.",
+        "details": "• Define `MessageProcessor` with methods `start_turn(conversation_id, user_input)`, `handle_interrupt()`, and `cleanup()`.\n• Maintain a set of active tasks (`self.active_tasks: set[asyncio.Task]`) and a bounded per‑turn `asyncio.Queue`.\n• Consume AgentService streaming events (not raw LangGraph callbacks) and forward them into the queue.\n• Wrap turn execution in try/finally and call `handle_interrupt()` in finally to guarantee resource cleanup.\n• Ensure `cleanup()` cancels and awaits all tasks, drains the queue, and logs the turn end.\n• Integrate with the WebSocket router from Task 1: on `send_message` instantiate a new `MessageProcessor` keyed by `conversation_id`; on `interrupt_stream` call `handle_interrupt()`.\n• Use `asyncio.create_task` for each background coroutine and keep references in `self.active_tasks`.",
         "testStrategy": "Unit test `MessageProcessor` by mocking a token producer coroutine: verify tasks are registered, `cleanup()` cancels them, and `handle_interrupt()` stops token emission. Use `asyncio.wait_for` to ensure no dangling tasks after interruption.",
         "priority": "high",
         "dependencies": [
@@ -27,36 +27,36 @@
       },
       {
         "id": 3,
-        "title": "Basic LangGraph StateGraph with MemorySaver",
-        "description": "Define a minimal LangGraph `StateGraph` containing an LLM agent node and an in‑memory `MemorySaver` for turn‑based state persistence.",
-        "details": "• Create a `StateGraph` with nodes: `agent` (LLM) and `tool_executor` (placeholder).\n• Use `MemorySaver` for the checkpointer during MVP.\n• Provide a helper `get_graph(conversation_id)` that returns `graph.astream_events(configurable={\"thread_id\": conversation_id})`.\n• Ensure the graph yields events `on_chat_model_stream`, `on_tool_start`, `on_tool_end`.\n• Add simple conditional edges to allow tool execution flow (can be a no‑op for MVP).",
-        "testStrategy": "Integration test that creates a graph, runs `astream_events` with a short prompt, and asserts that token events are emitted and that the in‑memory history contains both user and assistant messages.",
-        "priority": "medium",
+        "title": "AgentFactory/AgentService streaming integration",
+        "description": "Integrate `AgentFactory` + `AgentService` with `MessageProcessor` to provide streaming using the project’s OpenAI‑compatible chat agent and tools.",
+        "details": "• Use `src/services/agent_service/agent_factory.py` to construct the agent from YAML configs and create `AgentService` in `src/services/agent_service/service.py`.\n• Ensure the service streams structured events via `service.stream(...)` with types: 'stream_start', 'stream_token', 'tool_call', 'tool_result', 'stream_end', 'error'.\n• Wire the stream to `MessageProcessor`'s queue‑based architecture.\n• Pass conversation scoping via `configurable={\"thread_id\": conversation_id}` or equivalent and, for prototype, use in‑memory `MemorySaver` (no Redis).\n• Update references to use `src/services/agent_service/openai_chat_agent.py` rather than non‑existent `agents/chat_agent.py`.",
+        "testStrategy": "Integration test that: (1) Creates ChatAgent via factory, (2) Sends test message through MessageProcessor with ChatAgent integration, (3) Verifies streaming responses contain proper content chunks and tool events, (4) Confirms memory persistence across conversation turns, (5) Tests interruption handling during streaming.",
+        "priority": "high",
         "dependencies": [
           2
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
         "id": 4,
-        "title": "Producer‑Consumer Pipeline with Backpressure",
-        "description": "Implement the async producer that streams LangGraph events into a bounded `asyncio.Queue` and a consumer that reads from the queue for further processing.",
-        "details": "• In `MessageProcessor.start_turn`, create `self._queue = asyncio.Queue(maxsize=100)`.\n• Launch a producer task: `asyncio.create_task(self._produce_events(graph))` where `_produce_events` iterates over `graph.astream_events` and `await self._queue.put(event)`.\n• The producer must handle `asyncio.CancelledError` to exit cleanly on interruption.\n• Consumer tasks will be added in later steps (UI stream, TTS stream, tool events).\n• Log queue size periodically for observability.\n• Ensure backpressure: when queue is full, `await self._queue.put` blocks, throttling the LangGraph stream.",
-        "testStrategy": "Stress test by mocking a fast‑producing LangGraph that emits >200 events per second. Verify that the producer blocks when the queue reaches `maxsize` and that no `MemoryError` occurs. Use `asyncio.wait_for` to ensure the test completes within a reasonable time.",
+        "title": "Producer‑Consumer Pipeline with backpressure",
+        "description": "Implement the async producer that consumes AgentService streaming events and feeds a bounded `asyncio.Queue`. Only `stream_start`, `tts_ready_chunk`, and `stream_end` leave the server, while internal `stream_token` flow continues uninterrupted toward the TTS pipeline.",
+        "details": "• In `MessageProcessor.start_conversation_turn`, create `self._event_queue = asyncio.Queue(maxsize=100)` for streaming events.\n• Launch a producer task: `asyncio.create_task(self._produce_agent_events(agent_service, messages, turn_id))` where `_produce_agent_events` iterates over `agent_service.stream()` and `await self._event_queue.put(event)`.\n• The AgentService yields: 'stream_start', 'stream_token', 'tool_call', 'tool_result', 'stream_end', 'error'.\n• Producer must handle `asyncio.CancelledError` and cleanup gracefully on interruption.\n• Keep enqueuing 'stream_token' events immediately for downstream processing even while the consumer is emitting TTS chunks; rely on the bounded queue to provide backpressure instead of pausing agent generation.\n• Do NOT forward 'stream_token' or any tool events directly to clients. They are inputs to the TTS pipeline or logs.\n• Client‑facing mapping: 'stream_start' → STREAM_START; completed TTS sentences → TTS_READY_CHUNK; 'stream_end' → STREAM_END; 'error' → ERROR.\n• Log queue size periodically for observability and ensure backpressure prevents memory issues.",
+        "testStrategy": "Mock `AgentService.stream()` to emit rapid events (>200/sec) with different types. Verify producer correctly maps event types to WebSocket message formats. Test that queue maxsize prevents memory overflow and that `asyncio.CancelledError` during agent streaming is handled cleanly. Verify that the existing `MessageProcessor.interrupt_turn()` correctly cancels the producer task.",
         "priority": "high",
         "dependencies": [
           3
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
         "id": 5,
-        "title": "UI Stream (Path A) – Token Emission",
-        "description": "Consume token events from the queue and emit `stream_start`, `stream_token`, and `stream_end` WebSocket messages for the typing effect.",
-        "details": "• Add a consumer coroutine `self._ui_stream()` started as a task in `MessageProcessor.start_turn`.\n• On first token event, send `stream_start` with a generated `turn_id` (UUID).\n• For each `on_chat_model_stream` token, send `stream_token` with payload `{ \"token\": token }`.\n• When the LangGraph stream finishes, send `stream_end` with the same `turn_id`.\n• Ensure ordering: UI stream must not emit `stream_end` before all queued tokens are sent.\n• Use the WebSocket connection object from Task 1 (`WebSocket` instance) to `await websocket.send_json(event)`.\n• Handle `WebSocketDisconnect` by invoking `MessageProcessor.cleanup()`.",
-        "testStrategy": "Functional test using a real WebSocket client: send `send_message`, capture the sequence of events, and assert that `stream_start` appears first, followed by a series of `stream_token` events, and finally `stream_end`. Verify that the `turn_id` is consistent across start/end.",
+        "title": "Client text emission policy — no `stream_token`",
+        "description": "Enforce the client contract where only `tts_ready_chunk` (cleaned full sentences) and lifecycle events are emitted while token flow remains internal.",
+        "details": "• Do not create a separate UI token consumer.\n• Ensure no `stream_token` messages are sent to clients; instead, tokens feed the TTS pipeline.\n• Keep a single turn lifecycle visible to clients via `stream_start` and `stream_end`.\n• Update the WebSocket protocol docs/PRD, API reference, and client-facing release notes to reflect the new contract and adjust automated integration tests accordingly.",
+        "testStrategy": "Functional test: send `send_message`, assert the client receives `stream_start`, then only `tts_ready_chunk` events (one per sentence), and finally `stream_end`. Assert zero `stream_token` messages are received.",
         "priority": "high",
         "dependencies": [
           4
@@ -73,6 +73,7 @@
         "priority": "high",
         "dependencies": [
           2,
+          4,
           5
         ],
         "status": "pending",
@@ -80,10 +81,10 @@
       },
       {
         "id": 7,
-        "title": "TextChunkProcessor & TTSTextProcessor Implementation",
-        "description": "Create the two‑stage pipeline that buffers raw tokens, extracts complete sentences, and cleans them for TTS.",
-        "details": "• `TextChunkProcessor`\n   - Internal buffer `self._buf` (string).\n   - `process(token: str) -> Optional[str]` appends token, checks for sentence terminators (`.?!` followed by whitespace or end‑of‑string). When a terminator is found, returns the completed sentence and clears the buffer up to that point.\n   - `flush() -> str` returns any remaining buffered text.\n• `TTSTextProcessor`\n   - Stateless class with method `clean(text: str) -> str` applying regex rules:\n        * Remove parenthetical annotations like `(laughter)`, `*sigh*`.\n        * Expand common abbreviations (e.g., `i.e.` → `that is`).\n        * Normalize whitespace.\n   - Load optional rule set from a JSON/YAML file (future‑proof, but provide a default hard‑coded dict for MVP).\n• Include unit tests for edge cases: multiple terminators, missing punctuation, and cleaning of artifacts.\n• Ensure both classes are thread‑safe (no shared mutable state).",
-        "testStrategy": "Unit tests covering:\n  - Buffering of tokens into sentences (e.g., tokens `['Hello', ',', 'world', '!']` → `\"Hello, world!\"`).\n  - `flush()` returns leftover text when no terminator.\n  - Cleaning rules remove `(laugh)` and expand `e.g.` correctly.\n  - Integration test feeding a stream of tokens through both processors and verifying the final TTS chunks match expected cleaned sentences.",
+        "title": "TextChunkProcessor (generator) & TTSTextProcessor (configurable rules)",
+        "description": "Create the two‑stage pipeline that buffers raw tokens, yields complete sentences, and cleans them for TTS using externally configurable regex rules.",
+        "details": "• `TextChunkProcessor`\n   - Internal buffer `self._buf` (string).\n   - `process(token: str) -> Generator[str, None, None]`: append token; find the last sentence terminator among `.?!` and yield one or more completed sentences; keep remainder in buffer.\n   - `flush() -> Optional[str]`: return any remaining buffered text (or None) at stream end.\n• `TTSTextProcessor`\n   - Stateless class with method `process(text: str) -> str` applying regex rules loaded from a YAML/JSON config file (e.g., at `yaml_files/tts_rules.yml`), with a sensible default when file missing.\n   - Support replacements like removing fillers `(웃음)`, `음...`, and expanding abbreviations.\n• Unit tests for: multiple terminators per batch, no terminator then `flush()`, multilingual punctuation, and cleaning rules application.\n• Ensure new processor instances are created on `stream_start` and `flush()` is invoked on `stream_end` to avoid cross‑source mixing.",
+        "testStrategy": "Unit tests covering:\n  - Generator yielding multiple sentences from a single token batch.\n  - `flush()` behavior when no terminator.\n  - Rules file loading (present/missing) and regex application.\n  - Integration test piping a token stream through both processors and verifying `tts_ready_chunk` outputs.",
         "priority": "medium",
         "dependencies": [],
         "status": "pending",
@@ -91,25 +92,24 @@
       },
       {
         "id": 8,
-        "title": "TTS Stream (Path B) – Chunk Emission",
-        "description": "Consume token events, run them through `TextChunkProcessor` and `TTSTextProcessor`, and emit `tts_ready_chunk` events for completed sentences.",
-        "details": "• Add a consumer coroutine `self._tts_stream()` started alongside the UI stream.\n• For each token from the queue:\n   1. Pass token to `TextChunkProcessor.process`.\n   2. If a complete sentence is returned, feed it to `TTSTextProcessor.clean`.\n   3. Send `tts_ready_chunk` with payload `{ \"chunk\": cleaned_sentence }`.\n• On stream termination, call `TextChunkProcessor.flush()`, clean the residual text, and emit a final `tts_ready_chunk` if non‑empty.\n• Ensure ordering: TTS chunks may be slower; they must not block UI token emission – both consumers read from the same queue but process independently (use separate `asyncio.Queue` copies via `asyncio.Queue.get` with `await` and `queue.task_done`).\n• Handle cancellation gracefully (same logic as UI stream).",
-        "testStrategy": "Functional test: send a `send_message` with a prompt that yields multiple sentences. Capture `tts_ready_chunk` events and verify they correspond to full sentences, are cleaned (no artifacts), and appear after the appropriate tokens. Also test that a final chunk is emitted after `stream_end` when the last sentence lacks punctuation.",
+        "title": "TTS Stream — sentence chunk emission (single consumer)",
+        "description": "Consume token events, run them through `TextChunkProcessor` and `TTSTextProcessor`, and emit `tts_ready_chunk` events for completed sentences (no parallel UI token consumer).",
+        "details": "• Add a consumer coroutine `self._tts_stream()` as the only client‑facing text emitter.\n• For each 'stream_token' event from the queue:\n   1. Pass token to `TextChunkProcessor.process` (generator).\n   2. For each yielded sentence, feed it to `TTSTextProcessor.process`.\n   3. Send `tts_ready_chunk` with payload `{ \"chunk\": cleaned_sentence }`.\n• On stream termination, call `TextChunkProcessor.flush()`, clean the residual text, and emit a final `tts_ready_chunk` if non‑empty.\n• Handle cancellation gracefully and ensure `stream_end` is emitted once per turn.",
+        "testStrategy": "Functional test: send a `send_message` with a prompt that yields multiple sentences. Capture `tts_ready_chunk` events and verify they correspond to full sentences and are cleaned. Also test that a final chunk is emitted after `stream_end` when the last sentence lacks punctuation.",
         "priority": "medium",
         "dependencies": [
           4,
-          7,
-          5
+          7
         ],
         "status": "pending",
         "subtasks": []
       },
       {
         "id": 9,
-        "title": "Tool Call Transparency Events",
-        "description": "Forward LangGraph tool execution events to the client as `tool_call_start` and `tool_call_end` WebSocket messages.",
-        "details": "• Extend the producer/consumer pipeline to listen for `on_tool_start` and `on_tool_end` events.\n• When `on_tool_start` is received, extract `tool_name` and `tool_input` and send:\n  `{ \"event\": \"tool_call_start\", \"data\": { \"tool_name\": ..., \"tool_input\": ... } }`.\n• When `on_tool_end` is received, extract `tool_name` and `tool_output` and send `tool_call_end`.\n• Ensure these events are emitted in real‑time, independent of token streams.\n• Update `MessageProcessor.cleanup()` to cancel any pending tool‑related tasks.\n• Add optional logging of tool execution duration for observability.",
-        "testStrategy": "Mock a LangGraph that includes a dummy tool node. Verify that the client receives `tool_call_start` immediately before the tool runs and `tool_call_end` after completion, with correct payloads. Also test that interruption during a tool call cancels the tool and still sends `tool_call_end` with an error flag if needed.",
+        "title": "Tool events — backend logging only",
+        "description": "Do not emit tool events to clients. Log `tool_call` and `tool_result` server‑side with structured metadata.",
+        "details": "• Extend the producer/consumer pipeline to listen for tool events but do not forward them over WebSocket.\n• Log fields: `conversation_id`, `turn_id`, `tool_name`, `args`, `duration_ms`, `status` (success/error).\n• Ensure logs are JSON‑structured and correlate with other turn logs.\n• Confirm that omission of client tool events is documented in API docs.",
+        "testStrategy": "Mock tool events and verify: (a) no tool messages are sent to client, (b) JSON logs are produced with required fields, (c) durations are captured.",
         "priority": "medium",
         "dependencies": [
           4
@@ -134,7 +134,7 @@
     ],
     "metadata": {
       "created": "2025-10-23T04:23:05.122Z",
-      "updated": "2025-10-23T05:14:11.438Z",
+      "updated": "2025-10-25T14:17:55.517Z",
       "description": "Tasks for master context"
     }
   }
