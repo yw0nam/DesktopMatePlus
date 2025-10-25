@@ -4,9 +4,11 @@ This module provides centralized service initialization using YAML configuration
 Services are initialized once and stored as module-level singletons.
 """
 
+import asyncio
 import os
+import threading
 from pathlib import Path
-from typing import Optional
+from typing import Awaitable, Callable, Optional, TypeVar
 
 import yaml
 from loguru import logger
@@ -19,6 +21,45 @@ from src.services.vlm_service import VLMFactory, VLMService
 _tts_service_instance: Optional[TTSService] = None
 _vlm_service_instance: Optional[VLMService] = None
 _agent_service_instance: Optional[AgentService] = None
+
+T = TypeVar("T")
+
+
+def _run_async_callable(func: Callable[[], Awaitable[T]]) -> T:
+    """Execute an async callable in synchronous context.
+
+    FastAPI lifespan and CLI entry points are synchronous when initializing
+    services. Agent health checks are async, so we bridge by running the
+    coroutine on the current loop when possible or spinning a dedicated loop.
+    """
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(func())
+
+    result: dict[str, T] = {}
+    error: list[BaseException] = []
+
+    def _runner():
+        new_loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(new_loop)
+            result["value"] = new_loop.run_until_complete(func())
+        except BaseException as exc:  # noqa: BLE001 - propagate after join
+            error.append(exc)
+        finally:
+            asyncio.set_event_loop(None)
+            new_loop.close()
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+
+    if error:
+        raise error[0]
+
+    return result["value"]
 
 
 def _load_yaml_config(yaml_path: str | Path) -> dict:
@@ -241,7 +282,7 @@ def initialize_agent_service(
     )
     model_name = os.getenv("LLM_MODEL_NAME", service_configs.get("model", "chat_model"))
     openai_api_key = os.getenv(
-        "LLM_API_KEY", "dummy-key"
+        "LLM_API_KEY", "token-abc123"
     )  # Default to dummy key for local servers
 
     # Add to service configs
@@ -261,8 +302,16 @@ def initialize_agent_service(
 
         _agent_service_instance = agent_engine
 
-        # Health check (async, so we need to handle it differently)
-        logger.info("✅ Agent service initialized successfully")
+        try:
+            is_healthy, health_msg = _run_async_callable(agent_engine.is_healthy)
+            if is_healthy:
+                logger.info(f"✅ Agent service initialized successfully: {health_msg}")
+            else:
+                logger.warning(
+                    f"⚠️  Agent service initialized but not healthy: {health_msg}"
+                )
+        except Exception as health_error:  # noqa: BLE001 - log health check failure
+            logger.error(f"⚠️  Agent health check failed: {health_error}")
 
         return _agent_service_instance
 

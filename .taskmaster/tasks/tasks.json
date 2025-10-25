@@ -87,7 +87,7 @@
         "testStrategy": "Unit tests covering:\n  - Generator yielding multiple sentences from a single token batch.\n  - `flush()` behavior when no terminator.\n  - Rules file loading (present/missing) and regex application.\n  - Integration test piping a token stream through both processors and verifying `tts_ready_chunk` outputs.",
         "priority": "medium",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -96,12 +96,12 @@
         "description": "Consume token events, run them through `TextChunkProcessor` and `TTSTextProcessor`, and emit `tts_ready_chunk` events for completed sentences (no parallel UI token consumer).",
         "details": "• Add a consumer coroutine `self._tts_stream()` as the only client‑facing text emitter.\n• For each 'stream_token' event from the queue:\n   1. Pass token to `TextChunkProcessor.process` (generator).\n   2. For each yielded sentence, feed it to `TTSTextProcessor.process`.\n   3. Send `tts_ready_chunk` with payload `{ \"chunk\": cleaned_sentence }`.\n• On stream termination, call `TextChunkProcessor.flush()`, clean the residual text, and emit a final `tts_ready_chunk` if non‑empty.\n• Handle cancellation gracefully and ensure `stream_end` is emitted once per turn.",
         "testStrategy": "Functional test: send a `send_message` with a prompt that yields multiple sentences. Capture `tts_ready_chunk` events and verify they correspond to full sentences and are cleaned. Also test that a final chunk is emitted after `stream_end` when the last sentence lacks punctuation.",
-        "priority": "medium",
+        "priority": "high",
         "dependencies": [
           4,
           7
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": []
       },
       {
@@ -134,7 +134,7 @@
     ],
     "metadata": {
       "created": "2025-10-23T04:23:05.122Z",
-      "updated": "2025-10-25T15:42:05.616Z",
+      "updated": "2025-10-25T16:49:19.100Z",
       "description": "Tasks for master context"
     }
   }

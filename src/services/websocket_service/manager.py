@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from weakref import WeakSet
 
 from fastapi import WebSocket
+from langchain_core.messages import HumanMessage
 from loguru import logger
 from pydantic import ValidationError
 
@@ -22,8 +23,9 @@ from src.models.websocket import (
     PongMessage,
     ServerMessage,
 )
+from src.services import get_agent_service
 
-from .message_processor import MessageProcessor, TurnStatus
+from .message_processor import MessageProcessor
 
 
 class ConnectionState:
@@ -229,52 +231,100 @@ class WebSocketManager:
             )
             return
 
+        agent_service = get_agent_service()
+        if agent_service is None:
+            logger.error("Agent service not initialized")
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="Agent service not initialized"),
+            )
+            return
+
         try:
             # Extract message content
             content = message_data.get("content", "")
-            metadata = message_data.get("metadata", {})
+            metadata = dict(message_data.get("metadata", {}) or {})
 
-            # Start a new conversation turn
-            turn_id = await connection_state.message_processor.start_conversation_turn(
-                user_message=content, metadata=metadata
+            conversation_id = metadata.get("conversation_id") or str(uuid4())
+            metadata.setdefault("conversation_id", conversation_id)
+
+            messages = [HumanMessage(content=content)]
+            client_id = f"{connection_state.user_id}:{conversation_id}"
+
+            agent_stream = agent_service.stream(
+                messages=messages,
+                client_id=client_id,
             )
 
-            # Update turn status to processing
-            await connection_state.message_processor.update_turn_status(
-                turn_id, TurnStatus.PROCESSING
+            turn_id = await connection_state.message_processor.start_turn(
+                conversation_id=conversation_id,
+                user_input=content,
+                agent_stream=agent_stream,
+                metadata=metadata,
             )
 
-            # TODO: This is where we'll integrate with LangGraph in future tasks
-            # For now, just complete the turn with a placeholder response
-            logger.info(
-                f"Processing chat message for turn {turn_id}: {content[:100]}..."
+            forward_task = asyncio.create_task(
+                self._forward_turn_events(connection_id, turn_id),
+                name=f"ws-forward-events-{turn_id}",
             )
-
-            # Simulate processing (this will be replaced with actual LangGraph integration)
-            await asyncio.sleep(0.1)  # Small delay to simulate processing
-
-            # Complete the turn
-            await connection_state.message_processor.complete_turn(
-                turn_id,
-                metadata={
-                    "response": "MessageProcessor integration complete - awaiting LangGraph integration"
-                },
+            added = await connection_state.message_processor.add_task_to_turn(
+                turn_id, forward_task
             )
-
-            # Send a placeholder response
-            from src.models.websocket import ChatResponseMessage
-
-            response = ChatResponseMessage(
-                content=f"Turn {turn_id} processed successfully. MessageProcessor is working!",
-                metadata={"turn_id": turn_id, "status": "completed"},
-            )
-            await self.send_message(connection_id, response)
+            if not added:
+                logger.debug(
+                    "Failed to register forward task for turn %s on connection %s",
+                    turn_id,
+                    connection_id,
+                )
 
         except Exception as e:
             logger.error(f"Error processing chat message from {connection_id}: {e}")
             await self.send_message(
                 connection_id,
                 ErrorMessage(error=f"Failed to process message: {str(e)}"),
+            )
+
+    async def _forward_turn_events(self, connection_id: UUID, turn_id: str) -> None:
+        """Forward MessageProcessor events to the WebSocket client."""
+
+        connection_state = self.connections.get(connection_id)
+        if not connection_state:
+            logger.debug(
+                "Connection %s gone before forwarding events for turn %s",
+                connection_id,
+                turn_id,
+            )
+            return
+
+        message_processor = connection_state.message_processor
+        if not message_processor:
+            logger.debug(
+                "No message processor available when forwarding events for turn %s",
+                turn_id,
+            )
+            return
+
+        websocket = connection_state.websocket
+
+        try:
+            async for event in message_processor.stream_events(turn_id):
+                try:
+                    await websocket.send_text(json.dumps(event, default=str))
+                except Exception as send_error:  # noqa: BLE001
+                    logger.error(
+                        "Failed to send event %s for turn %s on connection %s: %s",
+                        event.get("type"),
+                        turn_id,
+                        connection_id,
+                        send_error,
+                    )
+                    break
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Error forwarding events for turn %s on connection %s: %s",
+                turn_id,
+                connection_id,
+                exc,
             )
 
     async def interrupt_active_turn(

@@ -83,12 +83,16 @@ class OpenAIChatAgent(AgentService):
         try:
             test_message = [AIMessageChunk(content="Health check")]
             response_received = False
-            async for _response in self.stream(
+            stream = self.stream(
                 messages=test_message,
                 client_id="health_check",
-            ):
-                response_received = True
-                break  # Just check if we get any response
+            )
+            try:
+                async for _response in stream:
+                    response_received = True
+                    break  # Just check if we get any response
+            finally:
+                await stream.aclose()
 
             if response_received:
                 return True, "Agent is healthy."

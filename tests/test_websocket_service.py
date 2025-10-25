@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -192,30 +192,47 @@ class TestWebSocketManager:
         connection_state = ConnectionState(mock_websocket, connection_id)
         connection_state.is_authenticated = True
         connection_state.user_id = "test_user"
-        connection_state.message_processor = Mock(spec=MessageProcessor)
-
-        # Mock message processor methods
-        connection_state.message_processor.start_conversation_turn = AsyncMock(
-            return_value="turn_123"
+        connection_state.message_processor = MessageProcessor(
+            connection_id=connection_id,
+            user_id="test_user",
         )
-        connection_state.message_processor.update_turn_status = AsyncMock()
-        connection_state.message_processor.complete_turn = AsyncMock()
 
         manager.connections[connection_id] = connection_state
 
-        # Handle chat message
-        message_data = {"content": "Hello, world!", "metadata": {"test": "data"}}
-        await manager.handle_chat_message(connection_id, message_data)
+        class FakeAgentService:
+            async def stream(self, messages, client_id, tools=None):
+                yield {"type": "stream_start"}
+                yield {"type": "stream_token", "chunk": "Hello, world!"}
+                yield {"type": "stream_end"}
 
-        # Check that message processor methods were called
-        connection_state.message_processor.start_conversation_turn.assert_called_once_with(
-            user_message="Hello, world!", metadata={"test": "data"}
-        )
-        connection_state.message_processor.update_turn_status.assert_called_once()
-        connection_state.message_processor.complete_turn.assert_called_once()
+        with patch(
+            "src.services.websocket_service.manager.get_agent_service",
+            return_value=FakeAgentService(),
+        ):
+            message_data = {"content": "Hello, world!", "metadata": {"test": "data"}}
+            await manager.handle_chat_message(connection_id, message_data)
 
-        # Check that response was sent
-        mock_websocket.send_text.assert_called()
+            # Allow background tasks to process
+            await asyncio.sleep(0.05)
+
+        # Gather streamed events
+        sent_events = [
+            json.loads(call.args[0]) for call in mock_websocket.send_text.call_args_list
+        ]
+        event_types = [event.get("type") for event in sent_events]
+
+        assert "stream_start" in event_types
+        assert "tts_ready_chunk" in event_types
+        assert "stream_end" in event_types
+
+        # Verify TTS chunk reflects processed agent output
+        tts_events = [
+            event for event in sent_events if event.get("type") == "tts_ready_chunk"
+        ]
+        assert tts_events, "Expected at least one tts_ready_chunk event"
+        assert any("Hello, world" in evt.get("chunk", "") for evt in tts_events)
+
+        await connection_state.message_processor.shutdown()
 
     @pytest.mark.asyncio
     async def test_handle_chat_message_no_processor(self, manager, mock_websocket):

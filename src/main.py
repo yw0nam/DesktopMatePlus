@@ -59,7 +59,11 @@ async def lifespan(app: FastAPI):
 
     # Initialize all services using the centralized service manager
     try:
-        from src.services import initialize_tts_service, initialize_vlm_service
+        from src.services import (
+            initialize_agent_service,
+            initialize_tts_service,
+            initialize_vlm_service,
+        )
 
         # Initialize services from YAML configurations
         # API keys are loaded from environment variables (.env file)
@@ -81,9 +85,13 @@ async def lifespan(app: FastAPI):
             print("  - VLM config: Using default")
             initialize_vlm_service()
 
-        # TODO: Initialize agent service when implemented
-        # if _config_paths.get("agent_config_path"):
-        #     initialize_agent_service(config_path=_config_paths["agent_config_path"])
+        # Initialize Agent service
+        if _config_paths.get("agent_config_path"):
+            print(f"  - Agent config: {_config_paths['agent_config_path']}")
+            initialize_agent_service(config_path=_config_paths["agent_config_path"])
+        else:
+            print("  - Agent config: Using default")
+            initialize_agent_service()
 
     except Exception as e:
         print(f"⚠️  Failed to initialize services: {e}")

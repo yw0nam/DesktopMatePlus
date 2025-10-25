@@ -5,7 +5,7 @@ Tests the service manager's agent initialization functionality.
 """
 
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -44,6 +44,7 @@ class TestAgentServiceInitialization:
             "mcp_config": None,
         }
         mock_agent = Mock()
+        mock_agent.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_factory.return_value = mock_agent
 
         # Initialize service
@@ -94,6 +95,7 @@ class TestAgentServiceInitialization:
             "mcp_config": mcp_config,
         }
         mock_agent = Mock()
+        mock_agent.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_factory.return_value = mock_agent
 
         with patch.dict(
@@ -123,6 +125,7 @@ class TestAgentServiceInitialization:
             }
         }
         mock_agent = Mock()
+        mock_agent.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_factory.return_value = mock_agent
 
         with patch.dict(
@@ -150,7 +153,9 @@ class TestAgentServiceInitialization:
             }
         }
         mock_agent1 = Mock()
+        mock_agent1.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_agent2 = Mock()
+        mock_agent2.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_factory.side_effect = [mock_agent1, mock_agent2]
 
         with patch.dict(
@@ -181,6 +186,7 @@ class TestAgentServiceInitialization:
             }
         }
         mock_agent = Mock()
+        mock_agent.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_factory.return_value = mock_agent
 
         with patch.dict(
@@ -209,6 +215,7 @@ class TestAgentServiceInitialization:
             }
         }
         mock_agent = Mock()
+        mock_agent.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_factory.return_value = mock_agent
 
         with patch.dict(
@@ -262,6 +269,7 @@ class TestAgentServiceInitialization:
             }
         }
         mock_agent = Mock()
+        mock_agent.is_healthy = AsyncMock(return_value=(True, "healthy"))
         mock_factory.return_value = mock_agent
 
         with patch.dict(
@@ -338,7 +346,7 @@ class TestInitializeAllServices:
         custom_vlm_path = "/custom/vlm.yml"
         custom_agent_path = "/custom/agent.yml"
 
-        tts, vlm, agent = initialize_services(
+        _tts, _vlm, _agent = initialize_services(
             tts_config_path=custom_tts_path,
             vlm_config_path=custom_vlm_path,
             agent_config_path=custom_agent_path,
