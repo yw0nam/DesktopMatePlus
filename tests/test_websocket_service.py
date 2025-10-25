@@ -206,7 +206,7 @@ class TestWebSocketManager:
                 yield {"type": "stream_end"}
 
         with patch(
-            "src.services.websocket_service.manager.get_agent_service",
+            "src.services.websocket_service.manager.handlers.get_agent_service",
             return_value=FakeAgentService(),
         ):
             message_data = {"content": "Hello, world!", "metadata": {"test": "data"}}
