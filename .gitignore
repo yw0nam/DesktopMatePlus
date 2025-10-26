@@ -89,4 +89,4 @@ node_modules/
 # Task Master (keep configs but ignore reports)
 .taskmaster/reports/
 .taskmaster/docs
-.
+*.wav
