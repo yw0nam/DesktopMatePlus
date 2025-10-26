@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Optional
 
 from loguru import logger
@@ -25,6 +26,7 @@ class EventHandler:
             processor: The parent MessageProcessor instance.
         """
         self.processor = processor
+        self._tool_start_times: Dict[str, float] = {}  # Track tool call start times
 
     async def produce_agent_events(
         self, turn_id: str, agent_stream: AsyncIterator[Dict[str, Any]]
@@ -60,6 +62,15 @@ class EventHandler:
                     await self.processor.fail_turn(
                         turn_id, event.get("error", "Unknown error")
                     )
+                    continue
+
+                # Handle tool events - log but don't forward to client
+                if event_type == "tool_call":
+                    await self._log_tool_call(turn_id, event)
+                    continue
+
+                if event_type == "tool_result":
+                    await self._log_tool_result(turn_id, event)
                     continue
 
                 logger.debug(
@@ -248,3 +259,90 @@ class EventHandler:
                 turn_id,
                 exc,
             )
+
+    async def _log_tool_call(self, turn_id: str, event: Dict[str, Any]) -> None:
+        """Log tool call event with structured metadata.
+
+        Tool events are not forwarded to clients - they are logged server-side only.
+
+        Args:
+            turn_id: The turn identifier
+            event: The tool call event containing tool_name and args
+        """
+        turn = self.processor.turns.get(turn_id)
+        conversation_id = turn.conversation_id if turn else "unknown"
+
+        # Extract tool information from event
+        data = event.get("data", {})
+        tool_name = data.get("tool_name", "unknown")
+        args = data.get("args", "{}")
+
+        # Record start time for duration calculation
+        tool_key = f"{turn_id}:{tool_name}"
+        self._tool_start_times[tool_key] = time.time()
+
+        # Log structured JSON with required fields
+        logger.info(
+            "Tool call started",
+            extra={
+                "conversation_id": conversation_id,
+                "turn_id": turn_id,
+                "tool_name": tool_name,
+                "args": args,
+                "status": "started",
+            },
+        )
+
+    async def _log_tool_result(self, turn_id: str, event: Dict[str, Any]) -> None:
+        """Log tool result event with structured metadata.
+
+        Tool events are not forwarded to clients - they are logged server-side only.
+
+        Args:
+            turn_id: The turn identifier
+            event: The tool result event
+        """
+        turn = self.processor.turns.get(turn_id)
+        conversation_id = turn.conversation_id if turn else "unknown"
+
+        # Extract tool information - try to infer tool_name from recent calls
+        data = event.get("data", "")
+        node = event.get("node", "unknown")
+
+        # Calculate duration if we have a start time
+        # Note: We may not have the exact tool_name, using "tool_result" as fallback
+        duration_ms = None
+        tool_name = "tool_result"  # Default fallback
+
+        # Try to find the most recent tool call for this turn
+        matching_keys = [
+            k for k in self._tool_start_times.keys() if k.startswith(f"{turn_id}:")
+        ]
+        if matching_keys:
+            # Use the most recent tool call
+            tool_key = matching_keys[-1]
+            tool_name = tool_key.split(":", 1)[1]
+            start_time = self._tool_start_times.pop(tool_key, None)
+            if start_time:
+                duration_ms = int((time.time() - start_time) * 1000)
+
+        # Determine status from data
+        status = "success"
+        error_indicators = ["error", "failed", "exception"]
+        if isinstance(data, str) and any(
+            indicator in data.lower() for indicator in error_indicators
+        ):
+            status = "error"
+
+        # Log structured JSON with required fields
+        logger.info(
+            "Tool result received",
+            extra={
+                "conversation_id": conversation_id,
+                "turn_id": turn_id,
+                "tool_name": tool_name,
+                "duration_ms": duration_ms,
+                "status": status,
+                "node": node,
+            },
+        )

@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import argparse
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import router as api_router
 from src.configs.settings import settings
+from src.core.logger import setup_json_logging
 
 # Store config paths globally for lifespan to access
 _config_paths = {
@@ -52,10 +54,16 @@ def load_main_config(yaml_file: str | Path) -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
+    # Setup logging first
+    json_logging = os.getenv("JSON_LOGGING", "true").lower() == "true"
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    setup_json_logging(level=log_level, json_output=json_logging)
+
     # Startup
     print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
     print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
     print(f"🔧 Debug mode: {settings.debug}")
+    print(f"📊 JSON logging: {json_logging}")
 
     # Initialize all services using the centralized service manager
     try:
