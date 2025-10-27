@@ -75,6 +75,8 @@ class ChatMessage(BaseMessage):
 
     type: MessageType = MessageType.CHAT_MESSAGE
     content: str = Field(..., description="Chat message content")
+    agent_id: str = Field(..., description="Persistent agent identifier")
+    user_id: str = Field(..., description="Persistent user/client identifier")
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional metadata"
     )

@@ -270,6 +270,8 @@ class OpenAIChatAgent(AgentService):
         messages: list[BaseMessage],
         client_id: str = "default_client",
         tools: list[BaseTool] = None,
+        user_id: str = "default_user",
+        agent_id: str = "default_agent",
     ):
         if tools is None:
             tools = []

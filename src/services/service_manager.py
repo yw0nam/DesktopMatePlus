@@ -239,7 +239,6 @@ def initialize_agent_service(
     config_path: Optional[str | Path] = None, force_reinit: bool = False
 ) -> AgentService:
     """Initialize Agent service from YAML configuration.
-
     Args:
         config_path: Path to Agent YAML config file. If None, uses default path.
         force_reinit: If True, reinitialize even if already initialized.

@@ -45,14 +45,63 @@ class AgentService(ABC):
         messages: list[BaseMessage],
         client_id: str = "default_client",
         tools: Optional[list[BaseTool]] = None,
+        user_id: str = "default_user",
+        agent_id: str = "default_agent",
     ):
         """Generate a response from the model based on the prompt and messages.
+        Note, you have to yield stream response following format:
+
+        Yields examples:
+            For stream start:
+                {
+                    "type": "stream_start",
+                    "data": {
+                        "turn_id": "unique_turn_id",
+                        "client_id": client_id,
+                    }
+                }
+            For agent streaming response:
+                {
+                    "type": "stream_token",
+                    "data": "message chunk",
+                    "node": "node_id_123",
+                }
+            For tool call:
+                {
+                    "type": "tool_call",
+                    "data": {
+                        "tool_name": "example_tool",
+                        "args": "input for the tool",
+                    },
+                    "node": "node_id_123",
+                }
+            For tool result:
+                {
+                    "type": "tool_result",
+                    "data": "result from the tool",
+                    "node": "node_id_123",
+                }
+            For stream end:
+                {
+                    "type": "stream_end",
+                    "data": {
+                        "turn_id": "unique_turn_id",
+                        "client_id": client_id,
+                    }
+                }
+            For error handling:
+                {
+                    "type": "error",
+                    "data": "error message",
+                }
 
         Args:
             messages (list[BaseMessage]): The messages to include in the request.
             client_id (str): Client identifier.
             tools (Optional[list[BaseTool]]): Additional tools for the agent.
+            user_id (str): Persistent user identifier for memory tool.
+            agent_id (str): Persistent agent identifier for memory tool.
 
-        yields:
+        Yields:
             dict: The model's response stream.
         """

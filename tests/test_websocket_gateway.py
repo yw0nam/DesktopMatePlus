@@ -163,8 +163,13 @@ class TestWebSocketGateway:
         # Create connection
         connection_id = await websocket_manager.connect(mock_websocket)
 
-        # Try to send chat message without authentication
-        chat_message = {"type": MessageType.CHAT_MESSAGE, "content": "Hello"}
+        # Try to send chat message without authentication (missing agent_id and user_id)
+        chat_message = {
+            "type": MessageType.CHAT_MESSAGE,
+            "content": "Hello",
+            "agent_id": "test-agent",
+            "user_id": "test-user",
+        }
         await websocket_manager.handle_message(connection_id, json.dumps(chat_message))
 
         # Verify authentication error was sent

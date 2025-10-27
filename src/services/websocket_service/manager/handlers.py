@@ -110,8 +110,8 @@ class MessageHandler:
         """Handle incoming chat message.
 
         Args:
-            connection_id: Connection identifier.
-            message_data: Chat message data.
+            connection_id: Connection identifier (temporary per session).
+            message_data: Chat message data including agent_id and user_id.
             forward_events_fn: Function to forward events to client.
         """
         connection_state = self.get_connection(connection_id)
@@ -145,19 +145,44 @@ class MessageHandler:
             return
 
         try:
-            # Extract message content
+            # Extract message content and persistent identifiers
             content = message_data.get("content", "")
+            agent_id = message_data.get("agent_id")
+            user_id = message_data.get("user_id")
             metadata = dict(message_data.get("metadata", {}) or {})
+
+            # Validate required persistent identifiers
+            if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(
+                        error="agent_id is required and must be a non-empty string"
+                    ),
+                )
+                return
+
+            if not user_id or not isinstance(user_id, str) or not user_id.strip():
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(
+                        error="user_id is required and must be a non-empty string"
+                    ),
+                )
+                return
 
             conversation_id = metadata.get("conversation_id") or str(uuid4())
             metadata.setdefault("conversation_id", conversation_id)
 
             messages = [HumanMessage(content=content)]
-            client_id = f"{connection_state.user_id}:{conversation_id}"
+
+            # Use persistent user_id for client_id instead of connection-based ID
+            client_id = f"{user_id}:{conversation_id}"
 
             agent_stream = agent_service.stream(
                 messages=messages,
                 client_id=client_id,
+                user_id=user_id,
+                agent_id=agent_id,
             )
 
             turn_id = await connection_state.message_processor.start_turn(

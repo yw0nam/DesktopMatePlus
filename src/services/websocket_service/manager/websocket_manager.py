@@ -272,10 +272,26 @@ class WebSocketManager:
                 await self._message_handler.handle_pong(connection_id, message)
 
             elif message_type == MessageType.CHAT_MESSAGE:
-                # Handle chat message through MessageProcessor
-                await self._message_handler.handle_chat_message(
-                    connection_id, message_data, self._forward_turn_events
-                )
+                # Validate ChatMessage structure including required persistent IDs
+                try:
+                    from src.models.websocket import ChatMessage
+
+                    ChatMessage(**message_data)
+                    # Handle chat message through MessageProcessor
+                    await self._message_handler.handle_chat_message(
+                        connection_id, message_data, self._forward_turn_events
+                    )
+                except ValidationError as chat_validation_error:
+                    logger.error(
+                        f"Chat message validation error from {connection_id}: {chat_validation_error}"
+                    )
+                    await self.send_message(
+                        connection_id,
+                        ErrorMessage(
+                            error=f"Invalid chat message format: {str(chat_validation_error)}"
+                        ),
+                    )
+                    return
 
             elif message_type == MessageType.INTERRUPT_STREAM:
                 if not connection_state.is_authenticated:

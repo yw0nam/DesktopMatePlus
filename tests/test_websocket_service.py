@@ -200,7 +200,9 @@ class TestWebSocketManager:
         manager.connections[connection_id] = connection_state
 
         class FakeAgentService:
-            async def stream(self, messages, client_id, tools=None):
+            async def stream(
+                self, messages, client_id, tools=None, user_id=None, agent_id=None
+            ):
                 yield {"type": "stream_start"}
                 yield {"type": "stream_token", "chunk": "Hello, world!"}
                 yield {"type": "stream_end"}
@@ -209,7 +211,12 @@ class TestWebSocketManager:
             "src.services.websocket_service.manager.handlers.get_agent_service",
             return_value=FakeAgentService(),
         ):
-            message_data = {"content": "Hello, world!", "metadata": {"test": "data"}}
+            message_data = {
+                "content": "Hello, world!",
+                "agent_id": "test-agent",
+                "user_id": "test-user",
+                "metadata": {"test": "data"},
+            }
             await manager.handle_chat_message(connection_id, message_data)
 
             # Allow background tasks to process
