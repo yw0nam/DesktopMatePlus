@@ -201,10 +201,16 @@ class TestWebSocketManager:
 
         class FakeAgentService:
             async def stream(
-                self, messages, client_id, tools=None, user_id=None, agent_id=None
+                self,
+                messages,
+                client_id,
+                tools=None,
+                user_id="default_user",
+                agent_id="default_agent",
+                with_memory=False,
             ):
                 yield {"type": "stream_start"}
-                yield {"type": "stream_token", "chunk": "Hello, world!"}
+                yield {"type": "stream_token", "data": "Hello, world!"}
                 yield {"type": "stream_end"}
 
         with patch(
