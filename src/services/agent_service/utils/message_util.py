@@ -1,6 +1,7 @@
 import logging
 from typing import List
 
+import psycopg
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -39,6 +40,37 @@ def trim_messages(
             break
     return_messages = list(reversed(trimmed_messages))
     return {"llm_input_messages": return_messages}
+
+
+def check_table_exists(conn, table_name, schema_name="public"):
+    """
+    Checks if a table exists in the specified schema of a PostgreSQL database.
+
+    Args:
+        conn: A psycopg2 connection object.
+        table_name: The name of the table to check.
+        schema_name: The name of the schema where the table is expected (defaults to 'public').
+
+    Returns:
+        True if the table exists, False otherwise.
+    """
+    try:
+        cursor = conn.cursor()
+        query = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = %s
+                AND table_name = %s
+            );
+        """
+        cursor.execute(query, (schema_name, table_name))
+        exists = cursor.fetchone()[0]
+        cursor.close()
+        return exists
+    except psycopg.Error as e:
+        print(f"Error checking table existence: {e}")
+        return False
 
 
 async def process_message(

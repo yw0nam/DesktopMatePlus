@@ -52,10 +52,9 @@ MEM0_CONFIG = {
     },
 }
 
-VOCABULARY_DB_CONFIG: Dict[str, str] = {
-    "host": os.getenv("VOCABULARY_DB_HOST", "localhost"),
-    "database": os.getenv("VOCABULARY_DB_NAME", "memory_system_dev"),
-    "user": os.getenv("VOCABULARY_DB_USER", "memory_system"),
-    "password": os.getenv("VOCABULARY_DB_PASSWORD", "memory_system"),
-    "port": os.getenv("VOCABULARY_DB_PORT", "5432"),
+POSTGRES_DB_CONFIG: Dict[str, str] = {
+    "host": os.getenv("POSTGRES_DB_HOST", "localhost"),
+    "user": os.getenv("POSTGRES_DB_USER", "memory_system"),
+    "password": os.getenv("POSTGRES_DB_PASSWORD", "memory_system"),
+    "port": os.getenv("POSTGRES_DB_PORT", "5432"),
 }

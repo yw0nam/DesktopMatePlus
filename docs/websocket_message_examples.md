@@ -19,6 +19,7 @@ This document provides examples of WebSocket messages for DesktopMate+ client-se
   "content": "Hello, can you help me with my task?",
   "agent_id": "desktop-assistant-v1",
   "user_id": "user_12345",
+  "conversation_id": "uuid_format_string",
   "metadata": {
     "conversation_id": "conv_67890",
     "timestamp": 1698451200,
@@ -110,7 +111,7 @@ This document provides examples of WebSocket messages for DesktopMate+ client-se
 - **connection_id**: Temporary identifier unique to each WebSocket connection (changes on reconnect)
 - **user_id**: Persistent identifier for the user (remains same across reconnections)
 - **agent_id**: Persistent identifier for the AI agent (remains same across reconnections)
-- **conversation_id**: Persistent identifier for a conversation thread (can span multiple connections)
+- **conversation_id**: Persistent identifier for a conversation thread (can span multiple connections) , Note UUID format.
 - **turn_id**: Unique identifier for each message exchange within a conversation
 
 ### Required Fields

@@ -149,6 +149,7 @@ class MessageHandler:
             content = message_data.get("content", "")
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
+            conversation_id = message_data.get("conversation_id", str(uuid4()))
             metadata = dict(message_data.get("metadata", {}) or {})
 
             # Validate required persistent identifiers
@@ -170,19 +171,17 @@ class MessageHandler:
                 )
                 return
 
-            conversation_id = metadata.get("conversation_id") or str(uuid4())
             metadata.setdefault("conversation_id", conversation_id)
-
             messages = [HumanMessage(content=content)]
 
             # Use persistent user_id for client_id instead of connection-based ID
-            client_id = f"{user_id}:{conversation_id}"
 
             agent_stream = agent_service.stream(
                 messages=messages,
-                client_id=client_id,
+                client_id=conversation_id,
                 user_id=user_id,
                 agent_id=agent_id,
+                with_memory=True,
             )
 
             turn_id = await connection_state.message_processor.start_turn(

@@ -164,6 +164,8 @@ class RealtimeTTSDemo:
                             {
                                 "type": "chat_message",
                                 "content": message,
+                                "agent_id": "demo_agent",
+                                "user_id": "demo_user",
                             },
                         )
                         continue
@@ -284,12 +286,12 @@ Example usage:
     )
     parser.add_argument(
         "--ws-url",
-        default="ws://localhost:8000/v1/chat/stream",
+        default="ws://localhost:5500/v1/chat/stream",
         help="WebSocket endpoint URL",
     )
     parser.add_argument(
         "--tts-url",
-        default="http://localhost:8000/v1/tts/synthesize",
+        default="http://localhost:5500/v1/tts/synthesize",
         help="TTS API endpoint URL",
     )
     parser.add_argument(

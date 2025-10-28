@@ -77,8 +77,13 @@ class ChatMessage(BaseMessage):
     content: str = Field(..., description="Chat message content")
     agent_id: str = Field(..., description="Persistent agent identifier")
     user_id: str = Field(..., description="Persistent user/client identifier")
+    conversation_id: Optional[UUID] = Field(
+        default=None,
+        description="Persistent conversation identifier, First message in a new conversation if None, Note should be None or UUID",
+    )
     metadata: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional metadata"
+        default=None,
+        description="Additional metadata",
     )
 
 

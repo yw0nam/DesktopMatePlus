@@ -17,5 +17,5 @@ mcp_config:
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
       "transport": "stdio",
   }
-    # No args require for base_langgraph_memory
-# Note other configurations like memory and vocabulary manager are set in .env files skip this part.
+
+# Note: configurations of memory and vocabulary manager should be set in .env files
