@@ -1,0 +1,589 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Initialize Python Project and Environment",
+        "description": "Set up the Python project structure, create a virtual environment, and configure dependency management using pyproject.toml and uv.",
+        "details": "Use pyenv or venv to create a virtual environment. Initialize pyproject.toml for dependency management. Install uv for package management. Ensure .gitignore is present for Python artifacts. Adhere to PEP8 code style from the start.",
+        "testStrategy": "Verify environment activation, dependency installation, and code style enforcement using pre-commit hooks.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Install Core Dependencies",
+        "description": "Install FastAPI, Uvicorn, LangGraph, vLLM client, Fish Speech client, mem0, Pydantic, and other required libraries.",
+        "details": "Add all required packages to pyproject.toml. Use uv to install: fastapi, uvicorn, langgraph, vllm, fish-speech, mem0, pydantic, dxcam, mss, requests, and any other explicitly required libraries.",
+        "testStrategy": "Run 'uv list' to confirm all dependencies are installed. Import each library in a test script to verify installation.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Configure FastAPI Application",
+        "description": "Set up the FastAPI server with dynamic port assignment and automatic OpenAPI documentation.",
+        "details": "Create main.py with FastAPI app instance. Configure host as 127.0.0.1 and port as 8000 (or dynamic). Enable auto-generated docs at /docs. Use Uvicorn for local development.",
+        "testStrategy": "Start server and verify accessibility at / and /docs endpoints.",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Project Folder Structure",
+            "description": "Create the required source directories and initial files for the FastAPI application.",
+            "dependencies": [],
+            "details": "In the repository root, create a `src` directory. Inside `src`, create subfolders `api`, `models`, and `configs`. Add an empty `__init__.py` file in each folder to make them packages. Also create a placeholder `src/configs/settings.py` file for later configuration.",
+            "status": "done",
+            "testStrategy": "Verify that the directories `src/api`, `src/models`, and `src/configs` exist and contain `__init__.py`. Run `tree src` to confirm the structure.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement Pydantic Settings Class",
+            "description": "Define a Pydantic BaseSettings subclass to hold configurable values such as host, port, and CORS origins.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Edit `src/configs/settings.py` and add:\n```python\nfrom pydantic import BaseSettings, Field\nfrom typing import List\n\nclass Settings(BaseSettings):\n    host: str = Field(default=\"127.0.0.1\", description=\"Server host\")\n    port: int = Field(default=8000, description=\"Server port; can be overridden via env\")\n    cors_origins: List[str] = Field(default=[\"*\"], description=\"Allowed CORS origins\")\n\n    class Config:\n        env_prefix = \"FASTAPI_\"\n        case_sensitive = False\n```\nThis class will automatically read environment variables like `FASTAPI_HOST` and `FASTAPI_PORT`.\n",
+            "status": "done",
+            "testStrategy": "Write a small script that imports `Settings` and prints the values. Run it with and without environment variables to ensure defaults and overrides work.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Create main.py with FastAPI Instance",
+            "description": "Initialize the FastAPI application, load settings, and configure the Uvicorn server entry point.",
+            "dependencies": [
+              "3.2"
+            ],
+            "details": "Create `src/main.py` with the following content:\n```python\nimport uvicorn\nfrom fastapi import FastAPI\nfrom src.configs.settings import Settings\nfrom src.api.routes import router as api_router\n\nsettings = Settings()\napp = FastAPI(title=\"VLM Service\", docs_url=\"/docs\", redoc_url=None)\napp.include_router(api_router)\n\nif __name__ == \"__main__\":\n    uvicorn.run(\n        \"src.main:app\",\n        host=settings.host,\n        port=settings.port,\n        reload=True,\n    )\n```\nThe file imports a router that will be created in subtask 4. The `reload=True` flag aids local development.\n",
+            "status": "done",
+            "testStrategy": "Run `python src/main.py` and ensure the server starts without errors. Access `http://127.0.0.1:8000/docs` to confirm OpenAPI UI loads.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Add Basic Root Endpoint and API Router",
+            "description": "Define a router with a simple GET `/` endpoint that returns a welcome message.",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "Create `src/api/routes.py` with:\n```python\nfrom fastapi import APIRouter\n\nrouter = APIRouter()\n\n@router.get(\"/\", summary=\"Root endpoint\")\nasync def read_root():\n    return {\"message\": \"FastAPI is running\"}\n```\nMake sure `src/api/__init__.py` exists so the router can be imported in `main.py`.\n",
+            "status": "done",
+            "testStrategy": "After starting the server, send a GET request to `http://127.0.0.1:8000/` (e.g., using curl or httpie) and verify the JSON response contains the welcome message.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Configure CORS Middleware and Additional Global Middleware",
+            "description": "Add CORS support using the origins from settings and set up any generic middleware needed for the application.",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "Edit `src/main.py` to include:\n```python\nfrom fastapi.middleware.cors import CORSMiddleware\n\n# after app creation\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=settings.cors_origins,\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n```\nIf additional middleware (e.g., logging) is required, add it after the CORS block following FastAPI's middleware pattern.\n",
+            "status": "done",
+            "testStrategy": "Start the server and make a cross‑origin request from a browser or using a tool that simulates CORS (e.g., curl with `Origin` header). Verify that the response includes the appropriate `Access-Control-Allow-Origin` header matching the configured origins.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement Health Check Endpoint",
+        "description": "Create GET /health endpoint to report readiness of VLM, TTS, and Agent modules.",
+        "details": "Define /health route in FastAPI. Query status of VLM, TTS, and LangGraph agent modules. Return JSON with status and module readiness.",
+        "testStrategy": "Simulate module readiness and error states. Validate correct JSON responses for both success and failure cases.",
+        "priority": "high",
+        "dependencies": [
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define Pydantic models for health check response",
+            "description": "Create a BaseModel subclass that represents the JSON payload returned by the /health endpoint. Include fields for overall status (e.g., \"ok\" or \"error\"), a timestamp, and a nested object describing the readiness of each module (VLM, TTS, Agent) with boolean flags and optional error messages.",
+            "dependencies": [],
+            "details": "In the `app/schemas` package, add `HealthStatus` and `ModuleStatus` models. Use `Field` to set default values and descriptions. Ensure the models are importable by both the service layer and the FastAPI route.",
+            "status": "done",
+            "testStrategy": "Instantiate the models with various combinations of flags and serialize to JSON. Verify field names, default values, and that validation errors are raised for incorrect types.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement health check service to assess module readiness",
+            "description": "Write a service class or function that queries the VLM, TTS, and LangGraph agent modules for their current health. Each check should be isolated (e.g., ping VLM, call a lightweight TTS synthesis test, invoke a no‑op agent method) and return a boolean and optional error detail.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Create `app/services/health_service.py`. Define `check_vlm()`, `check_tts()`, and `check_agent()` helpers that catch exceptions and return a tuple `(bool, str | None)`. Implement `get_system_health()` that aggregates these results into the `HealthStatus` model defined earlier.\n\nMake the service injectable (e.g., via FastAPI Depends) so it can be mocked in tests.",
+            "status": "done",
+            "testStrategy": "Unit‑test each helper by mocking the underlying VLM/TTS/Agent calls to simulate success and failure. Verify that `get_system_health()` produces the correct `HealthStatus` payload for all combinations.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add GET /health endpoint using FastAPI",
+            "description": "Expose the health check via a new route. The endpoint should call the health service, return a 200 response with the `HealthStatus` model on success, or a 503 response if any module is unhealthy.",
+            "dependencies": [
+              "4.2"
+            ],
+            "details": "In `app/api/routes.py` (or appropriate router file), add `@router.get(\"/health\", response_model=HealthStatus)`.\n\nInject the health service with `Depends`. After obtaining the `HealthStatus`, set the response status code: `200` if all modules are ready, otherwise `status.HTTP_503_SERVICE_UNAVAILABLE`.\n\nEnsure the endpoint is included in the main FastAPI app via `app.include_router`.\n\nDocument the endpoint in the OpenAPI schema automatically generated by FastAPI.",
+            "status": "done",
+            "testStrategy": "Integration test the endpoint using FastAPI's TestClient. Mock the health service to return both fully healthy and partially unhealthy states and assert the correct HTTP status codes and JSON payloads.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Write comprehensive tests for health check endpoint",
+            "description": "Create test cases covering successful health checks, partial failures, and total failures. Include both unit tests for the service layer and end‑to‑end tests for the API route.",
+            "dependencies": [
+              "4.3"
+            ],
+            "details": "Add a new test module `tests/test_health_endpoint.py`.\n\n- Use `pytest` fixtures to override the health service dependency with mocks that simulate different module states.\n- Verify that the response JSON matches the `HealthStatus` schema.\n- Check that the correct HTTP status (200 or 503) is returned based on module readiness.\n- Include edge cases such as exceptions thrown by module checks.\n\nEnsure coverage reports show >90% coverage for the health check code.",
+            "status": "done",
+            "testStrategy": "Run the full test suite with `pytest -q`. Use `pytest-mock` or `unittest.mock` to patch service methods. Validate both positive and negative scenarios, and confirm that error messages are included when modules are unhealthy.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Develop Screen Capture Utility",
+        "description": "Implement cross-platform screen capture using DXcam (Windows) and MSS (macOS/Linux).",
+        "details": "Create a Python module that detects OS and uses DXcam or MSS to capture the screen. Output image as bytes.",
+        "testStrategy": "Run utility on all supported OSes. Validate image capture speed and correctness.",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Encode Image for VLM API",
+        "description": "Process captured screen image and encode as Base64 for VLM API requests.",
+        "details": "Implement function to convert image bytes to Base64 string. Ensure compatibility with vLLM API requirements.",
+        "testStrategy": "Unit test encoding function with sample images. Validate output matches VLM API expectations.",
+        "priority": "medium",
+        "dependencies": [
+          "5"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2025-10-17T06:48:12.175Z"
+      },
+      {
+        "id": 7,
+        "title": "Integrate VLM API Client",
+        "description": "Integrate VLM to main.py API to send image to vLLM server and receive description.",
+        "details": "Create internal Python client for vLLM API. Send Base64-encoded image via HTTP request. Parse and return textual description.",
+        "testStrategy": "Mock vLLM server responses. Validate correct request formatting and response parsing.",
+        "priority": "high",
+        "dependencies": [
+          "6"
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Implement TTS Synthesis Client",
+        "description": "Develop a robust, modular TTS synthesis client with provider abstraction, supporting synthesize_speech(text: str) -> bytes and advanced features such as fallback, health checks, and multiple output formats.",
+        "status": "done",
+        "dependencies": [
+          "2"
+        ],
+        "priority": "high",
+        "details": "Implemented a modular TTS service in src/services/tts_service/ with provider abstraction. The Fish Speech provider wraps the existing Fish Speech client and supports HTTP POST requests to the Fish Speech API for audio synthesis. The architecture allows for easy addition of new TTS providers, automatic failover, and health monitoring. The public interface exposes synthesize_speech(text: str) -> bytes and advanced usage via TTSClient. Comprehensive error handling, logging, and global state management (singleton pattern) are included. The service is integrated into the main services package and ready for FastAPI and LangGraph agent integration.",
+        "testStrategy": "17 comprehensive tests implemented: unit tests for all components, integration tests with a mocked Fish Speech API, error handling tests for various failure scenarios, and health check validation. Audio output format and error handling are validated. Demo script (examples/tts_synthesis_demo.py) demonstrates usage patterns.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design TTS service architecture with provider abstraction",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement FishSpeechProvider wrapping Fish Speech client",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Implement TTSProvider abstract base class",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Implement TTSService with provider management, fallback, and health checks",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Implement TTSClient public interface and synthesize_speech(text: str) -> bytes",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Add comprehensive error handling and logging",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 7,
+            "title": "Add support for multiple output formats (bytes, base64, file)",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 8,
+            "title": "Write and run 17 comprehensive tests (unit, integration, error handling, health checks)",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": "",
+            "parentId": "undefined"
+          },
+          {
+            "id": 9,
+            "title": "Integrate TTS service into main services package and provide usage examples",
+            "description": "",
+            "status": "done",
+            "dependencies": [],
+            "details": "<info added on 2025-10-17T02:51:13.658Z>\n🎉 Task 8 Completion Summary\n\nImplementation Date: October 17, 2025\n\nFiles Created:\n- src/services/tts_service/__init__.py - Public exports and package interface\n- src/services/tts_service/service.py - Core TTS service with provider abstraction (241 lines)\n- src/services/tts_service/fish_speech.py - Fish Speech TTS implementation (185 lines)\n- src/services/tts_service/tts_client.py - Public client interface (85 lines)\n- tests/test_tts_synthesis.py - Comprehensive test suite (363 lines, 17 tests)\n- examples/tts_synthesis_demo.py - Usage demonstration (166 lines)\n\nFiles Modified:\n- src/services/__init__.py - Added TTS service exports\n- src/services/health.py - Updated to use internal TTS health checks\n- src/main.py - Added TTS client initialization in lifespan\n- src/configs/settings.py - Added TTS base URL configuration\n\nTest Results:\n✅ All 17 tests passing with uv run pytest\n- 4 TTSClient tests\n- 6 TTSService tests  \n- 3 FishSpeechProvider tests\n- 3 Global function tests\n- 1 Full integration test\n\nKey Features Delivered:\n1. ✅ synthesize_speech(text: str) -> bytes - Main function per task requirement\n2. ✅ Provider abstraction - TTSProvider ABC for easy extensibility\n3. ✅ Fish Speech integration - HTTP client for Fish Speech API at localhost:8080\n4. ✅ Fallback support - Automatic provider failover capability\n5. ✅ Health monitoring - Built-in health checks for all providers\n6. ✅ Multiple formats - bytes, base64, file output support\n7. ✅ Error handling - Comprehensive exception handling and logging\n8. ✅ Global state - Singleton pattern with proper initialization\n\nIntegration Points:\n- ✅ Integrated with main services package\n- ✅ Health endpoint uses TTS health checks\n- ✅ FastAPI lifespan initialization\n- ✅ Ready for LangGraph agent integration (Task 10)\n- ✅ Ready for /v1/chat endpoint (Task 14)\n\nCode Quality:\n- ✅ PEP8 compliant\n- ✅ Type hints throughout\n- ✅ Comprehensive docstrings\n- ✅ Proper error handling\n- ✅ Logging integration\n\nDemo Available:\nuv run examples/tts_synthesis_demo.py - Shows complete usage patterns\n\nNext Steps:\nTask 8 complete. Dependencies satisfied for:\n- Task 9: Voice Cloning Client\n- Task 10: LangGraph Agent (partial dependency with Task 7)\n- Task 14: POST /v1/chat Endpoint\n\nAll functionality tested and production-ready! 🚀\n</info added on 2025-10-17T02:51:13.658Z>",
+            "testStrategy": "",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Unify TTS and VLM interface and configuration pattern.",
+        "description": "Unify the interface and configuration pattern for TTS and VLM services",
+        "status": "done",
+        "dependencies": [
+          "7,8"
+        ],
+        "priority": "high",
+        "details": "Unify the interface and configuration pattern for TTS and VLM services by creating consistent client classes, configuration loading mechanisms, and error handling strategies. Ensure both services can be easily swapped or extended in the future.",
+        "testStrategy": "Test both services after refactoring to ensure functionality remains intact. Validate configuration loading and error handling through unit tests.",
+        "subtasks": [],
+        "updatedAt": "2025-10-20T01:24:18.576Z"
+      },
+      {
+        "id": 10,
+        "title": "Define LangGraph Agent State and Nodes",
+        "description": "Implement GraphState TypedDict and LangGraph nodes for perceive_environment, query_memory, reason_and_plan, generate_response, and update_memory.",
+        "details": "Define GraphState with messages, visual_context, action_plan, user_id. Implement each node as a Python function. Integrate with VLM, mem0, and TTS tools.",
+        "testStrategy": "Unit test each node with mock inputs and outputs. Validate state transitions.",
+        "priority": "high",
+        "dependencies": [
+          "7",
+          "8"
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Integrate Memory Management with mem0",
+        "description": "Implement memory_tool integration for semantic memory management using mem0.",
+        "details": "Create add_memory, update_memory, delete_memory functions. Use Pydantic schemas for validation. Ensure all memory operations are internal to agent nodes.",
+        "testStrategy": "Unit test memory operations. Validate Read-then-Write and Search-Before-Act patterns.",
+        "priority": "high",
+        "dependencies": [
+          "10"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2025-10-21T06:08:39.072Z"
+      },
+      {
+        "id": 12,
+        "title": "Implement Controlled Vocabulary Manager(After Version 1)",
+        "description": "Develop VocabularyManager for metadata.category validation and management.",
+        "details": "Create SQLite table controlled_vocabulary(category TEXT UNIQUE). Implement get_all_terms and ensure_categories functions. Integrate with memory_tool logic.",
+        "testStrategy": "Test category insertion, retrieval, and duplicate handling. Validate integration with memory operations.",
+        "priority": "low",
+        "dependencies": [
+          "11"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Implement Fresh/Old Memory Tiering and Migration(After Version 1)",
+        "description": "Set up fresh_memory and old_memory collections in mem0. Develop cleanup.py script for periodic migration.",
+        "details": "Track updated_at timestamps. Move memories older than threshold (e.g., 30 days) from fresh to old. Implement sequential probing in search logic.",
+        "testStrategy": "Simulate memory aging and migration. Validate search order and correctness.",
+        "priority": "low",
+        "dependencies": [
+          "11"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement async streaming generation of agent invoke.",
+        "description": "Set up async streaming for agent invocation responses.",
+        "details": "Implement astream for real-time response generation. Ensure compatibility with existing agent workflows.",
+        "testStrategy": "Unit tests for astream integration. Validate streaming behavior with various input scenarios.",
+        "priority": "high",
+        "dependencies": [
+          "11"
+        ],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define async streaming interface for agent invocation",
+            "description": "Design and document the async streaming interface (e.g., IAsyncEnumerable<T> in C#) that will be used to yield agent responses in real time, ensuring it fits within the existing agent workflow architecture.",
+            "dependencies": [],
+            "details": "Specify the method signature, return type, and expected behavior for streaming agent responses. Ensure the interface supports cancellation and error handling. Document how the stream integrates with the agent’s existing invoke logic.",
+            "status": "pending",
+            "testStrategy": "Write unit tests to verify the interface contract: ensure the method can be awaited in a loop, supports cancellation, and propagates errors correctly."
+          },
+          {
+            "id": 2,
+            "title": "Modify agent invoke logic to support async streaming",
+            "description": "Update the agent’s core invocation logic to generate responses as an async stream instead of returning a single completed result.",
+            "dependencies": [
+              1
+            ],
+            "details": "Refactor the agent’s generate method to yield partial responses as they become available, using language-native async streaming constructs (e.g., yield return in C#). Remove any buffering of full responses before returning. Ensure the streaming logic is non-blocking and cooperates with cancellation tokens.",
+            "status": "pending",
+            "testStrategy": "Unit tests: validate that responses are streamed incrementally, cancellation is respected, and the agent’s workflow state is maintained correctly during streaming."
+          },
+          {
+            "id": 3,
+            "title": "Integrate async streaming with existing agent workflows",
+            "description": "Ensure the new async streaming capability is compatible with all existing agent workflows, including chained invocations and state management.",
+            "dependencies": [
+              2
+            ],
+            "details": "Audit all agent workflow steps that consume invocation results. Update them to handle streaming responses, either by processing chunks incrementally or by aggregating as needed. Verify that workflow state (e.g., memory, context) is correctly preserved across streaming boundaries.",
+            "status": "pending",
+            "testStrategy": "Integration tests: run full agent workflows with streaming enabled, checking for correct behavior, state consistency, and error propagation. Test with workflows that chain multiple streaming invocations."
+          },
+          {
+            "id": 4,
+            "title": "Implement real-time progress and error reporting",
+            "description": "Add mechanisms to report progress (e.g., tokens generated, steps completed) and errors in real time through the async stream.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Modify the streaming interface to include progress events and error details as part of the streamed data. Ensure consumers can distinguish between data chunks, progress updates, and errors. Document how to handle and display these events in the client.",
+            "status": "pending",
+            "testStrategy": "Unit and integration tests: verify that progress and error events are correctly emitted and can be consumed by the client. Test error recovery and progress tracking in various scenarios."
+          },
+          {
+            "id": 5,
+            "title": "Validate streaming behavior and compatibility",
+            "description": "Thoroughly test the async streaming implementation under various conditions to ensure reliability and compatibility.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Conduct end-to-end tests with different input scenarios, including large responses, rapid cancellation, and error conditions. Measure performance impact and memory usage compared to the non-streaming implementation. Gather feedback from dependent components (e.g., WebSocket streaming endpoint) to confirm seamless integration.",
+            "status": "pending",
+            "testStrategy": "Comprehensive test suite: simulate high load, cancellation, network failures, and malformed inputs. Validate that streaming does not degrade system stability or correctness. Compare metrics with the previous synchronous implementation."
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Implement WebSocket Streaming /v1/chat/stream Endpoint",
+        "description": "Create WebSocket API endpoint for real-time streaming chat with audio responses. Process user messages, manage thread_id, run LangGraph workflow with astream, implement intelligent text buffering, and stream audio chunks to frontend.",
+        "details": "Architecture: WebSocket endpoint at WS /v1/chat/stream. Backend acts as orchestrator between LangGraph (text generation) and Fish Speech (TTS). Implementation steps: 1) Define WebSocket message schemas (user message in, audio chunks out). 2) Load/create thread state using Checkpointer. 3) Run LangGraph workflow with astream: perceive -> query_memory -> reason -> generate -> update_memory. 4) Implement intelligent buffering: accumulate text chunks from LangGraph until sentence boundaries (. ! ? ,) are detected. 5) Async TTS calls: send complete sentences to Fish Speech API asynchronously without blocking. 6) Stream audio: encode audio bytes as Base64 and send via WebSocket immediately upon receipt. 7) Frontend receives Base64 audio chunks, decodes, and queues for seamless playback. Keep POST /v1/chat endpoint for non-streaming use cases.",
+        "testStrategy": "Integration test: Connect WebSocket client, send message, verify text chunks are buffered correctly at sentence boundaries. Validate async TTS calls don't block text generation. Confirm audio chunks arrive in correct order and can be decoded/played. Test with multiple concurrent thread_ids. Validate context continuity across messages. Test error handling (LangGraph failure, TTS failure, network disconnect).",
+        "priority": "high",
+        "dependencies": [
+          "10",
+          "8",
+          "11",
+          "14"
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define WebSocket Message Schemas and Endpoint Contract",
+            "description": "Design and document the message formats for incoming user messages and outgoing audio chunk responses for the /v1/chat/stream WebSocket endpoint.",
+            "dependencies": [],
+            "details": "Specify JSON schemas for messages sent by the client (including thread_id, text, and metadata) and for server responses (including Base64-encoded audio, text, and status fields). Document the protocol, including connection, error, and close events. Ensure compatibility with frontend expectations.",
+            "status": "pending",
+            "testStrategy": "Unit test schema validation for both incoming and outgoing messages. Fuzz test with invalid and edge-case payloads.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement WebSocket Endpoint and Connection Lifecycle",
+            "description": "Create the /v1/chat/stream WebSocket endpoint, handling connection, message receipt, and disconnection events.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use FastAPI or equivalent to define the WebSocket route. On connection, authenticate and initialize session state. On message, parse and validate input schema. On disconnect, clean up resources. Integrate with Checkpointer to load or create thread state per thread_id.",
+            "status": "pending",
+            "testStrategy": "Integration test: Connect/disconnect clients, send valid/invalid messages, and verify correct session and state management.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Integrate LangGraph Workflow with Streaming and Buffering",
+            "description": "Run the LangGraph workflow (perceive, query_memory, reason, generate, update_memory) using astream, and implement intelligent text buffering to accumulate text until sentence boundaries are detected.",
+            "dependencies": [
+              2
+            ],
+            "details": "Invoke LangGraph's astream for real-time text generation. Buffer incoming text chunks, detecting sentence boundaries (., !, ?, ,) to form complete sentences. Ensure partial sentences are held until completion. Prepare buffered sentences for TTS processing.",
+            "status": "pending",
+            "testStrategy": "Unit and integration tests: Simulate LangGraph output, verify buffering logic, and ensure sentences are correctly segmented and passed downstream.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Asynchronous TTS Synthesis and Audio Chunk Streaming",
+            "description": "Send complete sentences to the Fish Speech TTS API asynchronously, encode audio as Base64, and stream audio chunks to the frontend without blocking text generation.",
+            "dependencies": [
+              3
+            ],
+            "details": "For each buffered sentence, asynchronously call the TTS client (Fish Speech). As soon as audio is received, encode as Base64 and send via WebSocket. Ensure non-blocking operation so text generation and TTS can proceed in parallel. Handle TTS errors gracefully.",
+            "status": "pending",
+            "testStrategy": "Integration test: Simulate high-throughput text, verify that audio chunks are streamed promptly and in order, and that TTS failures do not block the pipeline.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "End-to-End Integration and Concurrency Testing",
+            "description": "Test the complete WebSocket streaming pipeline with multiple concurrent clients and thread_ids, validating real-time audio playback and state management.",
+            "dependencies": [
+              4
+            ],
+            "details": "Connect multiple WebSocket clients, send chat messages, and verify that each receives correctly ordered audio chunks corresponding to their thread_id. Test with rapid message sequences and simulate server restarts to validate Checkpointer integration.",
+            "status": "pending",
+            "testStrategy": "Automated integration tests: Use WebSocket clients to send/receive messages, decode audio, and check playback continuity. Stress test with concurrent sessions and validate state restoration.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Implement Checkpointer for Conversation State",
+        "description": "Integrate LangGraph's Checkpointer (e.g., SqliteSaver) to persist and restore GraphState per thread_id.",
+        "details": "Configure SqliteSaver for thread-based state persistence. Ensure state is loaded/saved on each API call.",
+        "testStrategy": "Simulate server restarts and API calls. Validate state restoration and continuity.",
+        "priority": "medium",
+        "dependencies": [
+          "10"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "Package Application with PyInstaller",
+        "description": "Bundle all Python code, dependencies, and model files into a single executable for Tauri integration.",
+        "details": "Configure PyInstaller spec to include all dependencies and model weights. Ensure executable runs independently and loads models from bundled folder.",
+        "testStrategy": "Build executable in Docker. Validate startup and module loading on target OS.",
+        "priority": "high",
+        "dependencies": [
+          "3",
+          "5",
+          "7",
+          "8",
+          "10",
+          "11",
+          "12",
+          "13",
+          "16"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Develop Unit and Integration Tests",
+        "description": "Write comprehensive tests for all modules and API endpoints, including mocking external dependencies.",
+        "details": "Use pytest for unit tests of VLM, TTS, LangGraph nodes, memory tools. Use requests or Postman for API integration tests. Mock external servers for isolation.",
+        "testStrategy": "Run test suite with coverage report. Validate all acceptance criteria from PRD.",
+        "priority": "high",
+        "dependencies": [
+          "4",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16"
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2025-10-21T06:08:39.075Z",
+      "taskCount": 17,
+      "completedCount": 11,
+      "tags": [
+        "master"
+      ],
+      "created": "2025-10-21T06:49:31.813Z",
+      "description": "Tasks for master context",
+      "updated": "2025-10-21T08:03:58.267Z"
+    }
+  }
+}

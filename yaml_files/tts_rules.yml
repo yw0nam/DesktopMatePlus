@@ -1,0 +1,7 @@
+rules:
+  - pattern: '\((?:웃음|giggle|laughing)\)'
+    replacement: ''
+  - pattern: '\b(?:음|uh|um)+[.\u2026]*'
+    replacement: ''
+  - pattern: '\s{2,}'
+    replacement: ' '

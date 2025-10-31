@@ -26,7 +26,7 @@ The backend is built as a FastAPI-based lightweight HTTP server that will be pac
 
 ## Project Structure
 
-```
+```text
 src/
 ├── api/              # FastAPI endpoints
 ├── agents/           # LangGraph agent definitions
@@ -124,13 +124,28 @@ uv run ruff check src/ --fix
 ## API Endpoints
 
 ### POST /v1/chat
+
 Process user messages and return AI companion responses with audio.
 
 ### POST /v1/voice
+
 Upload voice sample for zero-shot voice cloning.
 
 ### GET /health
+
 Health check for backend and all AI modules.
+
+## WebSocket Streaming Contract
+
+The streaming gateway (under development) exposes the following server-to-client events:
+
+- `stream_start`: emitted once per conversational turn to signal the beginning of a response.
+- `tts_ready_chunk`: emitted for each cleaned, sentence-level chunk. Raw `stream_token` events remain internal and are no longer part of the public contract.
+- `stream_end`: emitted once the turn finishes or is interrupted.
+- `tool_call_start` / `tool_call_end`: lifecycle hooks for tool execution visibility.
+- `error`: emitted when the server cannot continue streaming for the active turn.
+
+Client implementations should rely exclusively on `tts_ready_chunk` for both UI rendering and TTS playback.
 
 ## Development Workflow
 
@@ -143,6 +158,10 @@ Health check for backend and all AI modules.
 ## Packaging
 
 The final backend will be packaged as a single executable using PyInstaller, including all dependencies and model weights.
+
+## Release Notes
+
+- 2025-10-25: Updated the WebSocket streaming contract to emit only `tts_ready_chunk` text payloads to clients while keeping raw token flow internal.
 
 ## License
 

@@ -86,17 +86,7 @@ node_modules/
 # OS specific
 .DS_Store
 
-# AI Models & Data
-models/
-*.pt
-*.pth
-*.bin
-*.safetensors
-data/
-*.db
-*.sqlite
-*.sqlite3
-
 # Task Master (keep configs but ignore reports)
 .taskmaster/reports/
-.taskmaster/docs/research/
+.taskmaster/docs
+*.wav
