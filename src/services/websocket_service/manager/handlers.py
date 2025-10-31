@@ -172,6 +172,12 @@ class MessageHandler:
                 return
 
             metadata.setdefault("conversation_id", conversation_id)
+            # TODO: Add Long-term memory here
+
+            # TODO: Add Short-term memory here
+
+            # TODO: Add tools support here
+
             messages = [HumanMessage(content=content)]
 
             # Use persistent user_id for client_id instead of connection-based ID
@@ -179,9 +185,9 @@ class MessageHandler:
             agent_stream = agent_service.stream(
                 messages=messages,
                 client_id=conversation_id,
+                tools=[],  # TODO: support tools per agent
                 user_id=user_id,
                 agent_id=agent_id,
-                with_memory=True,
             )
 
             turn_id = await connection_state.message_processor.start_turn(

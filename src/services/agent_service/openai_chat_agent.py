@@ -1,30 +1,20 @@
-import json
 import logging
 import os
 import traceback
 from uuid import uuid4
 
-import psycopg
 from dotenv import load_dotenv
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessageChunk, BaseMessage, SystemMessage
+from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
-from langchain_postgres import PostgresChatMessageHistory
 from langgraph.checkpoint.memory import BaseCheckpointSaver, MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
-from mem0 import Memory
 
 from src.services.agent_service.service import AgentService
-from src.services.agent_service.tools.memory import AddMemoryTool, SearchMemoryTool
-from src.services.agent_service.utils.mem0_configs import (
-    MEM0_CONFIG,
-    POSTGRES_DB_CONFIG,
-)
-from src.services.agent_service.utils.message_util import check_table_exists
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -92,48 +82,48 @@ class OpenAIChatAgent(AgentService):
         memory_saver = MemorySaver()
         return llm, memory_saver
 
-    def init_memory(
-        self,
-        user_id: str,
-        agent_id: str,
-        conversation_id: str = "default_session",
-        db_table_name: str = "chat_history",
-    ) -> tuple[Memory, PostgresChatMessageHistory, list[BaseTool]]:
-        """
-        Initializes memory components for the agent.
-        Args:
-            user_id (str): Persistent user/client identifier.
-            agent_id (str): Persistent agent identifier.
-            conversation_id (str, optional): Conversation/session identifier.
-            db_table_name (str): Database table name for chat history.
-        Returns:
-            tuple: A tuple containing the Memory instance, PostgresChatMessageHistory instance, and a list of memory tools.
-        """
+    # def init_memory(
+    #     self,
+    #     user_id: str,
+    #     agent_id: str,
+    #     conversation_id: str = "default_session",
+    #     db_table_name: str = "chat_history",
+    # ) -> tuple[Memory, PostgresChatMessageHistory, list[BaseTool]]:
+    #     """
+    #     Initializes memory components for the agent.
+    #     Args:
+    #         user_id (str): Persistent user/client identifier.
+    #         agent_id (str): Persistent agent identifier.
+    #         conversation_id (str, optional): Conversation/session identifier.
+    #         db_table_name (str): Database table name for chat history.
+    #     Returns:
+    #         tuple: A tuple containing the Memory instance, PostgresChatMessageHistory instance, and a list of memory tools.
+    #     """
 
-        sync_connection = psycopg.connect(**POSTGRES_DB_CONFIG)
-        mem0_client = Memory.from_config(MEM0_CONFIG)
+    #     sync_connection = psycopg.connect(**POSTGRES_DB_CONFIG)
+    #     mem0_client = Memory.from_config(MEM0_CONFIG)
 
-        add_memory_tool = AddMemoryTool(
-            mem0_client=mem0_client,
-            user_id=user_id,
-            agent_id=agent_id,
-        )
-        search_memory_tool = SearchMemoryTool(
-            mem0_client=mem0_client,
-            user_id=user_id,
-            agent_id=agent_id,
-        )
-        table_name = f"{user_id}_{db_table_name}"
-        if not check_table_exists(sync_connection, table_name):
-            PostgresChatMessageHistory.create_tables(sync_connection, table_name)
+    #     add_memory_tool = AddMemoryTool(
+    #         mem0_client=mem0_client,
+    #         user_id=user_id,
+    #         agent_id=agent_id,
+    #     )
+    #     search_memory_tool = SearchMemoryTool(
+    #         mem0_client=mem0_client,
+    #         user_id=user_id,
+    #         agent_id=agent_id,
+    #     )
+    #     table_name = f"{user_id}_{db_table_name}"
+    #     if not check_table_exists(sync_connection, table_name):
+    #         PostgresChatMessageHistory.create_tables(sync_connection, table_name)
 
-        chat_history = PostgresChatMessageHistory(
-            table_name,
-            conversation_id,
-            sync_connection=sync_connection,
-        )
-        memory_tools = [add_memory_tool, search_memory_tool]
-        return mem0_client, chat_history, memory_tools
+    #     chat_history = PostgresChatMessageHistory(
+    #         table_name,
+    #         conversation_id,
+    #         sync_connection=sync_connection,
+    #     )
+    #     memory_tools = [add_memory_tool, search_memory_tool]
+    #     return mem0_client, chat_history, memory_tools
 
     async def is_healthy(self) -> tuple[bool, str]:
         """
@@ -143,23 +133,11 @@ class OpenAIChatAgent(AgentService):
             tuple: A tuple containing a boolean indicating health status and a message.
         """
         try:
-            test_message = [AIMessageChunk(content="Health check")]
-            response_received = False
-            stream = self.stream(
-                messages=test_message,
-                client_id="health_check",
-            )
-            try:
-                async for _response in stream:
-                    response_received = True
-                    break  # Just check if we get any response
-            finally:
-                await stream.aclose()
+            test_message = [HumanMessage(content="Health check")]
+            async for _ in self.stream(messages=test_message, tools=[]):
+                continue
 
-            if response_received:
-                return True, "Agent is healthy."
-            else:
-                return False, "Agent did not respond."
+            return True, "Agent is healthy."
         except Exception as e:
             logger.error("Health check failed: %s", e)
             return False, f"Health check failed: {e}"
@@ -167,11 +145,8 @@ class OpenAIChatAgent(AgentService):
     async def stream(
         self,
         messages: list[BaseMessage],
-        client_id: str,
         tools: list[BaseTool] = None,
-        user_id: str = "default_user",
-        agent_id: str = "default_agent",
-        with_memory: bool = False,
+        client_id: str = None,
     ):
         """
         Streams the processing of messages through the agent.
@@ -180,8 +155,6 @@ class OpenAIChatAgent(AgentService):
             messages (list[BaseMessage]): List of messages to process.
             client_id (str): Identifier for the client. Note: this should be generated by uuid4()
             tools (list[BaseTool], optional): Additional tools for the agent.
-            user_id (str): Persistent user/client identifier.
-            agent_id (str): Persistent agent identifier.
             with_memory (bool): Whether to initialize memory for the agent.
         Yields:
             dict: Streaming response chunks including start, tokens, tool calls, tool results, and end
@@ -200,33 +173,33 @@ class OpenAIChatAgent(AgentService):
                 [tool.name for tool in mcp_tools],
             )
             # memory_initialization
-            if with_memory:
-                _memory, chat_history_manager, memory_tools = self.init_memory(
-                    user_id, agent_id, conversation_id=client_id
-                )
-                tools += memory_tools
+            # if with_memory:
+            #     _memory, chat_history_manager, memory_tools = self.init_memory(
+            #         user_id, agent_id, conversation_id=client_id
+            #     )
+            #     tools += memory_tools
 
-                # Message processing with memory retrieval
-                retrieved_message = chat_history_manager.get_messages()
-                length_of_message = len(
-                    retrieved_message
-                )  # Message Length for trimming
-                retrieved_memory = _memory.search(
-                    query=messages[0].content, user_id=user_id, agent_id=agent_id
-                )
-                if retrieved_memory:
-                    logger.debug(
-                        "Retrieved %d relevant memory items for user '%s' and agent '%s'.",
-                        len(retrieved_memory),
-                        user_id,
-                        agent_id,
-                    )
+            #     # Message processing with memory retrieval
+            #     retrieved_message = chat_history_manager.get_messages()
+            #     length_of_message = len(
+            #         retrieved_message
+            #     )  # Message Length for trimming
+            #     retrieved_memory = _memory.search(
+            #         query=messages[0].content, user_id=user_id, agent_id=agent_id
+            #     )
+            #     if retrieved_memory:
+            #         logger.debug(
+            #             "Retrieved %d relevant memory items for user '%s' and agent '%s'.",
+            #             len(retrieved_memory),
+            #             user_id,
+            #             agent_id,
+            #         )
 
-                messages = (
-                    retrieved_message
-                    + [SystemMessage(json.dumps(retrieved_memory, ensure_ascii=False))]
-                    + messages
-                )
+            #     messages = (
+            #         retrieved_message
+            #         + [SystemMessage(json.dumps(retrieved_memory, ensure_ascii=False))]
+            #         + messages
+            #     )
 
             logger.debug("Creating react agent.")
             agent = create_react_agent(
@@ -235,7 +208,7 @@ class OpenAIChatAgent(AgentService):
                 checkpointer=self.checkpoint,
             )
             run_id = str(uuid4())
-            config = {"configurable": {"thread_id": client_id}}
+            config = {"configurable": {"thread_id": run_id}}
 
             # stream 메서드는 process_message 라는 비동기 제너레이터를 반환합니다.
             yield {
@@ -254,13 +227,13 @@ class OpenAIChatAgent(AgentService):
                     "client_id": client_id,
                 },
             }
-            if with_memory:
-                complete_message = agent.get_state(config=config).values["messages"]
-                complete_message = complete_message[
-                    length_of_message:
-                ]  # Trim old messages
-                # TODO: Trim retrieved memory System Message?
-                chat_history_manager.add_messages(complete_message)
+            # if with_memory:
+            #     complete_message = agent.get_state(config=config).values["messages"]
+            #     complete_message = complete_message[
+            #         length_of_message:
+            #     ]  # Trim old messages
+            #     # TODO: Trim retrieved memory System Message?
+            #     chat_history_manager.add_messages(complete_message)
         except Exception as e:
             logger.error(f"Error in stream method: {e}")
 
