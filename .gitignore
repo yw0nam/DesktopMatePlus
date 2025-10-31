@@ -90,3 +90,4 @@ node_modules/
 .taskmaster/reports/
 .taskmaster/docs
 *.wav
+.qwen/
