@@ -14,6 +14,7 @@ import yaml
 from loguru import logger
 
 from src.services.agent_service import AgentFactory, AgentService
+from src.services.stm_service import STMFactory, STMService
 from src.services.tts_service import TTSFactory, TTSService
 from src.services.vlm_service import VLMFactory, VLMService
 
@@ -21,6 +22,7 @@ from src.services.vlm_service import VLMFactory, VLMService
 _tts_service_instance: Optional[TTSService] = None
 _vlm_service_instance: Optional[VLMService] = None
 _agent_service_instance: Optional[AgentService] = None
+_stm_service_instance: Optional[STMService] = None
 
 T = TypeVar("T")
 
@@ -319,6 +321,64 @@ def initialize_agent_service(
         raise
 
 
+def initialize_stm_service(force_reinit: bool = False) -> STMService:
+    """Initialize STM service from configuration.
+
+    Args:
+        force_reinit: If True, reinitialize even if already initialized.
+
+    Returns:
+        Initialized STM service instance
+
+    Raises:
+        ValueError: If configuration is invalid
+    """
+    global _stm_service_instance
+
+    if _stm_service_instance is not None and not force_reinit:
+        logger.debug("STM service already initialized, skipping")
+        return _stm_service_instance
+
+    # Get STM configuration from settings
+    from src.configs.stm import STMConfig
+
+    config = STMConfig()
+
+    # Get MongoDB configuration
+    mongodb_config = config.mongodb
+
+    # Create STM service using factory
+    logger.info("🔧 Initializing STM service (type: mongodb)")
+    logger.debug(
+        f"STM config: connection_string={mongodb_config.connection_string}, "
+        f"database={mongodb_config.database_name}"
+    )
+
+    try:
+        stm_service = STMFactory.get_stm_service(
+            "mongodb",
+            connection_string=mongodb_config.connection_string,
+            database_name=mongodb_config.database_name,
+            sessions_collection_name=mongodb_config.sessions_collection_name,
+            messages_collection_name=mongodb_config.messages_collection_name,
+        )
+
+        _stm_service_instance = stm_service
+
+        # Check health
+        is_healthy, health_msg = stm_service.is_healthy()
+        if is_healthy:
+            logger.info(f"✅ STM service initialized successfully: {health_msg}")
+        else:
+            logger.warning(f"⚠️  STM service initialized but not healthy: {health_msg}")
+
+        return _stm_service_instance
+
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize STM service: {e}")
+        raise
+
+
 def initialize_services(
     tts_config_path: Optional[str | Path] = None,
     vlm_config_path: Optional[str | Path] = None,
@@ -390,12 +450,23 @@ def get_agent_service() -> Optional[AgentService]:
     return _agent_service_instance
 
 
+def get_stm_service() -> Optional[STMService]:
+    """Get the initialized STM service instance.
+
+    Returns:
+        STM service instance or None if not initialized
+    """
+    return _stm_service_instance
+
+
 __all__ = [
     "initialize_services",
     "initialize_tts_service",
     "initialize_vlm_service",
     "initialize_agent_service",
+    "initialize_stm_service",
     "get_tts_service",
     "get_vlm_service",
     "get_agent_service",
+    "get_stm_service",
 ]

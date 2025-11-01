@@ -69,6 +69,7 @@ async def lifespan(app: FastAPI):
     try:
         from src.services import (
             initialize_agent_service,
+            initialize_stm_service,
             initialize_tts_service,
             initialize_vlm_service,
         )
@@ -100,6 +101,10 @@ async def lifespan(app: FastAPI):
         else:
             print("  - Agent config: Using default")
             initialize_agent_service()
+
+        # Initialize STM service
+        print("  - STM config: Using default from settings")
+        initialize_stm_service()
 
     except Exception as e:
         print(f"⚠️  Failed to initialize services: {e}")

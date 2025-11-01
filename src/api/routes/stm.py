@@ -1,0 +1,669 @@
+"""STM (Short-Term Memory) API routes."""
+
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, status
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel, Field
+
+from src.services import get_stm_service
+
+router = APIRouter(prefix="/v1/stm", tags=["STM"])
+
+
+class AddChatHistoryRequest(BaseModel):
+    """Request model for adding chat history."""
+
+    user_id: str = Field(
+        ...,
+        description="User identifier",
+        min_length=1,
+    )
+    agent_id: str = Field(
+        ...,
+        description="Agent identifier",
+        min_length=1,
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Session identifier (optional, will create new if None)",
+    )
+    messages: list[dict] = Field(
+        ...,
+        description="List of messages to add (format: [{type: 'human'|'ai'|'system', content: 'text'}])",
+        min_length=1,
+    )
+
+
+class AddChatHistoryResponse(BaseModel):
+    """Response model for adding chat history."""
+
+    session_id: str = Field(
+        ...,
+        description="Session identifier (created or existing)",
+    )
+    message_count: int = Field(
+        ...,
+        description="Number of messages added",
+    )
+
+
+class GetChatHistoryRequest(BaseModel):
+    """Request model for getting chat history."""
+
+    user_id: str = Field(
+        ...,
+        description="User identifier",
+        min_length=1,
+    )
+    agent_id: str = Field(
+        ...,
+        description="Agent identifier",
+        min_length=1,
+    )
+    session_id: str = Field(
+        ...,
+        description="Session identifier",
+        min_length=1,
+    )
+    limit: Optional[int] = Field(
+        default=None,
+        description="Maximum number of recent messages to retrieve",
+        gt=0,
+    )
+
+
+class MessageResponse(BaseModel):
+    """Response model for a single message."""
+
+    type: str = Field(..., description="Message type (human, ai, system)")
+    content: str = Field(..., description="Message content")
+
+
+class GetChatHistoryResponse(BaseModel):
+    """Response model for getting chat history."""
+
+    session_id: str = Field(..., description="Session identifier")
+    messages: list[MessageResponse] = Field(..., description="Chat history messages")
+
+
+class ListSessionsRequest(BaseModel):
+    """Request model for listing sessions."""
+
+    user_id: str = Field(
+        ...,
+        description="User identifier",
+        min_length=1,
+    )
+    agent_id: str = Field(
+        ...,
+        description="Agent identifier",
+        min_length=1,
+    )
+
+
+class SessionMetadata(BaseModel):
+    """Session metadata model."""
+
+    session_id: str = Field(..., description="Session identifier")
+    user_id: str = Field(..., description="User identifier")
+    agent_id: str = Field(..., description="Agent identifier")
+    created_at: str = Field(..., description="Creation timestamp")
+    updated_at: str = Field(..., description="Last update timestamp")
+    metadata: dict = Field(default_factory=dict, description="Additional metadata")
+
+
+class ListSessionsResponse(BaseModel):
+    """Response model for listing sessions."""
+
+    sessions: list[SessionMetadata] = Field(..., description="List of sessions")
+
+
+class DeleteSessionRequest(BaseModel):
+    """Request model for deleting a session."""
+
+    session_id: str = Field(
+        ...,
+        description="Session identifier",
+        min_length=1,
+    )
+    user_id: str = Field(
+        ...,
+        description="User identifier",
+        min_length=1,
+    )
+    agent_id: str = Field(
+        ...,
+        description="Agent identifier",
+        min_length=1,
+    )
+
+
+class DeleteSessionResponse(BaseModel):
+    """Response model for deleting a session."""
+
+    success: bool = Field(..., description="Whether the deletion was successful")
+    message: str = Field(..., description="Status message")
+
+
+class UpdateSessionMetadataRequest(BaseModel):
+    """Request model for updating session metadata."""
+
+    session_id: str = Field(
+        ...,
+        description="Session identifier",
+        min_length=1,
+    )
+    metadata: dict = Field(
+        ...,
+        description="Metadata to update or add",
+    )
+
+
+class UpdateSessionMetadataResponse(BaseModel):
+    """Response model for updating session metadata."""
+
+    success: bool = Field(..., description="Whether the update was successful")
+    message: str = Field(..., description="Status message")
+
+
+def _parse_messages(messages_data: list[dict]) -> list:
+    """Parse message dictionaries into LangChain message objects.
+
+    Args:
+        messages_data: List of message dictionaries
+
+    Returns:
+        List of LangChain message objects
+
+    Raises:
+        ValueError: If message format is invalid
+    """
+    parsed_messages = []
+    for msg in messages_data:
+        msg_type = msg.get("type", "").lower()
+        content = msg.get("content", "")
+
+        if not content:
+            raise ValueError("Message content cannot be empty")
+
+        if msg_type == "human":
+            parsed_messages.append(HumanMessage(content=content))
+        elif msg_type == "ai":
+            parsed_messages.append(AIMessage(content=content))
+        elif msg_type == "system":
+            parsed_messages.append(SystemMessage(content=content))
+        else:
+            raise ValueError(
+                f"Invalid message type: {msg_type}. Must be 'human', 'ai', or 'system'"
+            )
+
+    return parsed_messages
+
+
+@router.post(
+    "/chat-history",
+    response_model=AddChatHistoryResponse,
+    summary="Add chat history",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        201: {
+            "description": "Chat history added successfully",
+            "model": AddChatHistoryResponse,
+        },
+        400: {
+            "description": "Invalid input",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid message format"}
+                }
+            },
+        },
+        500: {
+            "description": "STM service error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error adding chat history: ..."}
+                }
+            },
+        },
+        503: {
+            "description": "STM service not initialized",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "STM service not initialized"}
+                }
+            },
+        },
+    },
+)
+async def add_chat_history(request: AddChatHistoryRequest) -> AddChatHistoryResponse:
+    """Add chat history to a session.
+
+    This endpoint accepts messages and stores them in the specified session.
+    If no session_id is provided, a new session will be created.
+
+    Args:
+        request: Add chat history request
+
+    Returns:
+        AddChatHistoryResponse: Session ID and message count
+
+    Raises:
+        HTTPException: If STM service is not initialized or processing fails
+    """
+    stm_service = get_stm_service()
+
+    if stm_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="STM service not initialized",
+        )
+
+    try:
+        # Parse messages
+        messages = _parse_messages(request.messages)
+
+        # Add chat history
+        session_id = stm_service.add_chat_history(
+            user_id=request.user_id,
+            agent_id=request.agent_id,
+            session_id=request.session_id,
+            messages=messages,
+        )
+
+        return AddChatHistoryResponse(
+            session_id=session_id,
+            message_count=len(messages),
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding chat history: {str(e)}",
+        ) from e
+
+
+@router.get(
+    "/chat-history",
+    response_model=GetChatHistoryResponse,
+    summary="Get chat history",
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "description": "Chat history retrieved successfully",
+            "model": GetChatHistoryResponse,
+        },
+        400: {
+            "description": "Invalid input",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid parameters"}}
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "content": {
+                "application/json": {"example": {"detail": "Session not found"}}
+            },
+        },
+        500: {
+            "description": "STM service error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error retrieving chat history: ..."}
+                }
+            },
+        },
+        503: {
+            "description": "STM service not initialized",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "STM service not initialized"}
+                }
+            },
+        },
+    },
+)
+async def get_chat_history(
+    user_id: str,
+    agent_id: str,
+    session_id: str,
+    limit: Optional[int] = None,
+) -> GetChatHistoryResponse:
+    """Get chat history from a session.
+
+    This endpoint retrieves messages from the specified session.
+
+    Args:
+        user_id: User identifier
+        agent_id: Agent identifier
+        session_id: Session identifier
+        limit: Maximum number of recent messages to retrieve (optional)
+
+    Returns:
+        GetChatHistoryResponse: Chat history messages
+
+    Raises:
+        HTTPException: If STM service is not initialized or processing fails
+    """
+    stm_service = get_stm_service()
+
+    if stm_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="STM service not initialized",
+        )
+
+    try:
+        # Get chat history
+        messages = stm_service.get_chat_history(
+            user_id=user_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            limit=limit,
+        )
+
+        # Convert to response format
+        message_responses = []
+        for msg in messages:
+            msg_type = msg.__class__.__name__.lower().replace("message", "")
+            message_responses.append(
+                MessageResponse(
+                    type=msg_type,
+                    content=msg.content,
+                )
+            )
+
+        return GetChatHistoryResponse(
+            session_id=session_id,
+            messages=message_responses,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving chat history: {str(e)}",
+        ) from e
+
+
+@router.get(
+    "/sessions",
+    response_model=ListSessionsResponse,
+    summary="List sessions",
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "description": "Sessions retrieved successfully",
+            "model": ListSessionsResponse,
+        },
+        400: {
+            "description": "Invalid input",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid parameters"}}
+            },
+        },
+        500: {
+            "description": "STM service error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error listing sessions: ..."}
+                }
+            },
+        },
+        503: {
+            "description": "STM service not initialized",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "STM service not initialized"}
+                }
+            },
+        },
+    },
+)
+async def list_sessions(
+    user_id: str,
+    agent_id: str,
+) -> ListSessionsResponse:
+    """List all sessions for a user and agent.
+
+    This endpoint retrieves all sessions for the specified user and agent.
+
+    Args:
+        user_id: User identifier
+        agent_id: Agent identifier
+
+    Returns:
+        ListSessionsResponse: List of sessions
+
+    Raises:
+        HTTPException: If STM service is not initialized or processing fails
+    """
+    stm_service = get_stm_service()
+
+    if stm_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="STM service not initialized",
+        )
+
+    try:
+        # List sessions
+        sessions = stm_service.list_sessions(
+            user_id=user_id,
+            agent_id=agent_id,
+        )
+
+        # Convert to response format
+        session_metadata = [
+            SessionMetadata(
+                session_id=session["session_id"],
+                user_id=session["user_id"],
+                agent_id=session["agent_id"],
+                created_at=session["created_at"].isoformat(),
+                updated_at=session["updated_at"].isoformat(),
+                metadata=session.get("metadata", {}),
+            )
+            for session in sessions
+        ]
+
+        return ListSessionsResponse(sessions=session_metadata)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing sessions: {str(e)}",
+        ) from e
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    response_model=DeleteSessionResponse,
+    summary="Delete session",
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "description": "Session deleted successfully",
+            "model": DeleteSessionResponse,
+        },
+        400: {
+            "description": "Invalid input",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid parameters"}}
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "content": {
+                "application/json": {"example": {"detail": "Session not found"}}
+            },
+        },
+        500: {
+            "description": "STM service error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error deleting session: ..."}
+                }
+            },
+        },
+        503: {
+            "description": "STM service not initialized",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "STM service not initialized"}
+                }
+            },
+        },
+    },
+)
+async def delete_session(
+    session_id: str,
+    user_id: str,
+    agent_id: str,
+) -> DeleteSessionResponse:
+    """Delete a session.
+
+    This endpoint deletes the specified session and all its messages.
+
+    Args:
+        session_id: Session identifier
+        user_id: User identifier
+        agent_id: Agent identifier
+
+    Returns:
+        DeleteSessionResponse: Deletion status
+
+    Raises:
+        HTTPException: If STM service is not initialized or processing fails
+    """
+    stm_service = get_stm_service()
+
+    if stm_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="STM service not initialized",
+        )
+
+    try:
+        # Delete session
+        success = stm_service.delete_session(
+            session_id=session_id,
+            user_id=user_id,
+            agent_id=agent_id,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found",
+            )
+
+        return DeleteSessionResponse(
+            success=True,
+            message="Session deleted successfully",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting session: {str(e)}",
+        ) from e
+
+
+@router.patch(
+    "/sessions/{session_id}/metadata",
+    response_model=UpdateSessionMetadataResponse,
+    summary="Update session metadata",
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "description": "Session metadata updated successfully",
+            "model": UpdateSessionMetadataResponse,
+        },
+        400: {
+            "description": "Invalid input",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid parameters"}}
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "content": {
+                "application/json": {"example": {"detail": "Session not found"}}
+            },
+        },
+        500: {
+            "description": "STM service error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error updating session metadata: ..."}
+                }
+            },
+        },
+        503: {
+            "description": "STM service not initialized",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "STM service not initialized"}
+                }
+            },
+        },
+    },
+)
+async def update_session_metadata(
+    session_id: str,
+    request: UpdateSessionMetadataRequest,
+) -> UpdateSessionMetadataResponse:
+    """Update session metadata.
+
+    This endpoint updates the metadata for the specified session.
+
+    Args:
+        session_id: Session identifier
+        request: Update session metadata request
+
+    Returns:
+        UpdateSessionMetadataResponse: Update status
+
+    Raises:
+        HTTPException: If STM service is not initialized or processing fails
+    """
+    stm_service = get_stm_service()
+
+    if stm_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="STM service not initialized",
+        )
+
+    try:
+        # Update session metadata
+        success = stm_service.update_session_metadata(
+            session_id=session_id,
+            metadata=request.metadata,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found",
+            )
+
+        return UpdateSessionMetadataResponse(
+            success=True,
+            message="Session metadata updated successfully",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating session metadata: {str(e)}",
+        ) from e
