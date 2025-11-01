@@ -31,5 +31,5 @@ class STMConfig(BaseModel):
 
     mongodb: Optional[MongoDBShortTermMemory] = Field(
         default_factory=MongoDBShortTermMemory,
-        description="MongoDB 체크포인트 설정",
+        description="MongoDB STM 설정",
     )

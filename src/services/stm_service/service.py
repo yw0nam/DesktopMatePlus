@@ -22,12 +22,11 @@ class STMService(ABC, Generic[MemoryClientType]):
         memory_config (dict, Optional): Configuration for the memory connection.
     """
 
-    def __init__(self, memory_config: dict = None):
-        self.memory_config = memory_config
-        self.memory_client = self.initialize_memory(memory_config)
+    def __init__(self, **kwargs):
+        self.memory_client = self.initialize_memory()
 
     @abstractmethod
-    def initialize_memory(self, memory_config: dict) -> MemoryClientType:
+    def initialize_memory(self) -> MemoryClientType:
         """
         Initialize the short term memory retrieval client.
 

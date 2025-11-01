@@ -26,6 +26,7 @@ dependencies = [
     "psycopg[binary]>=3.2.1",
     "psycopg2-binary>=2.9.11",
     "qdrant-client>=1.15.1",
+    "pymongo>=4.15.3",
     "rank-bm25>=0.2.2",
     # Screen Capture
     "mss>=9.0.0",
@@ -41,7 +42,6 @@ dependencies = [
     "types-requests>=2.32.4.20250913",
     "pyyaml>=6.0.0",
     "langchain-mcp-adapters>=0.1.11",
-    "langchain-postgres>=0.0.16",
 ]
 
 [project.optional-dependencies]
