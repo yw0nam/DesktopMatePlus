@@ -10,7 +10,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import BaseCheckpointSaver, MemorySaver
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
@@ -71,7 +71,7 @@ class OpenAIChatAgent(AgentService):
             self.checkpoint,
         )
 
-    def initialize_model(self) -> tuple[BaseChatModel, BaseCheckpointSaver]:
+    def initialize_model(self) -> tuple[BaseChatModel, MemorySaver]:
         llm = ChatOpenAI(
             temperature=self.temperature,
             top_p=self.top_p,
@@ -81,49 +81,6 @@ class OpenAIChatAgent(AgentService):
         )
         memory_saver = MemorySaver()
         return llm, memory_saver
-
-    # def init_memory(
-    #     self,
-    #     user_id: str,
-    #     agent_id: str,
-    #     conversation_id: str = "default_session",
-    #     db_table_name: str = "chat_history",
-    # ) -> tuple[Memory, PostgresChatMessageHistory, list[BaseTool]]:
-    #     """
-    #     Initializes memory components for the agent.
-    #     Args:
-    #         user_id (str): Persistent user/client identifier.
-    #         agent_id (str): Persistent agent identifier.
-    #         conversation_id (str, optional): Conversation/session identifier.
-    #         db_table_name (str): Database table name for chat history.
-    #     Returns:
-    #         tuple: A tuple containing the Memory instance, PostgresChatMessageHistory instance, and a list of memory tools.
-    #     """
-
-    #     sync_connection = psycopg.connect(**POSTGRES_DB_CONFIG)
-    #     mem0_client = Memory.from_config(MEM0_CONFIG)
-
-    #     add_memory_tool = AddMemoryTool(
-    #         mem0_client=mem0_client,
-    #         user_id=user_id,
-    #         agent_id=agent_id,
-    #     )
-    #     search_memory_tool = SearchMemoryTool(
-    #         mem0_client=mem0_client,
-    #         user_id=user_id,
-    #         agent_id=agent_id,
-    #     )
-    #     table_name = f"{user_id}_{db_table_name}"
-    #     if not check_table_exists(sync_connection, table_name):
-    #         PostgresChatMessageHistory.create_tables(sync_connection, table_name)
-
-    #     chat_history = PostgresChatMessageHistory(
-    #         table_name,
-    #         conversation_id,
-    #         sync_connection=sync_connection,
-    #     )
-    #     memory_tools = [add_memory_tool, search_memory_tool]
-    #     return mem0_client, chat_history, memory_tools
 
     async def is_healthy(self) -> tuple[bool, str]:
         """

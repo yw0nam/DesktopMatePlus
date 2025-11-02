@@ -21,8 +21,10 @@ class VLMFactory:
         Raises:
             ValueError: If service_type is unknown
         """
-        if service_type == "openai":
+        if service_type == "openai_chat_agent":
             from src.services.vlm_service.openai_compatible import OpenAIService
+
+            kwargs["openai_api_key"] = os.getenv("VLM_API_KEY")
 
             return OpenAIService(
                 temperature=kwargs.get("temperature", 0.7),

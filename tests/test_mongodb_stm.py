@@ -16,24 +16,24 @@ from src.services.stm_service.mongodb import MongoDBSTM
 
 def test_mongodb_stm_initialization():
     """Test that MongoDBSTM can be initialized with configuration."""
-    connection_string = 'mongodb://admin:test@localhost:27017/'
-    database_name = 'test_db'
-    sessions_collection_name = 'test_sessions'
-    messages_collection_name = 'test_messages'
+    connection_string = "mongodb://admin:test@localhost:27017/"
+    database_name = "test_db"
+    sessions_collection_name = "test_sessions"
+    messages_collection_name = "test_messages"
 
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         # Mock the database and collections
         mock_db = MagicMock()
         mock_client_instance = mock_client.return_value
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         # Create MongoDBSTM instance
         stm = MongoDBSTM(
             connection_string=connection_string,
             database_name=database_name,
             sessions_collection_name=sessions_collection_name,
-            messages_collection_name=messages_collection_name
+            messages_collection_name=messages_collection_name,
         )
 
         # Verify initialization
@@ -46,12 +46,12 @@ def test_mongodb_stm_initialization():
 
 def test_mongodb_stm_initialize_memory():
     """Test that initialize_memory connects to MongoDB properly."""
-    connection_string = 'mongodb://admin:test@localhost:27017/'
-    database_name = 'test_db'
-    sessions_collection_name = 'test_sessions'
-    messages_collection_name = 'test_messages'
+    connection_string = "mongodb://admin:test@localhost:27017/"
+    database_name = "test_db"
+    sessions_collection_name = "test_sessions"
+    messages_collection_name = "test_messages"
 
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         # Mock the database and collections
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
@@ -59,18 +59,18 @@ def test_mongodb_stm_initialize_memory():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
 
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
             connection_string=connection_string,
             database_name=database_name,
             sessions_collection_name=sessions_collection_name,
-            messages_collection_name=messages_collection_name
+            messages_collection_name=messages_collection_name,
         )
 
         # Verify the client was created with correct connection string
@@ -84,7 +84,7 @@ def test_mongodb_stm_with_config_defaults():
 
     config = STMConfig()
 
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         # Mock the database and collections
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
@@ -92,39 +92,39 @@ def test_mongodb_stm_with_config_defaults():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'sessions': mock_sessions_collection,
-            'messages': mock_messages_collection
+            "sessions": mock_sessions_collection,
+            "messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
 
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
             connection_string=config.mongodb.connection_string,
             database_name=config.mongodb.database_name,
             sessions_collection_name=config.mongodb.sessions_collection_name,
-            messages_collection_name=config.mongodb.messages_collection_name
+            messages_collection_name=config.mongodb.messages_collection_name,
         )
 
         # Verify the client was created with default connection string
-        mock_client.assert_called_once_with('mongodb://admin:test@localhost:27017/')
+        mock_client.assert_called_once_with("mongodb://admin:test@localhost:27017/")
         assert stm.connection_string == config.mongodb.connection_string
         assert stm.database_name == config.mongodb.database_name
 
 
 def test_mongodb_stm_health_check_healthy():
     """Test that health check returns True when connection is healthy."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_client_instance = mock_client.return_value
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         is_healthy, message = stm.is_healthy()
@@ -135,21 +135,21 @@ def test_mongodb_stm_health_check_healthy():
 
 def test_mongodb_stm_health_check_unhealthy():
     """Test that health check returns False when connection is unhealthy."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_client_instance = mock_client.return_value
         mock_client_instance.__getitem__.return_value = mock_db
         # First call succeeds (initialization), second call fails (health check)
         mock_client_instance.admin.command.side_effect = [
-            {'ok': 1.0},  # For initialization
-            pymongo.errors.ConnectionFailure("Connection failed")  # For health check
+            {"ok": 1.0},  # For initialization
+            pymongo.errors.ConnectionFailure("Connection failed"),  # For health check
         ]
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         is_healthy, message = stm.is_healthy()
@@ -160,17 +160,17 @@ def test_mongodb_stm_health_check_unhealthy():
 
 def test_mongodb_stm_health_check_not_initialized():
     """Test that health check returns False when client is not initialized."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_client_instance = mock_client.return_value
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
         stm._client = None
 
@@ -182,7 +182,7 @@ def test_mongodb_stm_health_check_not_initialized():
 
 def test_mongodb_stm_creates_indexes():
     """Test that MongoDBSTM creates indexes on initialization."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         # Mock the database and collections
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
@@ -190,60 +190,61 @@ def test_mongodb_stm_creates_indexes():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Verify indexes were created on sessions collection
         mock_sessions_collection.create_index.assert_called_once_with(
             [("user_id", pymongo.ASCENDING), ("agent_id", pymongo.ASCENDING)],
             background=True,
-            name="user_agent_idx"
+            name="user_agent_idx",
         )
 
         # Verify indexes were created on messages collection
         mock_messages_collection.create_index.assert_called_once_with(
             [("session_id", pymongo.ASCENDING), ("created_at", pymongo.ASCENDING)],
             background=True,
-            name="session_created_idx"
+            name="session_created_idx",
         )
-
 
 
 def test_mongodb_stm_handles_index_creation_failure():
     """Test that MongoDBSTM handles index creation failures gracefully."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         # Mock the database and collections
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
 
         # Simulate index creation failure
-        mock_sessions_collection.create_index.side_effect = Exception("Index creation failed")
+        mock_sessions_collection.create_index.side_effect = Exception(
+            "Index creation failed"
+        )
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         # Should not raise exception even if index creation fails
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Verify the STM was still created successfully
@@ -259,7 +260,7 @@ def test_message_serialization_deserialization():
         HumanMessage(content="Hello, how are you?"),
         AIMessage(content="I'm doing well, thank you!"),
         HumanMessage(content="What's the weather like?"),
-        AIMessage(content="I don't have access to real-time weather data.")
+        AIMessage(content="I don't have access to real-time weather data."),
     ]
 
     # Serialize messages using LangChain utility
@@ -283,34 +284,30 @@ def test_message_serialization_deserialization():
         assert original.content == restored.content
 
 
-
 def test_add_chat_history_creates_new_session():
     """Test that add_chat_history creates a new session when session_id is None."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Create test messages
-        messages = [
-            HumanMessage(content="Hello"),
-            AIMessage(content="Hi there!")
-        ]
+        messages = [HumanMessage(content="Hello"), AIMessage(content="Hi there!")]
 
         # Add chat history without session_id
         session_id = stm.add_chat_history("user1", "agent1", None, messages)
@@ -337,36 +334,38 @@ def test_add_chat_history_creates_new_session():
 
 def test_add_chat_history_adds_to_existing_session():
     """Test that add_chat_history adds messages to an existing session."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Create test messages
         messages = [
             HumanMessage(content="Another question"),
-            AIMessage(content="Another answer")
+            AIMessage(content="Another answer"),
         ]
 
         existing_session_id = "existing-session-123"
 
         # Add chat history to existing session
-        session_id = stm.add_chat_history("user1", "agent1", existing_session_id, messages)
+        session_id = stm.add_chat_history(
+            "user1", "agent1", existing_session_id, messages
+        )
 
         # Verify the same session_id is returned
         assert session_id == existing_session_id
@@ -390,24 +389,24 @@ def test_add_chat_history_adds_to_existing_session():
 
 def test_add_chat_history_with_empty_messages():
     """Test that add_chat_history handles empty message list."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Add chat history with empty messages
@@ -423,7 +422,7 @@ def test_add_chat_history_with_empty_messages():
 
 def test_get_chat_history_retrieves_messages():
     """Test that get_chat_history retrieves messages from MongoDB."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -434,20 +433,20 @@ def test_get_chat_history_retrieves_messages():
                 "session_id": "test-session",
                 "message_data": {
                     "type": "human",
-                    "data": {"content": "Hello", "type": "human"}
+                    "data": {"content": "Hello", "type": "human"},
                 },
                 "created_at": "2024-01-01T00:00:00",
-                "sequence": 0
+                "sequence": 0,
             },
             {
                 "session_id": "test-session",
                 "message_data": {
                     "type": "ai",
-                    "data": {"content": "Hi there!", "type": "ai"}
+                    "data": {"content": "Hi there!", "type": "ai"},
                 },
                 "created_at": "2024-01-01T00:00:01",
-                "sequence": 1
-            }
+                "sequence": 1,
+            },
         ]
 
         # Mock the find query
@@ -458,24 +457,26 @@ def test_get_chat_history_retrieves_messages():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Get chat history
         messages = stm.get_chat_history("user1", "agent1", "test-session")
 
         # Verify find was called with correct query
-        mock_messages_collection.find.assert_called_once_with({"session_id": "test-session"})
+        mock_messages_collection.find.assert_called_once_with(
+            {"session_id": "test-session"}
+        )
 
         # Verify sort was called
         mock_cursor.sort.assert_called_once()
@@ -485,10 +486,9 @@ def test_get_chat_history_retrieves_messages():
         assert len(messages) == 2
 
 
-
 def test_get_chat_history_with_limit():
     """Test that get_chat_history respects the limit parameter."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -499,10 +499,10 @@ def test_get_chat_history_with_limit():
                 "session_id": "test-session",
                 "message_data": {
                     "type": "human",
-                    "data": {"content": f"Message {i}", "type": "human"}
+                    "data": {"content": f"Message {i}", "type": "human"},
                 },
                 "created_at": f"2024-01-01T00:00:0{i}",
-                "sequence": i
+                "sequence": i,
             }
             for i in range(2, 5)  # Only return the last 3 messages
         ]
@@ -518,17 +518,17 @@ def test_get_chat_history_with_limit():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Get chat history with limit of 3
@@ -542,10 +542,9 @@ def test_get_chat_history_with_limit():
         assert len(messages) == 3
 
 
-
 def test_get_chat_history_empty_session():
     """Test that get_chat_history returns empty list for session with no messages."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -558,17 +557,17 @@ def test_get_chat_history_empty_session():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Get chat history for empty session
@@ -580,13 +579,14 @@ def test_get_chat_history_empty_session():
 
 def test_list_sessions():
     """Test that list_sessions retrieves all sessions for a user and agent."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
 
         # Mock session documents
         from datetime import datetime, timezone
+
         mock_session_docs = [
             {
                 "session_id": "session-1",
@@ -594,7 +594,7 @@ def test_list_sessions():
                 "agent_id": "agent1",
                 "created_at": datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
                 "updated_at": datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-                "metadata": {"title": "First conversation"}
+                "metadata": {"title": "First conversation"},
             },
             {
                 "session_id": "session-2",
@@ -602,8 +602,8 @@ def test_list_sessions():
                 "agent_id": "agent1",
                 "created_at": datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
                 "updated_at": datetime(2024, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
-                "metadata": {}
-            }
+                "metadata": {},
+            },
         ]
 
         # Mock the find query
@@ -614,24 +614,26 @@ def test_list_sessions():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # List sessions
         sessions = stm.list_sessions("user1", "agent1")
 
         # Verify find was called with correct query
-        mock_sessions_collection.find.assert_called_once_with({"user_id": "user1", "agent_id": "agent1"})
+        mock_sessions_collection.find.assert_called_once_with(
+            {"user_id": "user1", "agent_id": "agent1"}
+        )
 
         # Verify sort was called
         mock_cursor.sort.assert_called_once()
@@ -645,7 +647,7 @@ def test_list_sessions():
 
 def test_list_sessions_empty():
     """Test that list_sessions returns empty list when no sessions exist."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -658,17 +660,17 @@ def test_list_sessions_empty():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # List sessions
@@ -680,7 +682,7 @@ def test_list_sessions_empty():
 
 def test_delete_session_success():
     """Test that delete_session successfully deletes a session and its messages."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -689,7 +691,7 @@ def test_delete_session_success():
         mock_sessions_collection.find_one.return_value = {
             "session_id": "session-1",
             "user_id": "user1",
-            "agent_id": "agent1"
+            "agent_id": "agent1",
         }
 
         # Mock delete operations
@@ -703,17 +705,17 @@ def test_delete_session_success():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Delete session
@@ -723,7 +725,9 @@ def test_delete_session_success():
         mock_sessions_collection.find_one.assert_called_once()
 
         # Verify messages were deleted
-        mock_messages_collection.delete_many.assert_called_once_with({"session_id": "session-1"})
+        mock_messages_collection.delete_many.assert_called_once_with(
+            {"session_id": "session-1"}
+        )
 
         # Verify session was deleted
         mock_sessions_collection.delete_one.assert_called_once()
@@ -734,7 +738,7 @@ def test_delete_session_success():
 
 def test_delete_session_not_found():
     """Test that delete_session returns False when session doesn't exist."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -744,17 +748,17 @@ def test_delete_session_not_found():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Delete non-existent session
@@ -773,7 +777,7 @@ def test_delete_session_not_found():
 
 def test_update_session_metadata_success():
     """Test that update_session_metadata successfully updates metadata."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -785,24 +789,21 @@ def test_update_session_metadata_success():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Update metadata
-        metadata = {
-            "title": "Updated conversation",
-            "tags": ["important", "work"]
-        }
+        metadata = {"title": "Updated conversation", "tags": ["important", "work"]}
         result = stm.update_session_metadata("session-1", metadata)
 
         # Verify update_one was called with correct parameters
@@ -825,7 +826,7 @@ def test_update_session_metadata_success():
 
 def test_update_session_metadata_session_not_found():
     """Test that update_session_metadata returns False when session doesn't exist."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -837,17 +838,17 @@ def test_update_session_metadata_session_not_found():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Update metadata for non-existent session
@@ -859,7 +860,7 @@ def test_update_session_metadata_session_not_found():
 
 def test_update_session_metadata_merge():
     """Test that update_session_metadata merges metadata correctly."""
-    with patch('pymongo.MongoClient') as mock_client:
+    with patch("pymongo.MongoClient") as mock_client:
         mock_db = MagicMock()
         mock_sessions_collection = MagicMock()
         mock_messages_collection = MagicMock()
@@ -871,23 +872,23 @@ def test_update_session_metadata_merge():
 
         mock_client_instance = mock_client.return_value
         mock_db.__getitem__.side_effect = lambda name: {
-            'test_sessions': mock_sessions_collection,
-            'test_messages': mock_messages_collection
+            "test_sessions": mock_sessions_collection,
+            "test_messages": mock_messages_collection,
         }[name]
         mock_client_instance.__getitem__.return_value = mock_db
-        mock_client_instance.admin.command.return_value = {'ok': 1.0}
+        mock_client_instance.admin.command.return_value = {"ok": 1.0}
 
         stm = MongoDBSTM(
-            connection_string='mongodb://admin:test@localhost:27017/',
-            database_name='test_db',
-            sessions_collection_name='test_sessions',
-            messages_collection_name='test_messages'
+            connection_string="mongodb://admin:test@localhost:27017/",
+            database_name="test_db",
+            sessions_collection_name="test_sessions",
+            messages_collection_name="test_messages",
         )
 
         # Update with new and overlapping keys
         new_metadata = {
             "title": "New Title",  # Overwrites old
-            "description": "A new field"  # New field
+            "description": "A new field",  # New field
         }
         result = stm.update_session_metadata("session-1", new_metadata)
 

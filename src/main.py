@@ -19,6 +19,7 @@ _config_paths = {
     "tts_config_path": None,
     "vlm_config_path": None,
     "agent_config_path": None,
+    "stm_config_path": None,
 }
 
 
@@ -102,9 +103,12 @@ async def lifespan(app: FastAPI):
             print("  - Agent config: Using default")
             initialize_agent_service()
 
-        # Initialize STM service
-        print("  - STM config: Using default from settings")
-        initialize_stm_service()
+        if _config_paths.get("stm_config_path"):
+            print(f"  - STM config: {_config_paths['stm_config_path']}")
+            initialize_stm_service(config_path=_config_paths["stm_config_path"])
+        else:
+            print("  - STM config: Using default from settings")
+            initialize_stm_service()
 
     except Exception as e:
         print(f"⚠️  Failed to initialize services: {e}")
@@ -149,8 +153,6 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example usage:
-  python -m src.main
-  python -m src.main --yaml_file yaml_files/main.yml
   uv run src/main.py --yaml_file yaml_files/main.yml
 
 Environment variables (.env file):

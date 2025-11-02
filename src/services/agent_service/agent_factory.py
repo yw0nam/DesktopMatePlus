@@ -24,6 +24,7 @@ class AgentFactory:
         if service_type == "openai_chat_agent":
             from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
 
+            kwargs["openai_api_key"] = os.getenv("LLM_API_KEY")
             return OpenAIChatAgent(
                 temperature=kwargs.get("temperature", 0.7),
                 top_p=kwargs.get("top_p", 0.9),

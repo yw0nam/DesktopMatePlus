@@ -68,9 +68,7 @@ def _parse_messages(messages_data: list[dict]) -> list:
         400: {
             "description": "Invalid input",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid message format"}
-                }
+                "application/json": {"example": {"detail": "Invalid message format"}}
             },
         },
         500: {

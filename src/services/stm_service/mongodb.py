@@ -111,17 +111,21 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             self._sessions_collection.create_index(
                 [("user_id", pymongo.ASCENDING), ("agent_id", pymongo.ASCENDING)],
                 background=True,
-                name="user_agent_idx"
+                name="user_agent_idx",
             )
-            logger.info(f"Created index on {self.sessions_collection_name}: user_id, agent_id")
+            logger.info(
+                f"Created index on {self.sessions_collection_name}: user_id, agent_id"
+            )
 
             # Create compound index on messages collection for session_id and created_at
             self._messages_collection.create_index(
                 [("session_id", pymongo.ASCENDING), ("created_at", pymongo.ASCENDING)],
                 background=True,
-                name="session_created_idx"
+                name="session_created_idx",
             )
-            logger.info(f"Created index on {self.messages_collection_name}: session_id, created_at")
+            logger.info(
+                f"Created index on {self.messages_collection_name}: session_id, created_at"
+            )
 
         except Exception as e:
             logger.warning(f"Failed to create indexes: {e}")
@@ -158,15 +162,21 @@ class MongoDBSTM(STMService[MongoDBClientType]):
                     "agent_id": agent_id,
                     "created_at": datetime.now(timezone.utc),
                     "updated_at": datetime.now(timezone.utc),
-                    "metadata": {}
+                    "metadata": {},
                 }
                 self._sessions_collection.insert_one(session_doc)
-                logger.info(f"Created new session: {session_id} for user {user_id} and agent {agent_id}")
+                logger.info(
+                    f"Created new session: {session_id} for user {user_id} and agent {agent_id}"
+                )
             else:
                 # Update existing session's updated_at timestamp
                 self._sessions_collection.update_one(
-                    {"session_id": session_id, "user_id": user_id, "agent_id": agent_id},
-                    {"$set": {"updated_at": datetime.now(timezone.utc)}}
+                    {
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "agent_id": agent_id,
+                    },
+                    {"$set": {"updated_at": datetime.now(timezone.utc)}},
                 )
 
             # Serialize messages to dictionaries
@@ -180,14 +190,16 @@ class MongoDBSTM(STMService[MongoDBClientType]):
                     "session_id": session_id,
                     "message_data": msg_dict,
                     "created_at": current_time,
-                    "sequence": idx  # Track message order within the batch
+                    "sequence": idx,  # Track message order within the batch
                 }
                 message_docs.append(message_doc)
 
             # Bulk insert messages
             if message_docs:
                 self._messages_collection.insert_many(message_docs)
-                logger.info(f"Added {len(message_docs)} messages to session {session_id}")
+                logger.info(
+                    f"Added {len(message_docs)} messages to session {session_id}"
+                )
 
             return session_id
 
@@ -218,10 +230,9 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             query = {"session_id": session_id}
 
             # Sort by created_at ascending (oldest first) and sequence
-            cursor = self._messages_collection.find(query).sort([
-                ("created_at", pymongo.ASCENDING),
-                ("sequence", pymongo.ASCENDING)
-            ])
+            cursor = self._messages_collection.find(query).sort(
+                [("created_at", pymongo.ASCENDING), ("sequence", pymongo.ASCENDING)]
+            )
 
             # Apply limit if specified (get the most recent messages)
             if limit is not None and limit > 0:
@@ -247,7 +258,6 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             logger.error(f"Error retrieving chat history: {e}")
             raise
 
-
     def list_sessions(self, user_id: str, agent_id: str) -> list[dict]:
         """List sessions for a user and agent from MongoDB.
 
@@ -263,7 +273,9 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             query = {"user_id": user_id, "agent_id": agent_id}
 
             # Sort by updated_at descending (most recent first)
-            cursor = self._sessions_collection.find(query).sort("updated_at", pymongo.DESCENDING)
+            cursor = self._sessions_collection.find(query).sort(
+                "updated_at", pymongo.DESCENDING
+            )
 
             # Convert to list of dictionaries with relevant metadata
             sessions = []
@@ -274,11 +286,13 @@ class MongoDBSTM(STMService[MongoDBClientType]):
                     "agent_id": doc["agent_id"],
                     "created_at": doc["created_at"],
                     "updated_at": doc["updated_at"],
-                    "metadata": doc.get("metadata", {})
+                    "metadata": doc.get("metadata", {}),
                 }
                 sessions.append(session_metadata)
 
-            logger.info(f"Retrieved {len(sessions)} sessions for user {user_id} and agent {agent_id}")
+            logger.info(
+                f"Retrieved {len(sessions)} sessions for user {user_id} and agent {agent_id}"
+            )
             return sessions
 
         except Exception as e:
@@ -301,17 +315,23 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             session_query = {
                 "session_id": session_id,
                 "user_id": user_id,
-                "agent_id": agent_id
+                "agent_id": agent_id,
             }
 
             session = self._sessions_collection.find_one(session_query)
             if not session:
-                logger.warning(f"Session {session_id} not found for user {user_id} and agent {agent_id}")
+                logger.warning(
+                    f"Session {session_id} not found for user {user_id} and agent {agent_id}"
+                )
                 return False
 
             # Delete all messages associated with this session
-            message_result = self._messages_collection.delete_many({"session_id": session_id})
-            logger.info(f"Deleted {message_result.deleted_count} messages from session {session_id}")
+            message_result = self._messages_collection.delete_many(
+                {"session_id": session_id}
+            )
+            logger.info(
+                f"Deleted {message_result.deleted_count} messages from session {session_id}"
+            )
 
             # Delete the session document
             session_result = self._sessions_collection.delete_one(session_query)
@@ -326,7 +346,6 @@ class MongoDBSTM(STMService[MongoDBClientType]):
         except Exception as e:
             logger.error(f"Error deleting session: {e}")
             raise
-
 
     def update_session_metadata(self, session_id: str, metadata: dict) -> bool:
         """Update session metadata in MongoDB.
@@ -346,8 +365,7 @@ class MongoDBSTM(STMService[MongoDBClientType]):
 
             # Update the session document
             result = self._sessions_collection.update_one(
-                {"session_id": session_id},
-                {"$set": update_fields}
+                {"session_id": session_id}, {"$set": update_fields}
             )
 
             if result.matched_count > 0:

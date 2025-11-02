@@ -202,9 +202,7 @@ def initialize_vlm_service(
     )
     logger.debug(f"Agent config: {service_configs}")
     # Create VLM engine using factory with **configs
-    logger.info(
-        f"🔧 Initializing VLM service (type: {service_type})"
-    )
+    logger.info(f"🔧 Initializing VLM service (type: {service_type})")
     logger.debug(f"VLM config: {service_configs}")
 
     try:
@@ -267,11 +265,13 @@ def initialize_agent_service(
     logger.info(
         f"🔧 Initializing Agent service (type: {service_type}, model: {service_configs.get('model_name')}"
     )
-    service_configs['mcp_config'] = mcp_config
+    service_configs["mcp_config"] = mcp_config
     logger.debug(f"Agent config: {service_configs}")
 
     try:
-        agent_engine = AgentFactory.get_agent_service(service_type=service_type, **service_configs)
+        agent_engine = AgentFactory.get_agent_service(
+            service_type=service_type, **service_configs
+        )
 
         _agent_service_instance = agent_engine
 
@@ -293,7 +293,9 @@ def initialize_agent_service(
         raise
 
 
-def initialize_stm_service(config_path: Optional[str | Path] = None, force_reinit: bool = False) -> STMService:
+def initialize_stm_service(
+    config_path: Optional[str | Path] = None, force_reinit: bool = False
+) -> STMService:
     """Initialize STM service from configuration.
 
     Args:
@@ -339,8 +341,7 @@ def initialize_stm_service(config_path: Optional[str | Path] = None, force_reini
 
     try:
         stm_service = STMFactory.get_stm_service(
-            service_type=service_type,
-           **service_configs
+            service_type=service_type, **service_configs
         )
 
         _stm_service_instance = stm_service

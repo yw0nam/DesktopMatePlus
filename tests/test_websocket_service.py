@@ -213,14 +213,24 @@ class TestWebSocketManager:
                 yield {"type": "stream_token", "data": "Hello, world!"}
                 yield {"type": "stream_end"}
 
-        with patch(
-            "src.services.websocket_service.manager.handlers.get_agent_service",
-            return_value=FakeAgentService(),
+        class FakeSTMService:
+            pass
+
+        with (
+            patch(
+                "src.services.websocket_service.manager.handlers.get_agent_service",
+                return_value=FakeAgentService(),
+            ),
+            patch(
+                "src.services.websocket_service.manager.handlers.get_stm_service",
+                return_value=FakeSTMService(),
+            ),
         ):
             message_data = {
                 "content": "Hello, world!",
                 "agent_id": "test-agent",
                 "user_id": "test-user",
+                "limit": 10,
                 "metadata": {"test": "data"},
             }
             await manager.handle_chat_message(connection_id, message_data)

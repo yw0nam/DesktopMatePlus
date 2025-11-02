@@ -4,6 +4,7 @@ Tests for Agent factory and service functionality.
 Tests the Agent service integration with factory pattern.
 """
 
+import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -44,15 +45,18 @@ class TestAgentFactory:
                 "transport": "stdio",
             }
         }
-        agent_service = AgentFactory.get_agent_service(
-            "openai_chat_agent",
-            openai_api_key="key123",
-            openai_api_base="http://test.com/v1",
-            model_name="gpt-4",
-            temperature=0.8,
-            top_p=0.95,
-            mcp_config=mcp_config,
-        )
+
+        # Mock environment variable for API key
+        with patch.dict(os.environ, {"LLM_API_KEY": "key123"}):
+            agent_service = AgentFactory.get_agent_service(
+                "openai_chat_agent",
+                openai_api_key="key123",
+                openai_api_base="http://test.com/v1",
+                model_name="gpt-4",
+                temperature=0.8,
+                top_p=0.95,
+                mcp_config=mcp_config,
+            )
         assert isinstance(agent_service, OpenAIChatAgent)
         assert agent_service.openai_api_key == "key123"
         assert agent_service.openai_api_base == "http://test.com/v1"
