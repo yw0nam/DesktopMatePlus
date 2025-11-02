@@ -1,0 +1,13 @@
+# OpenAI Compatible VLM Service Configuration
+# API credentials are loaded from environment variables (.env file):
+#   - VLM_API_KEY (optional, defaults to "dummy-key" for local servers)
+#   - VLM_BASE_URL (required, defaults to "http://localhost:8001")
+#   - VLM_MODEL_NAME (required, defaults to "chat_model")
+
+stm_config:
+  type: "mongodb"  # Service type for factory
+  configs:
+    connection_string: "mongodb://admin:test@localhost:27017/"
+    database_name: "stm_db"
+    sessions_collection_name: "sessions"
+    messages_collection_name: "messages"

@@ -122,10 +122,8 @@ def initialize_tts_service(
 
     # Load configuration
     config = _load_yaml_config(config_path)
-    tts_config = config.get("tts_config", {})
-
-    service_type = tts_config.get("type", "fish_local_tts")
-    service_configs = tts_config.get("configs", {})
+    service_type = config.get("type", "fish_local_tts")
+    service_configs = config.get("configs", {})
 
     # Override with environment variables if present
     if "base_url" in service_configs:
@@ -196,25 +194,16 @@ def initialize_vlm_service(
     # Load configuration
     config = _load_yaml_config(config_path)
     vlm_config = config.get("vlm_config", {})
-
-    service_type = vlm_config.get("type", "openai")
+    service_type = vlm_config.get("type", "openai_chat_agent")
     service_configs = vlm_config.get("configs", {})
-
-    # Get credentials from environment variables (required)
-    openai_api_base = os.getenv("VLM_BASE_URL", "http://localhost:8001")
-    model_name = os.getenv("VLM_MODEL_NAME", "chat_model")
-    openai_api_key = os.getenv(
-        "VLM_API_KEY", "dummy-key"
-    )  # Default to dummy key for local servers
-
-    # Add to service configs
-    service_configs["openai_api_base"] = openai_api_base
-    service_configs["model_name"] = model_name
-    service_configs["openai_api_key"] = openai_api_key
-
+    # Create Agent engine using factory with **configs
+    logger.info(
+        f"🔧 Initializing Agent service (type: {service_type}, model: {service_configs.get('model_name')}"
+    )
+    logger.debug(f"Agent config: {service_configs}")
     # Create VLM engine using factory with **configs
     logger.info(
-        f"🔧 Initializing VLM service (type: {service_type}, model: {model_name})"
+        f"🔧 Initializing VLM service (type: {service_type})"
     )
     logger.debug(f"VLM config: {service_configs}")
 
@@ -272,34 +261,17 @@ def initialize_agent_service(
     config = _load_yaml_config(config_path)
     llm_config = config.get("llm_config", {})
     mcp_config = config.get("mcp_config", None)
-
     service_type = llm_config.get("type", "openai_chat_agent")
     service_configs = llm_config.get("configs", {})
-
-    # Get credentials from environment variables (required)
-    openai_api_base = os.getenv(
-        "LLM_BASE_URL",
-        service_configs.get("openai_api_base", "http://localhost:5580/v1"),
-    )
-    model_name = os.getenv("LLM_MODEL_NAME", service_configs.get("model", "chat_model"))
-    openai_api_key = os.getenv(
-        "LLM_API_KEY", "token-abc123"
-    )  # Default to dummy key for local servers
-
-    # Add to service configs
-    service_configs["openai_api_base"] = openai_api_base
-    service_configs["model_name"] = model_name
-    service_configs["openai_api_key"] = openai_api_key
-    service_configs["mcp_config"] = mcp_config
-
     # Create Agent engine using factory with **configs
     logger.info(
-        f"🔧 Initializing Agent service (type: {service_type}, model: {model_name})"
+        f"🔧 Initializing Agent service (type: {service_type}, model: {service_configs.get('model_name')}"
     )
+    service_configs['mcp_config'] = mcp_config
     logger.debug(f"Agent config: {service_configs}")
 
     try:
-        agent_engine = AgentFactory.get_agent_service(service_type, **service_configs)
+        agent_engine = AgentFactory.get_agent_service(service_type=service_type, **service_configs)
 
         _agent_service_instance = agent_engine
 
@@ -321,7 +293,7 @@ def initialize_agent_service(
         raise
 
 
-def initialize_stm_service(force_reinit: bool = False) -> STMService:
+def initialize_stm_service(config_path: Optional[str | Path] = None, force_reinit: bool = False) -> STMService:
     """Initialize STM service from configuration.
 
     Args:
@@ -340,27 +312,35 @@ def initialize_stm_service(force_reinit: bool = False) -> STMService:
         return _stm_service_instance
 
     # Get STM configuration from settings
-    from src.configs.stm import STMConfig
 
-    config = STMConfig()
+    if config_path is None:
+        config_path = (
+            Path(__file__).parent.parent.parent
+            / "yaml_files"
+            / "services"
+            / "stm_service"
+            / "mongodb.yml"
+        )
+
+    # Load configuration
+    config = _load_yaml_config(config_path)
+    stm_config = config.get("stm_config", {})
+    service_type = stm_config.get("type")
+    service_configs = stm_config.get("configs", {})
 
     # Get MongoDB configuration
-    mongodb_config = config.mongodb
 
     # Create STM service using factory
-    logger.info("🔧 Initializing STM service (type: mongodb)")
+    logger.info(f"🔧 Initializing STM service (type: {service_type})")
     logger.debug(
-        f"STM config: connection_string={mongodb_config.connection_string}, "
-        f"database={mongodb_config.database_name}"
+        f"STM config: connection_string={service_configs.get('connection_string')}, "
+        f"database={service_configs.get('database_name')}"
     )
 
     try:
         stm_service = STMFactory.get_stm_service(
-            "mongodb",
-            connection_string=mongodb_config.connection_string,
-            database_name=mongodb_config.database_name,
-            sessions_collection_name=mongodb_config.sessions_collection_name,
-            messages_collection_name=mongodb_config.messages_collection_name,
+            service_type=service_type,
+           **service_configs
         )
 
         _stm_service_instance = stm_service
@@ -383,8 +363,9 @@ def initialize_services(
     tts_config_path: Optional[str | Path] = None,
     vlm_config_path: Optional[str | Path] = None,
     agent_config_path: Optional[str | Path] = None,
+    stm_config_path: Optional[str | Path] = None,
     force_reinit: bool = False,
-) -> tuple[TTSService, VLMService, AgentService]:
+) -> tuple[TTSService, VLMService, AgentService, STMService]:
     """Initialize all services from YAML configurations.
 
     This is the main entry point for service initialization. It loads
@@ -393,10 +374,12 @@ def initialize_services(
     Args:
         tts_config_path: Path to TTS YAML config. If None, uses default.
         vlm_config_path: Path to VLM YAML config. If None, uses default.
+        agent_config_path: Path to Agent YAML config. If None, uses default.
+        stm_config_path: Path to STM YAML config. If None, uses default.
         force_reinit: If True, reinitialize even if already initialized.
 
     Returns:
-        Tuple of (tts_service, vlm_service)
+        Tuple of (tts_service, vlm_service, agent_service, stm_service)
 
     Example:
         >>> tts_service, vlm_service = initialize_services()
@@ -417,10 +400,13 @@ def initialize_services(
     agent_service = initialize_agent_service(
         config_path=agent_config_path, force_reinit=force_reinit
     )
-
+    # Initialize STM service
+    stm_service = initialize_stm_service(
+        config_path=stm_config_path, force_reinit=force_reinit
+    )
     logger.info("✨ All services initialized successfully")
 
-    return tts_service, vlm_service, agent_service
+    return tts_service, vlm_service, agent_service, stm_service
 
 
 def get_tts_service() -> Optional[TTSService]:
