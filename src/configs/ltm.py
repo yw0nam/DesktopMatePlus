@@ -21,9 +21,9 @@ class Mem0LongTermMemory(BaseModel):
         provider: Literal["openai"] = Field("openai")
         config: Dict[str, Any] = Field(
             default_factory=lambda: {
-                "openai_base_url": os.getenv("LLM_BASE_URL"),
+                "openai_base_url": "http://localhost:55120/v1",
                 "api_key": os.getenv("LLM_API_KEY"),
-                "model": os.getenv("LLM_MODEL_NAME"),
+                "model": "chat_model",
             }
         )
 
@@ -33,8 +33,8 @@ class Mem0LongTermMemory(BaseModel):
         provider: Literal["langchain"] = Field("langchain")
         config: Dict[str, Any] = Field(
             default_factory=lambda: {
-                "model_name": os.getenv("EMB_MODEL_NAME"),
-                "openai_api_base": os.getenv("EMB_BASE_URL"),
+                "model_name": "chat_model",
+                "openai_api_base": "http://localhost:5504/v1",
                 "openai_api_key": os.getenv("EMB_API_KEY"),
                 "embedding_dims": 2560,
             }
@@ -46,9 +46,9 @@ class Mem0LongTermMemory(BaseModel):
         provider: Literal["qdrant"] = Field("qdrant")
         config: Dict[str, Any] = Field(
             default_factory=lambda: {
-                "url": os.getenv("QDRANT_URL"),
+                "url": "http://localhost:6333",
                 "embedding_model_dims": 2560,
-                "collection_name": os.getenv("QDRANT_COLLECTION_NAME"),
+                "collection_name": "mem0_collection",
             }
         )
 
@@ -58,7 +58,7 @@ class Mem0LongTermMemory(BaseModel):
         provider: Literal["neo4j"] = Field("neo4j")
         config: Dict[str, Any] = Field(
             default_factory=lambda: {
-                "url": os.getenv("NEO4J_URI"),
+                "url": "bolt://localhost:7687",
                 "username": os.getenv("NEO4J_USER"),
                 "password": os.getenv("NEO4J_PASSWORD"),
             }

@@ -83,7 +83,7 @@ class ChatMessage(BaseMessage):
     )
     metadata: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Additional metadata",
+        description="Additional metadata for the message available option: {'limit': int} to limit short-term memory messages",
     )
 
 
