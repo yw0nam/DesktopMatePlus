@@ -9,13 +9,12 @@ class OpenAIVLMConfig(BaseModel):
     """Configuration for OpenAI VLM."""
 
     openai_api_key: str = Field(
-        ..., description="OpenAI API key", default=os.getenv("VLM_API_KEY")
+        description="OpenAI API key", default=os.getenv("VLM_API_KEY")
     )
-    openai_base_url: str = Field(
-        ..., description="Base URL for OpenAI API", default="http://localhost:5530/v1"
+    openai_api_base: str = Field(
+        description="Base URL for OpenAI API", default="http://localhost:5530/v1"
     )
     model_name: str = Field(
-        ...,
         description="Name of the OpenAI VLM model",
         default="chat_model",
     )

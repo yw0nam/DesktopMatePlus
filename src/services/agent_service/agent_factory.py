@@ -22,17 +22,13 @@ class AgentFactory:
             ValueError: If service_type is unknown
         """
         if service_type == "openai_chat_agent":
+            from src.configs.agent import OpenAIChatAgentConfig
             from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
 
             kwargs["openai_api_key"] = os.getenv("LLM_API_KEY")
-            return OpenAIChatAgent(
-                temperature=kwargs.get("temperature", 0.7),
-                top_p=kwargs.get("top_p", 0.9),
-                openai_api_key=kwargs.get("openai_api_key"),
-                openai_api_base=kwargs.get("openai_api_base"),
-                model_name=kwargs.get("model_name"),
-                mcp_config=kwargs.get("mcp_config"),
-            )
+
+            agent_config = OpenAIChatAgentConfig(**kwargs)
+            return OpenAIChatAgent(**agent_config.model_dump())
         else:
             raise ValueError(f"Unknown Agent service type: {service_type}")
 
@@ -49,8 +45,8 @@ if __name__ == "__main__":
     agent_service = AgentFactory.get_agent_service(
         "openai_chat_agent",
         openai_api_key=os.getenv("LLM_API_KEY"),
-        openai_api_base=os.getenv("LLM_BASE_URL"),
-        model_name=os.getenv("LLM_MODEL_NAME"),
+        openai_api_base="http://localhost:55120/v1",
+        model_name="chat_model",
     )
 
     async def main():

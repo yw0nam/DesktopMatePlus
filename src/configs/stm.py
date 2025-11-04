@@ -3,7 +3,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-class MongoDBShortTermMemory(BaseModel):
+class MongoDBShortTermMemoryConfig(BaseModel):
     """Configure MongoDB as Short-Term Memory"""
 
     connection_string: str = Field(
@@ -29,7 +29,7 @@ class STMConfig(BaseModel):
     )
     # TODO: Add other short-term memory configs here At first, add MongoDB
 
-    mongodb: Optional[MongoDBShortTermMemory] = Field(
-        default_factory=MongoDBShortTermMemory,
+    mongodb: Optional[MongoDBShortTermMemoryConfig] = Field(
+        default_factory=MongoDBShortTermMemoryConfig,
         description="MongoDB STM 설정",
     )

@@ -11,7 +11,6 @@ class FishLocalTTSConfig(BaseModel):
     api_key: Optional[str] = Field(
         None, description="API key for authentication (optional for local usage)"
     )
-    format: str = Field("wav", description="Audio output format (wav, mp3, flac)")
     seed: Optional[int] = Field(
         None, description="Seed for deterministic generation (None = randomized)"
     )

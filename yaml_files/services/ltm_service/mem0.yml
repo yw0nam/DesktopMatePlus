@@ -1,0 +1,31 @@
+# LTM Service Configuration for Mem0
+# API credentials are loaded from environment variables (.env file):
+
+ltm_config:
+  type: "mem0"  # Service type for factory
+  configs:
+    llm:
+      provider: "openai"
+      config:
+        openai_base_url: "http://localhost:55120"
+        model: "chat_model"
+        # api_key: "your-openai-api-key"  # Optional, can be set via environment variable
+    embedder:
+      provider: "langchain" # Currently only langchain is supported. This is compatible with OpenAI compatible embeddings API.
+      config:
+        openai_base_url: "http://localhost:5504"
+        model_name: "chat_model"
+        embedding_dims: 2560
+        # openai_api_key:
+    vector_store:
+      provider: "qdrant"
+      config:
+        url: "localhost"
+        embedding_model_dims: 2560
+        collection_name: "ltm_collection"
+    graph_store:
+      provider: "neo4j"
+      config:
+        url: "bolt://localhost:7687"
+        # username: "your-neo4j-username"
+        # password: "your-neo4j-password"

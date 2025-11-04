@@ -588,7 +588,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8.30.0" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.1.1" },
-    { name = "langchain", specifier = ">=0.3.0" },
+    { name = "langchain", specifier = ">=0.3.27" },
     { name = "langchain-core", specifier = ">=0.3.0" },
     { name = "langchain-mcp-adapters", specifier = ">=0.1.11" },
     { name = "langchain-neo4j", specifier = ">=0.5.0" },

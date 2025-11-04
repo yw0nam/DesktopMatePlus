@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 
-class Mem0LongTermMemory(BaseModel):
+class Mem0LongTermMemoryConfig(BaseModel):
     """
     Mem0를 Long-Term Memory로 구성하기 위한 설정 클래스
     """
@@ -64,17 +64,17 @@ class Mem0LongTermMemory(BaseModel):
             }
         )
 
-    llm: "Mem0LongTermMemory.Mem0LLMConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemory.Mem0LLMConfig()
+    llm: "Mem0LongTermMemoryConfig.Mem0LLMConfig" = Field(
+        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0LLMConfig()
     )
-    embedder: "Mem0LongTermMemory.Mem0EmbedderConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemory.Mem0EmbedderConfig()
+    embedder: "Mem0LongTermMemoryConfig.Mem0EmbedderConfig" = Field(
+        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0EmbedderConfig()
     )
-    vector_store: "Mem0LongTermMemory.Mem0VectorStoreConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemory.Mem0VectorStoreConfig()
+    vector_store: "Mem0LongTermMemoryConfig.Mem0VectorStoreConfig" = Field(
+        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0VectorStoreConfig()
     )
-    graph_store: "Mem0LongTermMemory.Mem0GraphStoreConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemory.Mem0GraphStoreConfig()
+    graph_store: "Mem0LongTermMemoryConfig.Mem0GraphStoreConfig" = Field(
+        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0GraphStoreConfig()
     )
 
 
@@ -82,7 +82,7 @@ class MemoryConfig(BaseModel):
     """최종 메모리 설정"""
 
     memory_type: Literal["mem0"] = Field("mem0", description="사용할 메모리 유형")
-    mem0_postgres: Optional[Mem0LongTermMemory] = Field(
-        default_factory=Mem0LongTermMemory,
+    mem0_postgres: Optional[Mem0LongTermMemoryConfig] = Field(
+        default_factory=Mem0LongTermMemoryConfig,
         description="Mem0 Long-Term Memory 설정",
     )

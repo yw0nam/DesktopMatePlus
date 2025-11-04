@@ -1,6 +1,7 @@
 import logging
 import os
 import traceback
+from typing import Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -15,6 +16,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from src.services.agent_service.service import AgentService
+from src.services.ltm_service import LTMService
+from src.services.stm_service import STMService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -102,8 +105,12 @@ class OpenAIChatAgent(AgentService):
     async def stream(
         self,
         messages: list[BaseMessage],
-        tools: list[BaseTool] = None,
         client_id: str = None,
+        tools: list[BaseTool] = None,
+        user_id: str = "default_user",
+        agent_id: str = "default_agent",
+        stm_service: Optional[STMService] = None,
+        ltm_service: Optional[LTMService] = None,
     ):
         """
         Streams the processing of messages through the agent.
@@ -129,35 +136,6 @@ class OpenAIChatAgent(AgentService):
                 len(mcp_tools),
                 [tool.name for tool in mcp_tools],
             )
-            # memory_initialization
-            # if with_memory:
-            #     _memory, chat_history_manager, memory_tools = self.init_memory(
-            #         user_id, agent_id, conversation_id=client_id
-            #     )
-            #     tools += memory_tools
-
-            #     # Message processing with memory retrieval
-            #     retrieved_message = chat_history_manager.get_messages()
-            #     length_of_message = len(
-            #         retrieved_message
-            #     )  # Message Length for trimming
-            #     retrieved_memory = _memory.search(
-            #         query=messages[0].content, user_id=user_id, agent_id=agent_id
-            #     )
-            #     if retrieved_memory:
-            #         logger.debug(
-            #             "Retrieved %d relevant memory items for user '%s' and agent '%s'.",
-            #             len(retrieved_memory),
-            #             user_id,
-            #             agent_id,
-            #         )
-
-            #     messages = (
-            #         retrieved_message
-            #         + [SystemMessage(json.dumps(retrieved_memory, ensure_ascii=False))]
-            #         + messages
-            #     )
-
             logger.debug("Creating react agent.")
             agent = create_react_agent(
                 self.llm,

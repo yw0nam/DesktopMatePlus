@@ -20,14 +20,12 @@ class STMFactory:
             ValueError: If service_type is unknown
         """
         if service_type == "mongodb":
+            from src.configs.stm import MongoDBShortTermMemoryConfig
             from src.services.stm_service.mongodb import MongoDBSTM
 
-            return MongoDBSTM(
-                connection_string=kwargs.get("connection_string"),
-                database_name=kwargs.get("database_name"),
-                sessions_collection_name=kwargs.get("sessions_collection_name"),
-                messages_collection_name=kwargs.get("messages_collection_name"),
-            )
+            stm_config = MongoDBShortTermMemoryConfig(**kwargs)
+            return MongoDBSTM(**stm_config.model_dump())
+
         else:
             raise ValueError(f"Unknown STM service type: {service_type}")
 
@@ -46,13 +44,13 @@ if __name__ == "__main__":
     parser.add_argument("--mongodb_sessions_collection_name", type=str, required=True)
     parser.add_argument("--mongodb_messages_collection_name", type=str, required=True)
     args = parser.parse_args()
-    stm_service = STMFactory.get_stm_service(
-        "mongodb",
-        connection_string=args.mongodb_connection_string,
-        database_name=args.mongodb_database_name,
-        sessions_collection_name=args.mongodb_sessions_collection_name,
-        messages_collection_name=args.mongodb_messages_collection_name,
-    )
+
+    from src.configs.stm import MongoDBShortTermMemoryConfig
+
+    args_dict = vars(args)
+
+    mongdb_config = MongoDBShortTermMemoryConfig(**args_dict)
+    stm_service = STMFactory.get_stm_service("mongodb", **mongdb_config.model_dump())
     # 2. Check connection to MongoDB
     is_healthy, message = stm_service.is_healthy()
 

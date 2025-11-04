@@ -62,7 +62,7 @@ class FishSpeechTTS(TTSService):
 
     def __init__(
         self,
-        url: str = "http://127.0.0.1:8080",
+        base_url: str = "http://127.0.0.1:8080",
         api_key: str | None = None,
         seed: int | None = None,
         streaming: bool = False,
@@ -92,7 +92,7 @@ class FishSpeechTTS(TTSService):
         """
 
         self.api_key = api_key
-        self.url = url
+        self.base_url = base_url
 
         self.seed = seed
         self.streaming = streaming
@@ -103,7 +103,7 @@ class FishSpeechTTS(TTSService):
         self.repetition_penalty = repetition_penalty
         self.temperature = temperature
 
-        logger.info("FishTTS initialized at %s", self.url)
+        logger.info("FishTTS initialized at %s", self.base_url)
 
     def _request_tts_stream(self, request_payload: ServeTTSRequest) -> Optional[bytes]:
         """
@@ -117,7 +117,7 @@ class FishSpeechTTS(TTSService):
         """
         try:
             response = requests.post(
-                self.url,
+                self.base_url,
                 data=ormsgpack.packb(
                     request_payload, option=ormsgpack.OPT_SERIALIZE_PYDANTIC
                 ),
@@ -210,7 +210,7 @@ if __name__ == "__main__":
     TTS_API_URL = "http://localhost:8080/v1/tts"
 
     # 1. 서비스 인스턴스 생성
-    tts_service = FishSpeechTTS(url=TTS_API_URL)
+    tts_service = FishSpeechTTS(base_url=TTS_API_URL)
 
     # 2. LLM에서 받은 것과 유사한 원본 텍스트
     llm_output_text = "(delighted) That's wonderful news! I'm so happy for you!"
