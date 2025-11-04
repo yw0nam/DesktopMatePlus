@@ -165,8 +165,17 @@ class TestOpenAIChatAgent:
                 messages = [HumanMessage(content="Hello")]
                 results = []
 
+                # Create mock services
+                mock_stm_service = Mock()
+                mock_stm_service.add_chat_history.return_value = "session_123"
+                mock_ltm_service = Mock()
+                mock_ltm_service.add_memory.return_value = "memory_456"
+
                 async for result in agent_service.stream(
-                    messages=messages, client_id="test_client"
+                    messages=messages,
+                    client_id="test_client",
+                    stm_service=mock_stm_service,
+                    ltm_service=mock_ltm_service,
                 ):
                     results.append(result)
 
@@ -219,8 +228,17 @@ class TestOpenAIChatAgent:
                 messages = [HumanMessage(content="Test")]
                 results = []
 
+                # Create mock services
+                mock_stm_service = Mock()
+                mock_stm_service.add_chat_history.return_value = "session_123"
+                mock_ltm_service = Mock()
+                mock_ltm_service.add_memory.return_value = "memory_456"
+
                 async for result in agent_service.stream(
-                    messages=messages, client_id="test_client"
+                    messages=messages,
+                    client_id="test_client",
+                    stm_service=mock_stm_service,
+                    ltm_service=mock_ltm_service,
                 ):
                     results.append(result)
 

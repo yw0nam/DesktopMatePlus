@@ -128,9 +128,9 @@ class OpenAIChatAgent(AgentService):
         logger.info(f"Starting LLM stream for messages: {messages}")
         logger.info(f"MCP Config: {self.mcp_config}")
         try:
-            client = MultiServerMCPClient(self.mcp_config)
+            mcp_client = MultiServerMCPClient(self.mcp_config)
 
-            mcp_tools = await client.get_tools()
+            mcp_tools = await mcp_client.get_tools()
             logger.info(
                 "Fetched %d tools from MCP client: %s",
                 len(mcp_tools),
@@ -150,11 +150,32 @@ class OpenAIChatAgent(AgentService):
                 "type": "stream_start",
                 "data": {"turn_id": run_id, "client_id": client_id},
             }
+            new_chats = []  # Initialize to empty list
             async for item in self._process_message(
                 messages=messages, agent=agent, config=config
             ):
-                yield item
+                if item["type"] != "final_response":
+                    yield item
+                elif item["type"] == "final_response":
+                    new_chats = item["data"]
+                    # 최종 응답은 채팅 기록 저장에만 사용됩니다.
 
+            # Only save to memory services if we have new chats
+            if new_chats and stm_service:
+                stm_result = stm_service.add_chat_history(
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=client_id,
+                    messages=new_chats,
+                )
+                logger.info("Chat history saved to STM: %s", stm_result)
+
+            if new_chats and ltm_service:
+                # TODO: Need to be optimized this part.
+                ltm_result = ltm_service.add_memory(
+                    messages=new_chats, user_id=user_id, agent_id=agent_id
+                )
+                logger.info("Memory added to LTM: %s", ltm_result)
             yield {
                 "type": "stream_end",
                 "data": {
@@ -162,13 +183,6 @@ class OpenAIChatAgent(AgentService):
                     "client_id": client_id,
                 },
             }
-            # if with_memory:
-            #     complete_message = agent.get_state(config=config).values["messages"]
-            #     complete_message = complete_message[
-            #         length_of_message:
-            #     ]  # Trim old messages
-            #     # TODO: Trim retrieved memory System Message?
-            #     chat_history_manager.add_messages(complete_message)
         except Exception as e:
             logger.error(f"Error in stream method: {e}")
 
@@ -316,6 +330,15 @@ class OpenAIChatAgent(AgentService):
                     }
                 chunk_count += 1
 
+            state = agent.get_state(config=config)
+
+            new_chats = state.values["messages"][len(messages) :]
+            # This is the final response after all chunks have been sent.
+            # This yield indicates completion. and don't send to client. Only for use in server for saving the chat history.
+            yield {
+                "type": "final_response",
+                "data": new_chats,
+            }
             logger.info(f"Message processing completed. Total chunks: {chunk_count}")
 
         except Exception as e:
@@ -360,8 +383,8 @@ if __name__ == "__main__":
         temperature=0.7,
         top_p=0.9,
         openai_api_key=os.getenv("LLM_API_KEY"),
-        openai_api_base=os.getenv("LLM_BASE_URL"),
-        model_name=os.getenv("LLM_MODEL_NAME"),
+        openai_api_base="http://localhost:55120/v1",
+        model_name="chat_model",
         mcp_config=mcp_config,
     )
 

@@ -19,8 +19,8 @@ class Mem0LTM(LTMService[Memory]):
     """
 
     def __init__(self, memory_config: Mem0LongTermMemoryConfig):
-        super().__init__()
         self.memory_config = memory_config
+        super().__init__()
         logger.info(
             "Long Term Memory Service is initialized. Memory client initialized: %s",
             self.memory_client,
@@ -35,7 +35,7 @@ class Mem0LTM(LTMService[Memory]):
         """
         mem0_config = self._parse_config(self.memory_config)
 
-        memory = Memory(**mem0_config)
+        memory = Memory.from_config(mem0_config)
         return memory
 
     def is_healthy(self) -> tuple[bool, str]:
@@ -99,7 +99,7 @@ class Mem0LTM(LTMService[Memory]):
         Delete information from memory.
 
         Args:
-            user_id (str): The ID of the user. (Not used in Mem0 but kept for interface consistency
+            user_id (str): The ID of the user. (Not used in Mem0 but kept for interface consistency)
             agent_id (str): The ID of the agent. (Not used in Mem0 but kept for interface consistency)
             memory_id (str): The ID of the memory to delete.
 
@@ -129,7 +129,7 @@ class Mem0LTM(LTMService[Memory]):
         """
         embedding_model = OpenAIEmbeddings(
             model=mem0_config.embedder.config["model_name"],
-            openai_api_base=mem0_config.embedder.config["openai_api_base"],
+            openai_api_base=mem0_config.embedder.config["openai_base_url"],
             openai_api_key=mem0_config.embedder.config["openai_api_key"],
         )
         embedding_dict = {
@@ -139,10 +139,24 @@ class Mem0LTM(LTMService[Memory]):
                 "embedding_dims": mem0_config.embedder.config["embedding_dims"],
             },
         }
+        # Fix: LLM config should include provider and config structure
+        llm_dict = {
+            "provider": mem0_config.llm.provider,
+            "config": mem0_config.llm.config,
+        }
+        # Fix: Vector store and graph store should also include provider
+        vector_store_dict = {
+            "provider": mem0_config.vector_store.provider,
+            "config": mem0_config.vector_store.config,
+        }
+        graph_store_dict = {
+            "provider": mem0_config.graph_store.provider,
+            "config": mem0_config.graph_store.config,
+        }
         mem0_config_dict = {
-            "llm": mem0_config.llm.config,
+            "llm": llm_dict,
             "embedder": embedding_dict,
-            "vector_store": mem0_config.vector_store.config,
-            "graph_store": mem0_config.graph_store.config,
+            "vector_store": vector_store_dict,
+            "graph_store": graph_store_dict,
         }
         return mem0_config_dict

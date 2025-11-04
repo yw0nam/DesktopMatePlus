@@ -8,10 +8,12 @@ from src.services.screen_capture_service import (
 )
 from src.services.service_manager import (
     get_agent_service,
+    get_ltm_service,
     get_stm_service,
     get_tts_service,
     get_vlm_service,
     initialize_agent_service,
+    initialize_ltm_service,
     initialize_services,
     initialize_stm_service,
     initialize_tts_service,
@@ -29,8 +31,10 @@ __all__ = [
     "initialize_vlm_service",
     "initialize_agent_service",
     "initialize_stm_service",
+    "initialize_ltm_service",
     "get_tts_service",
     "get_vlm_service",
     "get_agent_service",
     "get_stm_service",
+    "get_ltm_service",
 ]

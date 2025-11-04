@@ -5,7 +5,7 @@ import json
 from typing import Optional
 from uuid import UUID, uuid4
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
 from src.models.websocket import (
@@ -15,7 +15,7 @@ from src.models.websocket import (
     ErrorMessage,
     PongMessage,
 )
-from src.services import get_agent_service, get_stm_service
+from src.services import get_agent_service, get_ltm_service, get_stm_service
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
@@ -137,6 +137,8 @@ class MessageHandler:
 
         agent_service = get_agent_service()
         stm_service = get_stm_service()
+        ltm_service = get_ltm_service()
+
         if agent_service is None:
             logger.error("Agent service not initialized")
             await self.send_message(
@@ -181,15 +183,26 @@ class MessageHandler:
                 return
 
             metadata.setdefault("conversation_id", conversation_id)
+            message_history = []
             # TODO: Add Long-term memory here
-
+            if ltm_service:
+                search_result = ltm_service.search_memory(
+                    query=content, user_id=user_id, agent_id=agent_id
+                )
+                if search_result.get("results", []) != []:
+                    result = json.dumps(search_result)
+                    # Prepend retrieved memories to the message history
+                    message_history.append(
+                        SystemMessage(content=f"Long-term memories: {result}")
+                    )
             # TODO: Add Short-term memory here
-            message_history = stm_service.get_chat_history(
-                user_id=user_id,
-                agent_id=agent_id,
-                session_id=conversation_id,
-                limit=message_limit,
-            )
+            if stm_service:
+                message_history = stm_service.get_chat_history(
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=conversation_id,
+                    limit=message_limit,
+                )
             message_history.append(HumanMessage(content=content))
             # TODO: Add tools support here
 
@@ -202,7 +215,7 @@ class MessageHandler:
                 user_id=user_id,
                 agent_id=agent_id,
                 stm_service=stm_service,
-                # ltm_service=None,  # TODO: add LTM service support
+                ltm_service=ltm_service,
             )
 
             turn_id = await connection_state.message_processor.start_turn(

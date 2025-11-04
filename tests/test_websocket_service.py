@@ -218,6 +218,10 @@ class TestWebSocketManager:
             def get_chat_history(self, user_id, agent_id, session_id, limit=None):
                 return []  # Return empty history for test
 
+        class FakeLTMService:
+            def search_memory(self, query, user_id, agent_id):
+                return {"results": []}  # Return empty search results for test
+
         with (
             patch(
                 "src.services.websocket_service.manager.handlers.get_agent_service",
@@ -226,6 +230,10 @@ class TestWebSocketManager:
             patch(
                 "src.services.websocket_service.manager.handlers.get_stm_service",
                 return_value=FakeSTMService(),
+            ),
+            patch(
+                "src.services.websocket_service.manager.handlers.get_ltm_service",
+                return_value=FakeLTMService(),
             ),
         ):
             message_data = {
