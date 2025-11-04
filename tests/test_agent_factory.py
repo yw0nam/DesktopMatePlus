@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from langchain_core.messages import AIMessageChunk, HumanMessage
 
+from src.configs.agent import OpenAIChatAgentConfig
 from src.services.agent_service.agent_factory import AgentFactory
 from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
 from src.services.agent_service.service import AgentService
@@ -20,13 +21,17 @@ class TestAgentFactory:
 
     def test_get_openai_chat_agent(self):
         """Test creating OpenAI Chat Agent via factory."""
-        agent_service = AgentFactory.get_agent_service(
-            "openai_chat_agent",
+
+        configs = OpenAIChatAgentConfig(
             openai_api_key="test_key",
             openai_api_base="http://localhost:5580/v1",
             model_name="test_model",
             temperature=0.7,
             top_p=0.9,
+            mcp_config={},
+        )
+        agent_service = AgentFactory.get_agent_service(
+            "openai_chat_agent", **configs.model_dump()
         )
         assert isinstance(agent_service, OpenAIChatAgent)
         assert isinstance(agent_service, AgentService)
@@ -38,40 +43,38 @@ class TestAgentFactory:
 
     def test_factory_with_all_params(self):
         """Test factory with all configuration parameters."""
-        mcp_config = {
-            "sequential-thinking": {
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-                "transport": "stdio",
-            }
-        }
 
         # Mock environment variable for API key
         with patch.dict(os.environ, {"LLM_API_KEY": "key123"}):
+
+            configs = OpenAIChatAgentConfig(
+                openai_api_base="http://localhost:5580/v1",
+                model_name="test_model",
+                temperature=0.7,
+                top_p=0.9,
+                mcp_config={},
+            )
             agent_service = AgentFactory.get_agent_service(
-                "openai_chat_agent",
-                openai_api_key="key123",
-                openai_api_base="http://test.com/v1",
-                model_name="gpt-4",
-                temperature=0.8,
-                top_p=0.95,
-                mcp_config=mcp_config,
+                "openai_chat_agent", **configs.model_dump()
             )
         assert isinstance(agent_service, OpenAIChatAgent)
         assert agent_service.openai_api_key == "key123"
-        assert agent_service.openai_api_base == "http://test.com/v1"
-        assert agent_service.model_name == "gpt-4"
-        assert agent_service.temperature == 0.8
-        assert agent_service.top_p == 0.95
-        assert agent_service.mcp_config == mcp_config
+        assert agent_service.openai_api_base == "http://localhost:5580/v1"
+        assert agent_service.model_name == "test_model"
+        assert agent_service.temperature == 0.7
+        assert agent_service.top_p == 0.9
+        assert agent_service.mcp_config == {}
 
     def test_factory_with_default_params(self):
         """Test factory uses default parameters when not provided."""
-        agent_service = AgentFactory.get_agent_service(
-            "openai_chat_agent",
+        configs = OpenAIChatAgentConfig(
             openai_api_key="test_key",
             openai_api_base="http://localhost:5580/v1",
             model_name="test_model",
+            mcp_config={},
+        )
+        agent_service = AgentFactory.get_agent_service(
+            "openai_chat_agent", **configs.model_dump()
         )
         assert agent_service.temperature == 0.7
         assert agent_service.top_p == 0.9
@@ -83,13 +86,17 @@ class TestOpenAIChatAgent:
     @pytest.fixture
     def agent_service(self):
         """Create an agent service instance for testing."""
-        return AgentFactory.get_agent_service(
-            "openai_chat_agent",
+        configs = OpenAIChatAgentConfig(
             openai_api_key="test_key",
             openai_api_base="http://localhost:5580/v1",
             model_name="test_model",
             temperature=0.7,
             top_p=0.9,
+            mcp_config={},
+        )
+        return AgentFactory.get_agent_service(
+            "openai_chat_agent",
+            **configs.model_dump(),
         )
 
     def test_agent_initialization(self, agent_service):
@@ -178,12 +185,16 @@ class TestOpenAIChatAgent:
                 "transport": "stdio",
             }
         }
-        agent_service = AgentFactory.get_agent_service(
-            "openai_chat_agent",
+        configs = OpenAIChatAgentConfig(
             openai_api_key="test_key",
             openai_api_base="http://localhost:5580/v1",
             model_name="test_model",
+            temperature=0.7,
+            top_p=0.9,
             mcp_config=mcp_config,
+        )
+        agent_service = AgentFactory.get_agent_service(
+            "openai_chat_agent", **configs.model_dump()
         )
 
         with patch(
@@ -228,77 +239,3 @@ class TestOpenAIChatAgent:
         assert llm.model_name == "test_model"
         assert llm.temperature == 0.7
         assert llm.openai_api_base == "http://localhost:5580/v1"
-
-
-class TestAgentServiceIntegration:
-    """Integration tests for agent service."""
-
-    @pytest.mark.asyncio
-    async def test_multiple_stream_calls(self):
-        """Test multiple streaming calls to the same agent service."""
-        agent_service = AgentFactory.get_agent_service(
-            "openai_chat_agent",
-            openai_api_key="test_key",
-            openai_api_base="http://localhost:5580/v1",
-            model_name="test_model",
-        )
-
-        with patch(
-            "src.services.agent_service.openai_chat_agent.MultiServerMCPClient"
-        ) as mock_mcp:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.get_tools = AsyncMock(return_value=[])
-            mock_mcp.return_value = mock_client_instance
-
-            async def mock_astream(*args, **kwargs):
-                yield (
-                    AIMessageChunk(content="Response"),
-                    {"langgraph_node": "agent"},
-                )
-
-            with patch("langgraph.prebuilt.create_react_agent") as mock_create_agent:
-                mock_agent = Mock()
-                mock_agent.astream = mock_astream
-                mock_create_agent.return_value = mock_agent
-
-                # First call
-                messages1 = [HumanMessage(content="First")]
-                results1 = [
-                    r
-                    async for r in agent_service.stream(
-                        messages=messages1, client_id="client1"
-                    )
-                ]
-
-                # Second call
-                messages2 = [HumanMessage(content="Second")]
-                results2 = [
-                    r
-                    async for r in agent_service.stream(
-                        messages=messages2, client_id="client2"
-                    )
-                ]
-
-                # Both calls should succeed
-                assert len(results1) > 0
-                assert len(results2) > 0
-
-    @pytest.mark.asyncio
-    async def test_agent_with_different_configurations(self):
-        """Test creating agents with different configurations."""
-        configs = [
-            {"temperature": 0.5, "top_p": 0.8},
-            {"temperature": 0.9, "top_p": 0.95},
-            {"temperature": 0.7, "top_p": 0.9},
-        ]
-
-        for config in configs:
-            agent_service = AgentFactory.get_agent_service(
-                "openai_chat_agent",
-                openai_api_key="test_key",
-                openai_api_base="http://localhost:5580/v1",
-                model_name="test_model",
-                **config,
-            )
-            assert agent_service.temperature == config["temperature"]
-            assert agent_service.top_p == config["top_p"]

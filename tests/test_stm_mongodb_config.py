@@ -1,6 +1,6 @@
 """Test MongoDB configuration in STM settings."""
 
-from src.configs.stm import MongoDBShortTermMemory, STMConfig
+from src.configs.stm import MongoDBShortTermMemoryConfig, STMConfig
 
 
 def test_mongodb_stm_defaults():
@@ -22,7 +22,7 @@ def test_mongodb_stm_can_be_overridden():
     """Test that MongoDB STM settings can be overridden."""
     # Override settings with custom values
     config = STMConfig(
-        mongodb=MongoDBShortTermMemory(
+        mongodb=MongoDBShortTermMemoryConfig(
             connection_string="mongodb://test:test@localhost:27018/",
             database_name="test_db",
             sessions_collection_name="test_sessions",

@@ -207,14 +207,16 @@ class TestWebSocketManager:
                 tools=None,
                 user_id="default_user",
                 agent_id="default_agent",
-                with_memory=False,
+                stm_service=None,
+                ltm_service=None,
             ):
                 yield {"type": "stream_start"}
                 yield {"type": "stream_token", "data": "Hello, world!"}
                 yield {"type": "stream_end"}
 
         class FakeSTMService:
-            pass
+            def get_chat_history(self, user_id, agent_id, session_id, limit=None):
+                return []  # Return empty history for test
 
         with (
             patch(

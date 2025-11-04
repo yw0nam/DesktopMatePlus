@@ -20,7 +20,7 @@ class TestVLMFactory:
     def test_get_openai_service(self):
         """Test creating OpenAI VLM service via factory."""
         vlm_service = VLMFactory.get_vlm_service(
-            "openai_chat_agent",
+            "openai_compatible",
             openai_api_key="test_key",
             openai_api_base="http://localhost:8001/v1",
             model_name="test_model",
@@ -37,7 +37,7 @@ class TestVLMFactory:
         """Test factory with all parameters specified."""
         with patch.dict(os.environ, {"VLM_API_KEY": "key123"}):
             service = VLMFactory.get_vlm_service(
-                service_type="openai_chat_agent",
+                service_type="openai_compatible",
                 openai_api_key="key123",
                 openai_api_base="https://custom.api/v1",
                 model_name="gpt-4-vision",
@@ -201,7 +201,7 @@ class TestVLMIntegration:
 
         # Initialize the service via factory
         vlm_service = VLMFactory.get_vlm_service(
-            "openai_chat_agent",
+            "openai_compatible",
             openai_api_key="test_key",
             openai_api_base="http://localhost:8001/v1",
             model_name="test_model",

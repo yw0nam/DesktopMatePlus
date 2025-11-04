@@ -15,7 +15,7 @@ from src.models.websocket import (
     ErrorMessage,
     PongMessage,
 )
-from src.services import get_agent_service
+from src.services import get_agent_service, get_stm_service
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
@@ -136,11 +136,20 @@ class MessageHandler:
             return
 
         agent_service = get_agent_service()
+        stm_service = get_stm_service()
         if agent_service is None:
             logger.error("Agent service not initialized")
             await self.send_message(
                 connection_id,
                 ErrorMessage(error="Agent service not initialized"),
+            )
+            return
+
+        if stm_service is None:
+            logger.error("STM service not initialized")
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="STM service not initialized"),
             )
             return
 
@@ -151,7 +160,7 @@ class MessageHandler:
             user_id = message_data.get("user_id")
             conversation_id = message_data.get("conversation_id", str(uuid4()))
             metadata = dict(message_data.get("metadata", {}) or {})
-
+            message_limit = metadata.get("limit", 10)
             # Validate required persistent identifiers
             if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
                 await self.send_message(
@@ -175,19 +184,25 @@ class MessageHandler:
             # TODO: Add Long-term memory here
 
             # TODO: Add Short-term memory here
-
+            message_history = stm_service.get_chat_history(
+                user_id=user_id,
+                agent_id=agent_id,
+                session_id=conversation_id,
+                limit=message_limit,
+            )
+            message_history.append(HumanMessage(content=content))
             # TODO: Add tools support here
-
-            messages = [HumanMessage(content=content)]
 
             # Use persistent user_id for client_id instead of connection-based ID
 
             agent_stream = agent_service.stream(
-                messages=messages,
+                messages=message_history,
                 client_id=conversation_id,
                 tools=[],  # TODO: support tools per agent
                 user_id=user_id,
                 agent_id=agent_id,
+                stm_service=stm_service,
+                # ltm_service=None,  # TODO: add LTM service support
             )
 
             turn_id = await connection_state.message_processor.start_turn(

@@ -47,7 +47,7 @@ class TestTTSFactory:
             temperature=0.8,
         )
         assert isinstance(tts_engine, FishSpeechTTS)
-        assert tts_engine.url == "http://test.com/v1/tts"
+        assert tts_engine.base_url == "http://test.com/v1/tts"
         assert tts_engine.api_key == "key123"
         assert tts_engine.seed == 42
         assert tts_engine.streaming is True
@@ -66,7 +66,7 @@ class TestFishSpeechTTS:
         mock_post.return_value = mock_response
 
         # Create TTS instance
-        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
+        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
 
         # Test synthesis
         result = tts.generate_speech("Hello world", output_format="bytes")
@@ -77,7 +77,7 @@ class TestFishSpeechTTS:
 
     def test_generate_speech_empty_text(self):
         """Test synthesis with empty text."""
-        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
+        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
 
         # Test with empty text
         result = tts.generate_speech("")
@@ -96,7 +96,7 @@ class TestFishSpeechTTS:
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response
 
-        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
+        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
 
         # Test synthesis with base64 format
         result = tts.generate_speech("Hello", output_format="base64")
@@ -109,7 +109,7 @@ class TestFishSpeechTTS:
         # Mock the HTTP response to raise an exception
         mock_post.side_effect = Exception("Connection error")
 
-        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
+        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
 
         # Test synthesis
         result = tts.generate_speech("Hello world")
@@ -124,7 +124,7 @@ class TestFishSpeechTTS:
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response
 
-        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
+        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
 
         # Test health check
         is_healthy, message = tts.is_healthy()
@@ -137,7 +137,7 @@ class TestFishSpeechTTS:
         # Mock failed response
         mock_post.side_effect = Exception("Service unavailable")
 
-        tts = FishSpeechTTS(url="http://localhost:8080/v1/tts")
+        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
 
         # Test health check
         is_healthy, message = tts.is_healthy()
@@ -151,7 +151,7 @@ class TestTTSConfiguration:
     def test_fish_speech_with_custom_params(self):
         """Test Fish Speech TTS with custom parameters."""
         tts = FishSpeechTTS(
-            url="http://custom.com/tts",
+            base_url="http://custom.com/tts",
             api_key="custom_key",
             seed=42,
             streaming=True,
@@ -163,7 +163,7 @@ class TestTTSConfiguration:
             temperature=0.8,
         )
 
-        assert tts.url == "http://custom.com/tts"
+        assert tts.base_url == "http://custom.com/tts"
         assert tts.api_key == "custom_key"
         assert tts.seed == 42
         assert tts.streaming is True
