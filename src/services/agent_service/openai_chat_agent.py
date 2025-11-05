@@ -1,6 +1,7 @@
 import logging
 import os
 import traceback
+from typing import Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -10,11 +11,13 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import BaseCheckpointSaver, MemorySaver
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from src.services.agent_service.service import AgentService
+from src.services.ltm_service import LTMService
+from src.services.stm_service import STMService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,7 +74,7 @@ class OpenAIChatAgent(AgentService):
             self.checkpoint,
         )
 
-    def initialize_model(self) -> tuple[BaseChatModel, BaseCheckpointSaver]:
+    def initialize_model(self) -> tuple[BaseChatModel, MemorySaver]:
         llm = ChatOpenAI(
             temperature=self.temperature,
             top_p=self.top_p,
@@ -81,49 +84,6 @@ class OpenAIChatAgent(AgentService):
         )
         memory_saver = MemorySaver()
         return llm, memory_saver
-
-    # def init_memory(
-    #     self,
-    #     user_id: str,
-    #     agent_id: str,
-    #     conversation_id: str = "default_session",
-    #     db_table_name: str = "chat_history",
-    # ) -> tuple[Memory, PostgresChatMessageHistory, list[BaseTool]]:
-    #     """
-    #     Initializes memory components for the agent.
-    #     Args:
-    #         user_id (str): Persistent user/client identifier.
-    #         agent_id (str): Persistent agent identifier.
-    #         conversation_id (str, optional): Conversation/session identifier.
-    #         db_table_name (str): Database table name for chat history.
-    #     Returns:
-    #         tuple: A tuple containing the Memory instance, PostgresChatMessageHistory instance, and a list of memory tools.
-    #     """
-
-    #     sync_connection = psycopg.connect(**POSTGRES_DB_CONFIG)
-    #     mem0_client = Memory.from_config(MEM0_CONFIG)
-
-    #     add_memory_tool = AddMemoryTool(
-    #         mem0_client=mem0_client,
-    #         user_id=user_id,
-    #         agent_id=agent_id,
-    #     )
-    #     search_memory_tool = SearchMemoryTool(
-    #         mem0_client=mem0_client,
-    #         user_id=user_id,
-    #         agent_id=agent_id,
-    #     )
-    #     table_name = f"{user_id}_{db_table_name}"
-    #     if not check_table_exists(sync_connection, table_name):
-    #         PostgresChatMessageHistory.create_tables(sync_connection, table_name)
-
-    #     chat_history = PostgresChatMessageHistory(
-    #         table_name,
-    #         conversation_id,
-    #         sync_connection=sync_connection,
-    #     )
-    #     memory_tools = [add_memory_tool, search_memory_tool]
-    #     return mem0_client, chat_history, memory_tools
 
     async def is_healthy(self) -> tuple[bool, str]:
         """
@@ -145,8 +105,13 @@ class OpenAIChatAgent(AgentService):
     async def stream(
         self,
         messages: list[BaseMessage],
-        tools: list[BaseTool] = None,
         client_id: str = None,
+        persona: str = "",
+        tools: list[BaseTool] = None,
+        user_id: str = "default_user",
+        agent_id: str = "default_agent",
+        stm_service: Optional[STMService] = None,
+        ltm_service: Optional[LTMService] = None,
     ):
         """
         Streams the processing of messages through the agent.
@@ -164,49 +129,33 @@ class OpenAIChatAgent(AgentService):
         logger.info(f"Starting LLM stream for messages: {messages}")
         logger.info(f"MCP Config: {self.mcp_config}")
         try:
-            client = MultiServerMCPClient(self.mcp_config)
-
-            mcp_tools = await client.get_tools()
-            logger.info(
-                "Fetched %d tools from MCP client: %s",
-                len(mcp_tools),
-                [tool.name for tool in mcp_tools],
-            )
-            # memory_initialization
-            # if with_memory:
-            #     _memory, chat_history_manager, memory_tools = self.init_memory(
-            #         user_id, agent_id, conversation_id=client_id
-            #     )
-            #     tools += memory_tools
-
-            #     # Message processing with memory retrieval
-            #     retrieved_message = chat_history_manager.get_messages()
-            #     length_of_message = len(
-            #         retrieved_message
-            #     )  # Message Length for trimming
-            #     retrieved_memory = _memory.search(
-            #         query=messages[0].content, user_id=user_id, agent_id=agent_id
-            #     )
-            #     if retrieved_memory:
-            #         logger.debug(
-            #             "Retrieved %d relevant memory items for user '%s' and agent '%s'.",
-            #             len(retrieved_memory),
-            #             user_id,
-            #             agent_id,
-            #         )
-
-            #     messages = (
-            #         retrieved_message
-            #         + [SystemMessage(json.dumps(retrieved_memory, ensure_ascii=False))]
-            #         + messages
-            #     )
+            # Handle case where mcp_config is None (no MCP configuration)
+            mcp_tools = []
+            if self.mcp_config:
+                mcp_client = MultiServerMCPClient(self.mcp_config)
+                mcp_tools = await mcp_client.get_tools()
+                logger.info(
+                    "Fetched %d tools from MCP client: %s",
+                    len(mcp_tools),
+                    [tool.name for tool in mcp_tools],
+                )
+            else:
+                logger.info(
+                    "No MCP configuration provided, proceeding without MCP tools"
+                )
 
             logger.debug("Creating react agent.")
-            agent = create_react_agent(
-                self.llm,
-                tools=tools + mcp_tools if tools else mcp_tools,
-                checkpointer=self.checkpoint,
-            )
+            # Only pass prompt parameter if persona is provided and not empty
+            agent_kwargs = {
+                "model": self.llm,
+                "tools": tools + mcp_tools if tools else mcp_tools,
+                "checkpointer": self.checkpoint,
+            }
+            if persona and persona.strip():
+                agent_kwargs["prompt"] = persona
+                logger.debug(f"Using persona: {persona[:100]}...")
+
+            agent = create_react_agent(**agent_kwargs)
             run_id = str(uuid4())
             config = {"configurable": {"thread_id": run_id}}
 
@@ -215,11 +164,33 @@ class OpenAIChatAgent(AgentService):
                 "type": "stream_start",
                 "data": {"turn_id": run_id, "client_id": client_id},
             }
+            new_chats = []  # Initialize to empty list
             async for item in self._process_message(
                 messages=messages, agent=agent, config=config
             ):
-                yield item
+                if item["type"] != "final_response":
+                    yield item
+                elif item["type"] == "final_response":
+                    new_chats = item["data"]
+                    # 최종 응답은 채팅 기록 저장에만 사용됩니다.
 
+            # Only save to memory services if we have new chats
+            if new_chats and stm_service:
+                stm_result = stm_service.add_chat_history(
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=client_id,
+                    messages=new_chats,
+                )
+                logger.info("Chat history saved to STM: %s", stm_result)
+
+            if new_chats and ltm_service:
+                # TODO: Need to be optimized this part.
+                # Add persona information to memory?...
+                ltm_result = ltm_service.add_memory(
+                    messages=new_chats, user_id=user_id, agent_id=agent_id
+                )
+                logger.info("Memory added to LTM: %s", ltm_result)
             yield {
                 "type": "stream_end",
                 "data": {
@@ -227,13 +198,6 @@ class OpenAIChatAgent(AgentService):
                     "client_id": client_id,
                 },
             }
-            # if with_memory:
-            #     complete_message = agent.get_state(config=config).values["messages"]
-            #     complete_message = complete_message[
-            #         length_of_message:
-            #     ]  # Trim old messages
-            #     # TODO: Trim retrieved memory System Message?
-            #     chat_history_manager.add_messages(complete_message)
         except Exception as e:
             logger.error(f"Error in stream method: {e}")
 
@@ -288,7 +252,7 @@ class OpenAIChatAgent(AgentService):
                         if content_buffer.strip():
                             if node == "tools":
                                 yield {
-                                    "event": "tool_result",
+                                    "type": "tool_result",
                                     "data": {
                                         "execution_result": content_buffer.strip()
                                     },
@@ -296,7 +260,7 @@ class OpenAIChatAgent(AgentService):
                                 }
                             elif node == "agent":
                                 yield {
-                                    "event": "stream_token",
+                                    "type": "stream_token",
                                     "data": {"chunk": content_buffer.strip()},
                                     "node": node,
                                 }
@@ -381,6 +345,15 @@ class OpenAIChatAgent(AgentService):
                     }
                 chunk_count += 1
 
+            state = agent.get_state(config=config)
+
+            new_chats = state.values["messages"][len(messages) - 1 :]
+            # This is the final response after all chunks have been sent.
+            # This yield indicates completion. and don't send to client. Only for use in server for saving the chat history.
+            yield {
+                "type": "final_response",
+                "data": new_chats,
+            }
             logger.info(f"Message processing completed. Total chunks: {chunk_count}")
 
         except Exception as e:
@@ -425,8 +398,8 @@ if __name__ == "__main__":
         temperature=0.7,
         top_p=0.9,
         openai_api_key=os.getenv("LLM_API_KEY"),
-        openai_api_base=os.getenv("LLM_BASE_URL"),
-        model_name=os.getenv("LLM_MODEL_NAME"),
+        openai_api_base="http://localhost:55120/v1",
+        model_name="chat_model",
         mcp_config=mcp_config,
     )
 

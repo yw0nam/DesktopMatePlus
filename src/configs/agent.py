@@ -1,29 +1,29 @@
 import os
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 
-class OpenAIChatAgent(BaseModel):
+class OpenAIChatAgentConfig(BaseModel):
     """Configuration for OpenAI Chat Agent."""
 
     openai_api_key: str = Field(
-        ..., description="OpenAI API key", default=os.getenv("LLM_API_KEY")
+        default_factory=lambda: os.getenv("LLM_API_KEY"),
+        description="API key for OpenAI API",
     )
-    openai_base_url: str = Field(
-        ..., description="Base URL for OpenAI API", default=os.getenv("LLM_BASE_URL")
+    openai_api_base: str = Field(
+        description="Base URL for OpenAI API", default="http://localhost:55120/v1"
     )
     model_name: str = Field(
-        ...,
         description="Name of the OpenAI LLM model",
-        default=os.getenv("LLM_MODEL_NAME"),
+        default="chat_model",
     )
     top_p: float = Field(0.9, description="Top-p sampling value (for diversity)")
     temperature: float = Field(
         0.7, description="Sampling temperature (controls creativity)"
     )
-    mcp_config: dict = Field(
-        {},
+    mcp_config: Optional[Dict] = Field(
+        default=None,
         description="MCP client configuration for OpenAI Chat Agent",
     )
 
@@ -35,6 +35,6 @@ class AgentConfig(BaseModel):
         ..., description="Large-Language model to use"
     )
 
-    openai_chat_agent: Optional[OpenAIChatAgent] = Field(
+    openai_chat_agent: Optional[OpenAIChatAgentConfig] = Field(
         None, description="Configuration for OpenAI Chat Agent"
     )

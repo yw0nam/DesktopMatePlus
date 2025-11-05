@@ -6,6 +6,9 @@ from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import BaseCheckpointSaver
 
+from src.services.ltm_service import LTMService
+from src.services.stm_service import STMService
+
 
 class AgentService(ABC):
     """Abstract base class for agent services.
@@ -45,8 +48,11 @@ class AgentService(ABC):
         messages: list[BaseMessage],
         client_id: str = "default_client",
         tools: Optional[list[BaseTool]] = None,
+        persona: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
+        stm_service: Optional[STMService] = None,
+        ltm_service: Optional[LTMService] = None,
     ):
         """Generate a response from the model based on the prompt and messages.
         Note, you have to yield stream response following format:
@@ -101,6 +107,8 @@ class AgentService(ABC):
             tools (Optional[list[BaseTool]]): Additional tools for the agent.
             user_id (str): Persistent user identifier for memory tool.
             agent_id (str): Persistent agent identifier for memory tool.
+            ltm_service (Optional[LTMService]): Long-Term memory service instance.
+            stm_service (Optional[STMService]): Short-Term memory service instance.
 
         Yields:
             dict: The model's response stream.

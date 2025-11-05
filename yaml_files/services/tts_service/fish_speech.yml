@@ -7,7 +7,6 @@ tts_config:
   type: "fish_local_tts"  # Service type for factory
   configs:
     base_url: "http://localhost:8080/v1/tts"
-    format: "wav"
     seed: null  # null for randomized, set to integer for deterministic
     streaming: false
     use_memory_cache: "off"

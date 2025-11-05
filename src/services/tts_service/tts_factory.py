@@ -18,20 +18,11 @@ class TTSFactory:
             ValueError: If engine_type is unknown
         """
         if engine_type == "fish_local_tts":
+            from src.configs.tts import FishLocalTTSConfig
             from src.services.tts_service.fish_speech import FishSpeechTTS
 
-            return FishSpeechTTS(
-                url=kwargs.get("base_url", "http://localhost:8080"),
-                api_key=kwargs.get("api_key"),
-                seed=kwargs.get("seed"),
-                streaming=kwargs.get("streaming", False),
-                use_memory_cache=kwargs.get("use_memory_cache", "off"),
-                chunk_length=kwargs.get("chunk_length", 200),
-                max_new_tokens=kwargs.get("max_new_tokens", 1024),
-                top_p=kwargs.get("top_p", 0.7),
-                repetition_penalty=kwargs.get("repetition_penalty", 1.2),
-                temperature=kwargs.get("temperature", 0.7),
-            )
+            tts_config = FishLocalTTSConfig(**kwargs)
+            return FishSpeechTTS(**tts_config.model_dump())
         else:
             raise ValueError(f"Unknown TTS engine type: {engine_type}")
 

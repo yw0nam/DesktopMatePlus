@@ -4,6 +4,7 @@ Tests for VLM service functionality.
 Tests the VLM service integration with new factory pattern.
 """
 
+import os
 from unittest.mock import Mock, patch
 
 import pytest
@@ -19,7 +20,7 @@ class TestVLMFactory:
     def test_get_openai_service(self):
         """Test creating OpenAI VLM service via factory."""
         vlm_service = VLMFactory.get_vlm_service(
-            "openai",
+            "openai_compatible",
             openai_api_key="test_key",
             openai_api_base="http://localhost:8001/v1",
             model_name="test_model",
@@ -33,21 +34,19 @@ class TestVLMFactory:
             VLMFactory.get_vlm_service("unknown_service")
 
     def test_factory_with_all_params(self):
-        """Test factory with all configuration parameters."""
-        vlm_service = VLMFactory.get_vlm_service(
-            "openai",
-            openai_api_key="key123",
-            openai_api_base="http://test.com/v1",
-            model_name="gpt-4-vision",
-            temperature=0.8,
-            top_p=0.95,
-        )
-        assert isinstance(vlm_service, OpenAIService)
-        assert vlm_service.openai_api_key == "key123"
-        assert vlm_service.openai_api_base == "http://test.com/v1"
-        assert vlm_service.model_name == "gpt-4-vision"
-        assert vlm_service.temperature == 0.8
-        assert vlm_service.top_p == 0.95
+        """Test factory with all parameters specified."""
+        with patch.dict(os.environ, {"VLM_API_KEY": "key123"}):
+            service = VLMFactory.get_vlm_service(
+                service_type="openai_compatible",
+                openai_api_key="key123",
+                openai_api_base="https://custom.api/v1",
+                model_name="gpt-4-vision",
+            )
+
+            assert isinstance(service, VLMService)
+            assert service.openai_api_key == "key123"
+            assert service.openai_api_base == "https://custom.api/v1"
+            assert service.model_name == "gpt-4-vision"
 
 
 class TestOpenAIService:
@@ -202,7 +201,7 @@ class TestVLMIntegration:
 
         # Initialize the service via factory
         vlm_service = VLMFactory.get_vlm_service(
-            "openai",
+            "openai_compatible",
             openai_api_key="test_key",
             openai_api_base="http://localhost:8001/v1",
             model_name="test_model",

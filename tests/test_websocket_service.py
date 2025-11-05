@@ -205,22 +205,44 @@ class TestWebSocketManager:
                 messages,
                 client_id,
                 tools=None,
+                persona="",
                 user_id="default_user",
                 agent_id="default_agent",
-                with_memory=False,
+                stm_service=None,
+                ltm_service=None,
             ):
                 yield {"type": "stream_start"}
                 yield {"type": "stream_token", "data": "Hello, world!"}
                 yield {"type": "stream_end"}
 
-        with patch(
-            "src.services.websocket_service.manager.handlers.get_agent_service",
-            return_value=FakeAgentService(),
+        class FakeSTMService:
+            def get_chat_history(self, user_id, agent_id, session_id, limit=None):
+                return []  # Return empty history for test
+
+        class FakeLTMService:
+            def search_memory(self, query, user_id, agent_id):
+                return {"results": []}  # Return empty search results for test
+
+        with (
+            patch(
+                "src.services.websocket_service.manager.handlers.get_agent_service",
+                return_value=FakeAgentService(),
+            ),
+            patch(
+                "src.services.websocket_service.manager.handlers.get_stm_service",
+                return_value=FakeSTMService(),
+            ),
+            patch(
+                "src.services.websocket_service.manager.handlers.get_ltm_service",
+                return_value=FakeLTMService(),
+            ),
         ):
             message_data = {
                 "content": "Hello, world!",
                 "agent_id": "test-agent",
                 "user_id": "test-user",
+                "persona": "test-persona",
+                "limit": 10,
                 "metadata": {"test": "data"},
             }
             await manager.handle_chat_message(connection_id, message_data)

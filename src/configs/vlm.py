@@ -9,15 +9,15 @@ class OpenAIVLMConfig(BaseModel):
     """Configuration for OpenAI VLM."""
 
     openai_api_key: str = Field(
-        ..., description="OpenAI API key", default=os.getenv("VLM_API_KEY")
+        default_factory=lambda: os.getenv("VLM_API_KEY"),
+        description="API key for OpenAI API",
     )
-    openai_base_url: str = Field(
-        ..., description="Base URL for OpenAI API", default=os.getenv("VLM_BASE_URL")
+    openai_api_base: str = Field(
+        description="Base URL for OpenAI API", default="http://localhost:5530/v1"
     )
     model_name: str = Field(
-        ...,
         description="Name of the OpenAI VLM model",
-        default=os.getenv("VLM_MODEL_NAME"),
+        default="chat_model",
     )
     top_p: float = Field(0.9, description="Top-p sampling value (for diversity)")
     temperature: float = Field(
@@ -28,10 +28,10 @@ class OpenAIVLMConfig(BaseModel):
 class VLMConfig(BaseModel):
     """Configuration for Vision-Language Model."""
 
-    vlm_model: Literal["openai",] = Field(
+    vlm_model: Literal["openai_compatible",] = Field(
         ..., description="Vision-Language model to use"
     )
 
-    openai_vlm: Optional[OpenAIVLMConfig] = Field(
+    openai_compatible: Optional[OpenAIVLMConfig] = Field(
         None, description="Configuration for OpenAI VLM"
     )

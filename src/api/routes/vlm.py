@@ -1,33 +1,11 @@
 """VLM API routes."""
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
 
+from src.models.vlm import VLMRequest, VLMResponse
 from src.services import get_vlm_service
 
 router = APIRouter(prefix="/v1/vlm", tags=["VLM"])
-
-
-class VLMRequest(BaseModel):
-    """Request model for VLM vision analysis."""
-
-    image: str = Field(
-        ...,
-        description="Image data as base64-encoded string or URL",
-    )
-    prompt: str = Field(
-        default="Describe this image",
-        description="Text prompt for image analysis",
-    )
-
-
-class VLMResponse(BaseModel):
-    """Response model for VLM vision analysis."""
-
-    description: str = Field(
-        ...,
-        description="Textual description of the image",
-    )
 
 
 @router.post(

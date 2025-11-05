@@ -5,7 +5,7 @@ import json
 from typing import Optional
 from uuid import UUID, uuid4
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
 from src.models.websocket import (
@@ -15,7 +15,7 @@ from src.models.websocket import (
     ErrorMessage,
     PongMessage,
 )
-from src.services import get_agent_service
+from src.services import get_agent_service, get_ltm_service, get_stm_service
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
@@ -136,6 +136,9 @@ class MessageHandler:
             return
 
         agent_service = get_agent_service()
+        stm_service = get_stm_service()
+        ltm_service = get_ltm_service()
+
         if agent_service is None:
             logger.error("Agent service not initialized")
             await self.send_message(
@@ -144,14 +147,23 @@ class MessageHandler:
             )
             return
 
+        if stm_service is None:
+            logger.error("STM service not initialized")
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="STM service not initialized"),
+            )
+            return
+
         try:
             # Extract message content and persistent identifiers
             content = message_data.get("content", "")
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
+            persona = message_data.get("persona")
             conversation_id = message_data.get("conversation_id", str(uuid4()))
+            message_limit = message_data.get("limit", 10)
             metadata = dict(message_data.get("metadata", {}) or {})
-
             # Validate required persistent identifiers
             if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
                 await self.send_message(
@@ -172,22 +184,40 @@ class MessageHandler:
                 return
 
             metadata.setdefault("conversation_id", conversation_id)
+            message_history = []
             # TODO: Add Long-term memory here
-
+            if ltm_service:
+                search_result = ltm_service.search_memory(
+                    query=content, user_id=user_id, agent_id=agent_id
+                )
+                if search_result.get("results", []) != []:
+                    result = json.dumps(search_result)
+                    # Prepend retrieved memories to the message history
+                    message_history.append(
+                        SystemMessage(content=f"Long-term memories: {result}")
+                    )
             # TODO: Add Short-term memory here
-
+            if stm_service:
+                message_history = stm_service.get_chat_history(
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=conversation_id,
+                    limit=message_limit,
+                )
+            message_history.append(HumanMessage(content=content))
             # TODO: Add tools support here
-
-            messages = [HumanMessage(content=content)]
 
             # Use persistent user_id for client_id instead of connection-based ID
 
             agent_stream = agent_service.stream(
-                messages=messages,
+                messages=message_history,
                 client_id=conversation_id,
                 tools=[],  # TODO: support tools per agent
+                persona=persona,
                 user_id=user_id,
                 agent_id=agent_id,
+                stm_service=stm_service,
+                ltm_service=ltm_service,
             )
 
             turn_id = await connection_state.message_processor.start_turn(

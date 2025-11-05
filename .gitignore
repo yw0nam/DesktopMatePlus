@@ -87,6 +87,10 @@ node_modules/
 .DS_Store
 
 # Task Master (keep configs but ignore reports)
-.taskmaster/reports/
-.taskmaster/docs
+.taskmaster
+.taskmaster
+# Qwen code
+.qwen/
+# Audio files
 *.wav
+docs

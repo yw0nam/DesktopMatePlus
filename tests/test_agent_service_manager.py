@@ -62,14 +62,12 @@ class TestAgentServiceInitialization:
         assert service is mock_agent
         mock_factory.assert_called_once()
 
-        # Verify factory was called with correct parameters
+        # Verify factory was called with correct parameters (now using kwargs)
         call_args = mock_factory.call_args
-        assert call_args[0][0] == "openai_chat_agent"
-        assert call_args[1]["openai_api_key"] == "test_key"
-        assert call_args[1]["openai_api_base"] == "http://localhost:5580/v1"
-        assert call_args[1]["model_name"] == "test_model"
+        assert call_args[1]["service_type"] == "openai_chat_agent"
         assert call_args[1]["temperature"] == 0.7
         assert call_args[1]["top_p"] == 0.9
+        assert call_args[1]["mcp_config"] is None
 
     @patch("src.services.service_manager.AgentFactory.get_agent_service")
     @patch("src.services.service_manager._load_yaml_config")
@@ -258,15 +256,16 @@ class TestAgentServiceInitialization:
     @patch("src.services.service_manager.AgentFactory.get_agent_service")
     @patch("src.services.service_manager._load_yaml_config")
     def test_initialize_agent_service_env_override(self, mock_load_yaml, mock_factory):
-        """Test that environment variables override YAML config."""
+        """Test that YAML config is passed to factory (env vars handled in factory)."""
         mock_load_yaml.return_value = {
             "llm_config": {
                 "type": "openai_chat_agent",
                 "configs": {
                     "openai_api_base": "http://yaml-config:8080/v1",
-                    "model": "yaml-model",
+                    "model_name": "yaml-model",
                 },
-            }
+            },
+            "mcp_config": None,
         }
         mock_agent = Mock()
         mock_agent.is_healthy = AsyncMock(return_value=(True, "healthy"))
@@ -282,11 +281,12 @@ class TestAgentServiceInitialization:
         ):
             initialize_agent_service()
 
-        # Verify environment variables took precedence
+        # Verify YAML config values are passed (env vars are now handled in the factory)
         call_args = mock_factory.call_args
-        assert call_args[1]["openai_api_base"] == "http://env-config:9090/v1"
-        assert call_args[1]["model_name"] == "env-model"
-        assert call_args[1]["openai_api_key"] == "env_key"
+        assert call_args[1]["service_type"] == "openai_chat_agent"
+        assert call_args[1]["openai_api_base"] == "http://yaml-config:8080/v1"
+        assert call_args[1]["model_name"] == "yaml-model"
+        assert call_args[1]["mcp_config"] is None
 
 
 class TestInitializeAllServices:
@@ -300,56 +300,108 @@ class TestInitializeAllServices:
         sm._tts_service_instance = None
         sm._vlm_service_instance = None
         sm._agent_service_instance = None
+        sm._stm_service_instance = None
         yield
         sm._tts_service_instance = None
         sm._vlm_service_instance = None
         sm._agent_service_instance = None
+        sm._stm_service_instance = None
 
+    @patch.dict(
+        os.environ,
+        {
+            "NEO4J_USERNAME": "neo4j",
+            "NEO4J_PASSWORD": "fake-test-password",
+            "LLM_API_KEY": "fake-test-key",
+            "VLM_API_KEY": "fake-test-key",
+            "TTS_API_KEY": "fake-test-key",
+        },
+    )
+    @patch("src.services.service_manager.initialize_ltm_service")
     @patch("src.services.service_manager.initialize_tts_service")
     @patch("src.services.service_manager.initialize_vlm_service")
     @patch("src.services.service_manager.initialize_agent_service")
-    def test_initialize_services_all_three(
-        self, mock_init_agent, mock_init_vlm, mock_init_tts
+    @patch("src.services.service_manager.initialize_stm_service")
+    def test_initialize_services_all_four(
+        self,
+        mock_init_stm,
+        mock_init_agent,
+        mock_init_vlm,
+        mock_init_tts,
+        mock_init_ltm,
     ):
-        """Test initializing all three services."""
+        """Test initializing all five services."""
         mock_tts = Mock()
         mock_vlm = Mock()
         mock_agent = Mock()
+        mock_stm = Mock()
+        mock_ltm = Mock()
         mock_init_tts.return_value = mock_tts
         mock_init_vlm.return_value = mock_vlm
         mock_init_agent.return_value = mock_agent
+        mock_init_stm.return_value = mock_stm
+        mock_init_ltm.return_value = mock_ltm
 
-        tts, vlm, agent = initialize_services()
+        tts, vlm, agent, stm, ltm = initialize_services()
 
         assert tts is mock_tts
         assert vlm is mock_vlm
         assert agent is mock_agent
+        assert stm is mock_stm
+        assert ltm is mock_ltm
+        assert agent is mock_agent
+        assert stm is mock_stm
         mock_init_tts.assert_called_once()
         mock_init_vlm.assert_called_once()
         mock_init_agent.assert_called_once()
+        mock_init_stm.assert_called_once()
 
+    @patch.dict(
+        os.environ,
+        {
+            "NEO4J_USERNAME": "neo4j",
+            "NEO4J_PASSWORD": "fake-test-password",
+            "LLM_API_KEY": "fake-test-key",
+            "VLM_API_KEY": "fake-test-key",
+            "TTS_API_KEY": "fake-test-key",
+        },
+    )
+    @patch("src.services.service_manager.initialize_ltm_service")
     @patch("src.services.service_manager.initialize_tts_service")
     @patch("src.services.service_manager.initialize_vlm_service")
     @patch("src.services.service_manager.initialize_agent_service")
+    @patch("src.services.service_manager.initialize_stm_service")
     def test_initialize_services_with_custom_paths(
-        self, mock_init_agent, mock_init_vlm, mock_init_tts
+        self,
+        mock_init_stm,
+        mock_init_agent,
+        mock_init_vlm,
+        mock_init_tts,
+        mock_init_ltm,
     ):
         """Test initializing services with custom config paths."""
         mock_tts = Mock()
         mock_vlm = Mock()
         mock_agent = Mock()
+        mock_stm = Mock()
+        mock_ltm = Mock()
         mock_init_tts.return_value = mock_tts
         mock_init_vlm.return_value = mock_vlm
         mock_init_agent.return_value = mock_agent
-
+        mock_init_stm.return_value = mock_stm
+        mock_init_ltm.return_value = mock_ltm
         custom_tts_path = "/custom/tts.yml"
         custom_vlm_path = "/custom/vlm.yml"
         custom_agent_path = "/custom/agent.yml"
+        custom_stm_path = "/custom/stm.yml"
+        custom_ltm_path = "/custom/ltm.yml"
 
-        _tts, _vlm, _agent = initialize_services(
+        _tts, _vlm, _agent, _stm, _ltm = initialize_services(
             tts_config_path=custom_tts_path,
             vlm_config_path=custom_vlm_path,
             agent_config_path=custom_agent_path,
+            stm_config_path=custom_stm_path,
+            ltm_config_path=custom_ltm_path,
         )
 
         mock_init_tts.assert_called_once_with(
@@ -360,4 +412,10 @@ class TestInitializeAllServices:
         )
         mock_init_agent.assert_called_once_with(
             config_path=custom_agent_path, force_reinit=False
+        )
+        mock_init_stm.assert_called_once_with(
+            config_path=custom_stm_path, force_reinit=False
+        )
+        mock_init_ltm.assert_called_once_with(
+            config_path=custom_ltm_path, force_reinit=False
         )

@@ -21,16 +21,14 @@ class VLMFactory:
         Raises:
             ValueError: If service_type is unknown
         """
-        if service_type == "openai":
+        if service_type == "openai_compatible":
+            from src.configs.vlm import OpenAIVLMConfig
             from src.services.vlm_service.openai_compatible import OpenAIService
 
-            return OpenAIService(
-                temperature=kwargs.get("temperature", 0.7),
-                top_p=kwargs.get("top_p", 0.9),
-                openai_api_key=kwargs.get("openai_api_key"),
-                openai_api_base=kwargs.get("openai_api_base"),
-                model_name=kwargs.get("model_name"),
-            )
+            kwargs["openai_api_key"] = os.getenv("VLM_API_KEY")
+
+            vlm_config = OpenAIVLMConfig(**kwargs)
+            return OpenAIService(**vlm_config.model_dump())
         else:
             raise ValueError(f"Unknown VLM service type: {service_type}")
 
@@ -42,10 +40,10 @@ if __name__ == "__main__":
     load_dotenv()
     # 1. 서비스 인스턴스 생성
     vlm_service = VLMFactory.get_vlm_service(
-        "openai",
+        "openai_compatible",
         openai_api_key=os.getenv("VLM_API_KEY"),
-        openai_api_base=os.getenv("VLM_BASE_URL"),
-        model_name=os.getenv("VLM_MODEL_NAME"),
+        openai_api_base="http://localhost:5530/v1",
+        model_name="chat_model",
     )
     # 2. Load Image and prepare prompt
 

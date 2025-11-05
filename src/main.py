@@ -7,6 +7,7 @@ from pathlib import Path
 
 import uvicorn
 import yaml
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,11 +15,14 @@ from src.api.routes import router as api_router
 from src.configs.settings import settings
 from src.core.logger import setup_json_logging
 
+load_dotenv()
 # Store config paths globally for lifespan to access
 _config_paths = {
     "tts_config_path": None,
     "vlm_config_path": None,
     "agent_config_path": None,
+    "stm_config_path": None,
+    "ltm_config_path": None,
 }
 
 
@@ -69,6 +73,8 @@ async def lifespan(app: FastAPI):
     try:
         from src.services import (
             initialize_agent_service,
+            initialize_ltm_service,
+            initialize_stm_service,
             initialize_tts_service,
             initialize_vlm_service,
         )
@@ -100,6 +106,21 @@ async def lifespan(app: FastAPI):
         else:
             print("  - Agent config: Using default")
             initialize_agent_service()
+
+        if _config_paths.get("stm_config_path"):
+            print(f"  - STM config: {_config_paths['stm_config_path']}")
+            initialize_stm_service(config_path=_config_paths["stm_config_path"])
+        else:
+            print("  - STM config: Using default from settings")
+            initialize_stm_service()
+
+        # Initialize LTM service (no client API exposure needed)
+        if _config_paths.get("ltm_config_path"):
+            print(f"  - LTM config: {_config_paths['ltm_config_path']}")
+            initialize_ltm_service(config_path=_config_paths["ltm_config_path"])
+        else:
+            print("  - LTM config: Using default")
+            initialize_ltm_service()
 
     except Exception as e:
         print(f"⚠️  Failed to initialize services: {e}")
@@ -144,16 +165,7 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example usage:
-  python -m src.main
-  python -m src.main --yaml_file yaml_files/main.yml
   uv run src/main.py --yaml_file yaml_files/main.yml
-
-Environment variables (.env file):
-  - VLM_API_KEY: API key for VLM service
-  - VLM_BASE_URL: Base URL for VLM service
-  - VLM_MODEL_NAME: Model name for VLM service
-  - TTS_API_KEY: API key for TTS service (optional)
-  - TTS_BASE_URL: Base URL for TTS service
         """,
     )
     parser.add_argument(

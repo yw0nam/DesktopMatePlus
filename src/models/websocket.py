@@ -1,7 +1,7 @@
 """WebSocket message models and schemas."""
 
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -77,13 +77,24 @@ class ChatMessage(BaseMessage):
     content: str = Field(..., description="Chat message content")
     agent_id: str = Field(..., description="Persistent agent identifier")
     user_id: str = Field(..., description="Persistent user/client identifier")
+    persona: str = Field(
+        default="You are a helpful 3D desktop assistant, Yuri who is the friendly but sometimes mischievous AI companion integrated into a 3D desktop environment. You assist users with various tasks, provide information, and engage in casual conversation, all while maintaining a playful and witty demeanor.",
+        description="Persona or behavior profile for the agent",
+    )
+    images: Optional[List[str]] = Field(
+        default=None,
+        description="Optional images included in the message, each as a URL or base64 string",
+    )
+    limit: Optional[int] = Field(
+        default=10,
+        description="Optional limit for short-term memory messages",
+    )
     conversation_id: Optional[UUID] = Field(
         default=None,
         description="Persistent conversation identifier, First message in a new conversation if None, Note should be None or UUID",
     )
     metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional metadata",
+        default=None, description="Additional metadata for the message"
     )
 
 

@@ -276,10 +276,12 @@ class WebSocketManager:
                 try:
                     from src.models.websocket import ChatMessage
 
-                    ChatMessage(**message_data)
+                    chat_message = ChatMessage(**message_data)
+                    # Convert validated model back to dict to preserve defaults
+                    validated_message_data = chat_message.model_dump()
                     # Handle chat message through MessageProcessor
                     await self._message_handler.handle_chat_message(
-                        connection_id, message_data, self._forward_turn_events
+                        connection_id, validated_message_data, self._forward_turn_events
                     )
                 except ValidationError as chat_validation_error:
                     logger.error(
