@@ -34,6 +34,8 @@ class HealthResponse(BaseModel):
                     {"name": "VLM", "ready": True, "error": None},
                     {"name": "TTS", "ready": True, "error": None},
                     {"name": "Agent", "ready": True, "error": None},
+                    {"name": "LTM", "ready": True, "error": None},
+                    {"name": "STM", "ready": True, "error": None},
                 ],
             }
         }
