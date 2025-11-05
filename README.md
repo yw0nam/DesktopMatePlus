@@ -46,15 +46,6 @@ src/
 ├── core/                         # Core utilities (logging, etc.)
 └── main.py                       # Application entry point
 
-docs/
-└── api/                          # API documentation for C# integration
-    ├── INDEX.md                  # Documentation index
-    ├── GettingStarted.md         # Quick start guide
-    ├── WebSocket_ChatStream.md   # WebSocket streaming API
-    ├── TTS_Synthesize.md         # TTS API
-    ├── VLM_Analyze.md            # VLM API
-    └── STM_*.md                  # Session management APIs
-
 examples/                         # Example scripts
 ├── realtime_tts_streaming_demo.py
 ├── websocket_client_demo.py
@@ -374,7 +365,6 @@ The backend is designed to be deployed as:
 - ✅ Complete WebSocket streaming with real-time TTS chunks
 - ✅ MongoDB-based STM for session management
 - ✅ mem0 integration for long-term memory
-- ✅ Comprehensive C# integration documentation
 - ✅ Customizable agent personas per message
 - ✅ Production-ready error handling and reconnection
 - ✅ Full test coverage for all services
