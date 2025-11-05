@@ -27,10 +27,10 @@ class OpenAIVLMConfig(BaseModel):
 class VLMConfig(BaseModel):
     """Configuration for Vision-Language Model."""
 
-    vlm_model: Literal["openai",] = Field(
+    vlm_model: Literal["openai_compatible",] = Field(
         ..., description="Vision-Language model to use"
     )
 
-    openai_vlm: Optional[OpenAIVLMConfig] = Field(
+    openai_compatible: Optional[OpenAIVLMConfig] = Field(
         None, description="Configuration for OpenAI VLM"
     )

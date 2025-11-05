@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Literal, Optional
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -7,75 +7,81 @@ from pydantic import BaseModel, Field
 # .env 파일 로드
 load_dotenv()
 
+# --- 각 config 딕셔너리의 내용을 정의하는 내부 모델 ---
+
+
+class Mem0LLMConfigValues(BaseModel):
+    """Mem0 LLM config 내부 값 정의"""
+
+    openai_base_url: str = "http://localhost:55120/v1"
+    api_key: Optional[str] = Field(default_factory=lambda: os.getenv("LTM_API_KEY"))
+    model: str = "chat_model"
+
+
+class Mem0EmbedderConfigValues(BaseModel):
+    """Mem0 Embedder config 내부 값 정의"""
+
+    model_name: str = "chat_model"
+    openai_base_url: str = "http://localhost:5504/v1"
+    openai_api_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("EMB_API_KEY")
+    )
+    embedding_dims: int = 2560
+
+
+class Mem0VectorStoreConfigValues(BaseModel):
+    """Mem0 Vector Store config 내부 값 정의"""
+
+    url: str = "http://localhost:6333"
+    embedding_model_dims: int = 2560
+    collection_name: str = "mem0_collection"
+
+
+class Mem0GraphStoreConfigValues(BaseModel):
+    """Mem0 Graph Store config 내부 값 정의"""
+
+    url: str = "bolt://localhost:7687"
+    username: Optional[str] = Field(default_factory=lambda: os.getenv("NEO4J_USER"))
+    password: Optional[str] = Field(default_factory=lambda: os.getenv("NEO4J_PASSWORD"))
+
 
 class Mem0LongTermMemoryConfig(BaseModel):
     """
-    Mem0를 Long-Term Memory로 구성하기 위한 설정 클래스
+    Mem0를 Long-Term Memory로 구성하기 위한 설정 클래스 (수정됨)
     """
 
-    # --- 1. 모든 하위 설정 클래스들을 내부에 정의 ---
-
     class Mem0LLMConfig(BaseModel):
-        """Mem0의 LLM 설정 (OpenAI 호환)"""
-
         provider: Literal["openai"] = Field("openai")
-        config: Dict[str, Any] = Field(
-            default_factory=lambda: {
-                "openai_base_url": "http://localhost:55120/v1",
-                "api_key": os.getenv("LLM_API_KEY"),
-                "model": "chat_model",
-            }
-        )
+        # config 타입을 Dict[str, Any] 대신 명시적인 모델로 변경
+        config: Mem0LLMConfigValues = Field(default_factory=Mem0LLMConfigValues)
 
     class Mem0EmbedderConfig(BaseModel):
-        """Mem0의 Embedder 설정 (Langchain 호환)"""
-
         provider: Literal["langchain"] = Field("langchain")
-        config: Dict[str, Any] = Field(
-            default_factory=lambda: {
-                "model_name": "chat_model",
-                "openai_api_base": "http://localhost:5504/v1",
-                "openai_api_key": os.getenv("EMB_API_KEY"),
-                "embedding_dims": 2560,
-            }
+        config: Mem0EmbedderConfigValues = Field(
+            default_factory=Mem0EmbedderConfigValues
         )
 
     class Mem0VectorStoreConfig(BaseModel):
-        """Mem0의 Vector Store 설정 (Qdrant)"""
-
         provider: Literal["qdrant"] = Field("qdrant")
-        config: Dict[str, Any] = Field(
-            default_factory=lambda: {
-                "url": "http://localhost:6333",
-                "embedding_model_dims": 2560,
-                "collection_name": "mem0_collection",
-            }
+        config: Mem0VectorStoreConfigValues = Field(
+            default_factory=Mem0VectorStoreConfigValues
         )
 
     class Mem0GraphStoreConfig(BaseModel):
-        """Mem0의 Graph Store 설정 (Neo4j)"""
-
         provider: Literal["neo4j"] = Field("neo4j")
-        config: Dict[str, Any] = Field(
-            default_factory=lambda: {
-                "url": "bolt://localhost:7687",
-                "username": os.getenv("NEO4J_USER"),
-                "password": os.getenv("NEO4J_PASSWORD"),
-            }
+        config: Mem0GraphStoreConfigValues = Field(
+            default_factory=Mem0GraphStoreConfigValues
         )
 
-    llm: "Mem0LongTermMemoryConfig.Mem0LLMConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0LLMConfig()
-    )
-    embedder: "Mem0LongTermMemoryConfig.Mem0EmbedderConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0EmbedderConfig()
-    )
-    vector_store: "Mem0LongTermMemoryConfig.Mem0VectorStoreConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0VectorStoreConfig()
-    )
-    graph_store: "Mem0LongTermMemoryConfig.Mem0GraphStoreConfig" = Field(
-        default_factory=lambda: Mem0LongTermMemoryConfig.Mem0GraphStoreConfig()
-    )
+    # --- 메인 클래스 필드 ---
+
+    llm: Mem0LLMConfig = Field(default_factory=Mem0LLMConfig)
+    embedder: Mem0EmbedderConfig = Field(default_factory=Mem0EmbedderConfig)
+    vector_store: Mem0VectorStoreConfig = Field(default_factory=Mem0VectorStoreConfig)
+    graph_store: Mem0GraphStoreConfig = Field(default_factory=Mem0GraphStoreConfig)
+
+    # 참고: Python 3.10 이상에서는 순방향 참조를 위한 문자열("")을 사용할 필요가 없습니다.
+    # llm: "Mem0LongTermMemoryConfig.Mem0LLMConfig" 대신 llm: Mem0LLMConfig 사용 가능
 
 
 class MemoryConfig(BaseModel):

@@ -127,31 +127,32 @@ class Mem0LTM(LTMService[Memory]):
         Returns:
             dict: Parsed configuration dictionary.
         """
+        logger.info(f"Parsing Mem0 configuration: {mem0_config}")
         embedding_model = OpenAIEmbeddings(
-            model=mem0_config.embedder.config["model_name"],
-            openai_api_base=mem0_config.embedder.config["openai_base_url"],
-            openai_api_key=mem0_config.embedder.config["openai_api_key"],
+            model=mem0_config.embedder.config.model_name,
+            openai_api_base=mem0_config.embedder.config.openai_base_url,
+            openai_api_key=mem0_config.embedder.config.openai_api_key,
         )
         embedding_dict = {
             "provider": "langchain",
             "config": {
                 "model": embedding_model,
-                "embedding_dims": mem0_config.embedder.config["embedding_dims"],
+                "embedding_dims": mem0_config.embedder.config.embedding_dims,
             },
         }
         # Fix: LLM config should include provider and config structure
         llm_dict = {
             "provider": mem0_config.llm.provider,
-            "config": mem0_config.llm.config,
+            "config": mem0_config.llm.config.model_dump(),
         }
         # Fix: Vector store and graph store should also include provider
         vector_store_dict = {
             "provider": mem0_config.vector_store.provider,
-            "config": mem0_config.vector_store.config,
+            "config": mem0_config.vector_store.config.model_dump(),
         }
         graph_store_dict = {
             "provider": mem0_config.graph_store.provider,
-            "config": mem0_config.graph_store.config,
+            "config": mem0_config.graph_store.config.model_dump(),
         }
         mem0_config_dict = {
             "llm": llm_dict,

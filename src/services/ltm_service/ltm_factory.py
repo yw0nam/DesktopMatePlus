@@ -1,4 +1,8 @@
+from dotenv import load_dotenv
+
 from src.services.ltm_service.service import LTMService
+
+load_dotenv()
 
 
 class LTMFactory:
@@ -28,13 +32,16 @@ class LTMFactory:
 
 
 if __name__ == "__main__":
+    import yaml
+
     from src.configs.ltm import Mem0LongTermMemoryConfig
 
     # 1. 서비스 인스턴스 생성
-    memory_config = Mem0LongTermMemoryConfig()
-    service_type = "mem0"
     # print(memory_config.model_dump())
-    print(memory_config)
+    with open("./yaml_files/services/ltm_service/mem0.yml", "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    memory_config = Mem0LongTermMemoryConfig(**config["ltm_config"]["configs"])
+    service_type = config["ltm_config"]["type"]
     ltm_service = LTMFactory.get_ltm_service(service_type, **memory_config.model_dump())
 
     healthy, message = ltm_service.is_healthy()

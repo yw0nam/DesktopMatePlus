@@ -128,14 +128,21 @@ class OpenAIChatAgent(AgentService):
         logger.info(f"Starting LLM stream for messages: {messages}")
         logger.info(f"MCP Config: {self.mcp_config}")
         try:
-            mcp_client = MultiServerMCPClient(self.mcp_config)
+            # Handle case where mcp_config is None (no MCP configuration)
+            mcp_tools = []
+            if self.mcp_config:
+                mcp_client = MultiServerMCPClient(self.mcp_config)
+                mcp_tools = await mcp_client.get_tools()
+                logger.info(
+                    "Fetched %d tools from MCP client: %s",
+                    len(mcp_tools),
+                    [tool.name for tool in mcp_tools],
+                )
+            else:
+                logger.info(
+                    "No MCP configuration provided, proceeding without MCP tools"
+                )
 
-            mcp_tools = await mcp_client.get_tools()
-            logger.info(
-                "Fetched %d tools from MCP client: %s",
-                len(mcp_tools),
-                [tool.name for tool in mcp_tools],
-            )
             logger.debug("Creating react agent.")
             agent = create_react_agent(
                 self.llm,
@@ -237,7 +244,7 @@ class OpenAIChatAgent(AgentService):
                         if content_buffer.strip():
                             if node == "tools":
                                 yield {
-                                    "event": "tool_result",
+                                    "type": "tool_result",
                                     "data": {
                                         "execution_result": content_buffer.strip()
                                     },
@@ -245,7 +252,7 @@ class OpenAIChatAgent(AgentService):
                                 }
                             elif node == "agent":
                                 yield {
-                                    "event": "stream_token",
+                                    "type": "stream_token",
                                     "data": {"chunk": content_buffer.strip()},
                                     "node": node,
                                 }
@@ -332,7 +339,7 @@ class OpenAIChatAgent(AgentService):
 
             state = agent.get_state(config=config)
 
-            new_chats = state.values["messages"][len(messages) :]
+            new_chats = state.values["messages"][len(messages) - 1 :]
             # This is the final response after all chunks have been sent.
             # This yield indicates completion. and don't send to client. Only for use in server for saving the chat history.
             yield {

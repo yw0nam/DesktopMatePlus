@@ -5,7 +5,6 @@ Services are initialized once and stored as module-level singletons.
 """
 
 import asyncio
-import os
 import threading
 from pathlib import Path
 from typing import Awaitable, Callable, Optional, TypeVar
@@ -124,19 +123,9 @@ def initialize_tts_service(
 
     # Load configuration
     config = _load_yaml_config(config_path)
-    service_type = config.get("type", "fish_local_tts")
-    service_configs = config.get("configs", {})
-
-    # Override with environment variables if present
-    if "base_url" in service_configs:
-        service_configs["base_url"] = os.getenv(
-            "TTS_BASE_URL", service_configs["base_url"]
-        )
-
-    # Add API key from environment if available
-    api_key = os.getenv("TTS_API_KEY")
-    if api_key:
-        service_configs["api_key"] = api_key
+    tts_config = config.get("tts_config", {})
+    service_type = tts_config.get("type", "fish_local_tts")
+    service_configs = tts_config.get("configs", {})
 
     # Create TTS engine using factory with **configs
     logger.info(f"🔧 Initializing TTS service (type: {service_type})")

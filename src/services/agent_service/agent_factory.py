@@ -25,8 +25,6 @@ class AgentFactory:
             from src.configs.agent import OpenAIChatAgentConfig
             from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
 
-            kwargs["openai_api_key"] = os.getenv("LLM_API_KEY")
-
             agent_config = OpenAIChatAgentConfig(**kwargs)
             return OpenAIChatAgent(**agent_config.model_dump())
         else:

@@ -7,16 +7,16 @@ ltm_config:
     llm:
       provider: "openai"
       config:
-        openai_base_url: "http://localhost:55120"
+        openai_base_url: "http://localhost:55120/v1"
         model: "chat_model"
-        # api_key: "your-openai-api-key"  # Optional, can be set via environment variable
+        # api_key: "${LTM_API_KEY}"
     embedder:
       provider: "langchain" # Currently only langchain is supported. This is compatible with OpenAI compatible embeddings API.
       config:
-        openai_base_url: "http://localhost:5504"
+        openai_base_url: "http://localhost:5504/v1"
         model_name: "chat_model"
         embedding_dims: 2560
-        # openai_api_key:
+        # openai_api_key: "${EMB_API_KEY}"
     vector_store:
       provider: "qdrant"
       config:
@@ -27,5 +27,5 @@ ltm_config:
       provider: "neo4j"
       config:
         url: "bolt://localhost:7687"
-        # username: "your-neo4j-username"
-        # password: "your-neo4j-password"
+        # username: ${NEO4J_USER}
+        # password: ${NEO4J_PASSWORD}

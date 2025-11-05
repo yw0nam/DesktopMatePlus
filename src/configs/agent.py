@@ -1,15 +1,18 @@
 import os
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+
+load_dotenv()
+
+_LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 
 class OpenAIChatAgentConfig(BaseModel):
     """Configuration for OpenAI Chat Agent."""
 
-    openai_api_key: str = Field(
-        description="OpenAI API key", default=os.getenv("LLM_API_KEY")
-    )
+    openai_api_key: str = Field(description="OpenAI API key", default=_LLM_API_KEY)
     openai_api_base: str = Field(
         description="Base URL for OpenAI API", default="http://localhost:55120/v1"
     )
@@ -21,8 +24,8 @@ class OpenAIChatAgentConfig(BaseModel):
     temperature: float = Field(
         0.7, description="Sampling temperature (controls creativity)"
     )
-    mcp_config: dict = Field(
-        {},
+    mcp_config: Optional[Dict] = Field(
+        default=None,
         description="MCP client configuration for OpenAI Chat Agent",
     )
 
