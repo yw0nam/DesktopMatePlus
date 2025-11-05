@@ -161,8 +161,8 @@ class MessageHandler:
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
             conversation_id = message_data.get("conversation_id", str(uuid4()))
+            message_limit = message_data.get("limit", 10)
             metadata = dict(message_data.get("metadata", {}) or {})
-            message_limit = metadata.get("limit", 10)
             # Validate required persistent identifiers
             if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
                 await self.send_message(

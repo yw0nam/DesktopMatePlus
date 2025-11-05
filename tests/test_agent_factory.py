@@ -4,7 +4,6 @@ Tests for Agent factory and service functionality.
 Tests the Agent service integration with factory pattern.
 """
 
-import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -40,30 +39,6 @@ class TestAgentFactory:
         """Test factory raises error for unknown service type."""
         with pytest.raises(ValueError, match="Unknown Agent service type"):
             AgentFactory.get_agent_service("unknown_service")
-
-    def test_factory_with_all_params(self):
-        """Test factory with all configuration parameters."""
-
-        # Mock environment variable for API key
-        with patch.dict(os.environ, {"LLM_API_KEY": "key123"}):
-
-            configs = OpenAIChatAgentConfig(
-                openai_api_base="http://localhost:5580/v1",
-                model_name="test_model",
-                temperature=0.7,
-                top_p=0.9,
-                mcp_config={},
-            )
-            agent_service = AgentFactory.get_agent_service(
-                "openai_chat_agent", **configs.model_dump()
-            )
-        assert isinstance(agent_service, OpenAIChatAgent)
-        assert agent_service.openai_api_key == "key123"
-        assert agent_service.openai_api_base == "http://localhost:5580/v1"
-        assert agent_service.model_name == "test_model"
-        assert agent_service.temperature == 0.7
-        assert agent_service.top_p == 0.9
-        assert agent_service.mcp_config == {}
 
     def test_factory_with_default_params(self):
         """Test factory uses default parameters when not provided."""

@@ -81,13 +81,16 @@ class ChatMessage(BaseMessage):
         default=None,
         description="Optional images included in the message, each as a URL or base64 string",
     )
+    limit: Optional[int] = Field(
+        default=10,
+        description="Optional limit for short-term memory messages",
+    )
     conversation_id: Optional[UUID] = Field(
         default=None,
         description="Persistent conversation identifier, First message in a new conversation if None, Note should be None or UUID",
     )
     metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional metadata for the message available option: {'limit': int} to limit short-term memory messages",
+        default=None, description="Additional metadata for the message"
     )
 
 

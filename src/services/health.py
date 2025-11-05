@@ -82,6 +82,54 @@ class HealthService:
         except Exception as e:
             return False, f"Agent check failed: {str(e)}"
 
+    async def check_ltm(self) -> Tuple[bool, str | None]:
+        """Check Long-Term Memory (LTM) service health.
+
+        Returns:
+            Tuple of (is_ready, error_message)
+        """
+        try:
+            from src.services import get_ltm_service
+
+            # Get LTM engine and check health
+            ltm_engine = get_ltm_service()
+            if ltm_engine is None:
+                return False, "LTM service not initialized"
+
+            is_healthy, message = ltm_engine.is_healthy()
+
+            if is_healthy:
+                return True, None
+            else:
+                return False, str(message) if message else "LTM service unhealthy"
+
+        except Exception as e:
+            return False, f"LTM check failed: {str(e)}"
+
+    async def check_stm(self) -> Tuple[bool, str | None]:
+        """Check Short-Term Memory (STM) service health.
+
+        Returns:
+            Tuple of (is_ready, error_message)
+        """
+        try:
+            from src.services import get_stm_service
+
+            # Get STM engine and check health
+            stm_engine = get_stm_service()
+            if stm_engine is None:
+                return False, "STM service not initialized"
+
+            is_healthy, message = stm_engine.is_healthy()
+
+            if is_healthy:
+                return True, None
+            else:
+                return False, str(message) if message else "STM service unhealthy"
+
+        except Exception as e:
+            return False, f"STM check failed: {str(e)}"
+
     async def get_system_health(self) -> HealthResponse:
         """Get overall system health status.
 
@@ -94,15 +142,19 @@ class HealthService:
         vlm_ready, vlm_error = await self.check_vlm()
         tts_ready, tts_error = await self.check_tts()
         agent_ready, agent_error = await self.check_agent()
+        ltm_ready, ltm_error = await self.check_ltm()
+        stm_ready, stm_error = await self.check_stm()
 
         modules = [
             ModuleStatus(name="VLM", ready=vlm_ready, error=vlm_error),
             ModuleStatus(name="TTS", ready=tts_ready, error=tts_error),
             ModuleStatus(name="Agent", ready=agent_ready, error=agent_error),
+            ModuleStatus(name="LTM", ready=ltm_ready, error=ltm_error),
+            ModuleStatus(name="STM", ready=stm_ready, error=stm_error),
         ]
 
         # Overall status is healthy only if all modules are ready
-        all_ready = vlm_ready and tts_ready and agent_ready
+        all_ready = vlm_ready and tts_ready and agent_ready and ltm_ready and stm_ready
         overall_status = "healthy" if all_ready else "unhealthy"
 
         return HealthResponse(status=overall_status, modules=modules)

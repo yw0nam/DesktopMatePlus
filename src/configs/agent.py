@@ -1,18 +1,16 @@
 import os
 from typing import Dict, Literal, Optional
 
-from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-
-load_dotenv()
-
-_LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 
 class OpenAIChatAgentConfig(BaseModel):
     """Configuration for OpenAI Chat Agent."""
 
-    openai_api_key: str = Field(description="OpenAI API key", default=_LLM_API_KEY)
+    openai_api_key: str = Field(
+        default_factory=lambda: os.getenv("LLM_API_KEY"),
+        description="API key for OpenAI API",
+    )
     openai_api_base: str = Field(
         description="Base URL for OpenAI API", default="http://localhost:55120/v1"
     )
