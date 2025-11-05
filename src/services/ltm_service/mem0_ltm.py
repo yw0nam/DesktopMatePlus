@@ -1,6 +1,7 @@
 import logging
 
 from langchain_core.messages import BaseMessage
+from langchain_core.messages.utils import convert_to_openai_messages
 from langchain_openai import OpenAIEmbeddings
 from mem0 import Memory
 
@@ -84,6 +85,7 @@ class Mem0LTM(LTMService[Memory]):
             dict: Add results.
         """
         try:
+            messages = convert_to_openai_messages(messages)
             result = self.memory_client.add(
                 messages,
                 user_id=user_id,

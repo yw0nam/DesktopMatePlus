@@ -77,6 +77,10 @@ class ChatMessage(BaseMessage):
     content: str = Field(..., description="Chat message content")
     agent_id: str = Field(..., description="Persistent agent identifier")
     user_id: str = Field(..., description="Persistent user/client identifier")
+    persona: str = Field(
+        default="You are a helpful 3D desktop assistant, Yuri who is the friendly but sometimes mischievous AI companion integrated into a 3D desktop environment. You assist users with various tasks, provide information, and engage in casual conversation, all while maintaining a playful and witty demeanor.",
+        description="Persona or behavior profile for the agent",
+    )
     images: Optional[List[str]] = Field(
         default=None,
         description="Optional images included in the message, each as a URL or base64 string",

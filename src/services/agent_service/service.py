@@ -48,6 +48,7 @@ class AgentService(ABC):
         messages: list[BaseMessage],
         client_id: str = "default_client",
         tools: Optional[list[BaseTool]] = None,
+        persona: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
         stm_service: Optional[STMService] = None,

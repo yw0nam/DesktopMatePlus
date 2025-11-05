@@ -123,7 +123,12 @@ class EventHandler:
             logger.debug("Token consumer cancelled for turn %s", turn_id)
             raise
         except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
-            logger.error("Error consuming token events for turn %s: %s", turn_id, exc)
+            logger.error(
+                "Error consuming token events for turn %s: %s",
+                turn_id,
+                exc,
+                exc_info=True,
+            )
         finally:
             turn = self.processor.turns.get(turn_id)
             if turn:

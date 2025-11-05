@@ -106,6 +106,7 @@ class OpenAIChatAgent(AgentService):
         self,
         messages: list[BaseMessage],
         client_id: str = None,
+        persona: str = "",
         tools: list[BaseTool] = None,
         user_id: str = "default_user",
         agent_id: str = "default_agent",
@@ -144,11 +145,17 @@ class OpenAIChatAgent(AgentService):
                 )
 
             logger.debug("Creating react agent.")
-            agent = create_react_agent(
-                self.llm,
-                tools=tools + mcp_tools if tools else mcp_tools,
-                checkpointer=self.checkpoint,
-            )
+            # Only pass prompt parameter if persona is provided and not empty
+            agent_kwargs = {
+                "model": self.llm,
+                "tools": tools + mcp_tools if tools else mcp_tools,
+                "checkpointer": self.checkpoint,
+            }
+            if persona and persona.strip():
+                agent_kwargs["prompt"] = persona
+                logger.debug(f"Using persona: {persona[:100]}...")
+
+            agent = create_react_agent(**agent_kwargs)
             run_id = str(uuid4())
             config = {"configurable": {"thread_id": run_id}}
 
@@ -179,6 +186,7 @@ class OpenAIChatAgent(AgentService):
 
             if new_chats and ltm_service:
                 # TODO: Need to be optimized this part.
+                # Add persona information to memory?...
                 ltm_result = ltm_service.add_memory(
                     messages=new_chats, user_id=user_id, agent_id=agent_id
                 )

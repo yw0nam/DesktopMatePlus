@@ -160,6 +160,7 @@ class MessageHandler:
             content = message_data.get("content", "")
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
+            persona = message_data.get("persona")
             conversation_id = message_data.get("conversation_id", str(uuid4()))
             message_limit = message_data.get("limit", 10)
             metadata = dict(message_data.get("metadata", {}) or {})
@@ -212,6 +213,7 @@ class MessageHandler:
                 messages=message_history,
                 client_id=conversation_id,
                 tools=[],  # TODO: support tools per agent
+                persona=persona,
                 user_id=user_id,
                 agent_id=agent_id,
                 stm_service=stm_service,
