@@ -185,7 +185,7 @@ class MessageHandler:
 
             metadata.setdefault("conversation_id", conversation_id)
             message_history = []
-            # TODO: Add Long-term memory here
+            # Retrieve long-term memories if available
             if ltm_service:
                 search_result = ltm_service.search_memory(
                     query=content, user_id=user_id, agent_id=agent_id
@@ -196,7 +196,7 @@ class MessageHandler:
                     message_history.append(
                         SystemMessage(content=f"Long-term memories: {result}")
                     )
-            # TODO: Add Short-term memory here
+            # Retrieve short-term memories if available
             if stm_service:
                 message_history = stm_service.get_chat_history(
                     user_id=user_id,

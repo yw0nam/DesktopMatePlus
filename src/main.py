@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import router as api_router
-from src.configs.settings import settings
+from src.configs.settings import get_settings, initialize_settings
 from src.core.logger import setup_json_logging
 
 load_dotenv()
@@ -29,6 +29,10 @@ _config_paths = {
 def load_main_config(yaml_file: str | Path) -> dict:
     """Load main configuration file that references service configs.
 
+    This function:
+    1. Initializes settings from YAML using the validator pattern
+    2. Resolves service config paths relative to main.yml location
+
     Args:
         yaml_file: Path to main.yml configuration file
 
@@ -39,6 +43,10 @@ def load_main_config(yaml_file: str | Path) -> dict:
     if not yaml_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {yaml_path}")
 
+    # Initialize settings using validator pattern (like stm_factory)
+    initialize_settings(yaml_path)
+
+    # Load config for service paths
     with open(yaml_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
@@ -62,6 +70,9 @@ async def lifespan(app: FastAPI):
     json_logging = os.getenv("JSON_LOGGING", "true").lower() == "true"
     log_level = os.getenv("LOG_LEVEL", "INFO")
     setup_json_logging(level=log_level, json_output=json_logging)
+
+    # Get settings instance
+    settings = get_settings()
 
     # Startup
     print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
@@ -134,28 +145,41 @@ async def lifespan(app: FastAPI):
     print(f"👋 Shutting down {settings.app_name}")
 
 
-# Create FastAPI application instance
-app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
-    description="AI-powered desktop companion backend with vision, speech, and memory capabilities",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
-    lifespan=lifespan,
-)
+def create_app() -> FastAPI:
+    """Create and configure FastAPI application.
 
-# Configure CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    This function must be called after settings are initialized.
+    """
+    settings = get_settings()
 
-# Include API routes
-app.include_router(api_router)
+    # Create FastAPI application instance
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        description="AI-powered desktop companion backend with vision, speech, and memory capabilities",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        lifespan=lifespan,
+    )
+
+    # Configure CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Include API routes
+    app.include_router(api_router)
+
+    return app
+
+
+# Global app instance (will be initialized after loading config)
+app = None
 
 
 if __name__ == "__main__":
@@ -165,7 +189,23 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example usage:
-  uv run src/main.py --yaml_file yaml_files/main.yml
+  # Use default config (yaml_files/main.yml)
+  uv run src/main.py
+
+  # Override port
+  uv run src/main.py --port 6000
+
+  # Override host and port
+  uv run src/main.py --host 0.0.0.0 --port 6000
+
+  # Enable auto-reload for development
+  uv run src/main.py --reload
+
+  # Use custom config file
+  uv run src/main.py --yaml_file custom_config.yml
+
+  # Combine multiple options
+  uv run src/main.py --yaml_file yaml_files/main.yml --port 6000 --reload
         """,
     )
     parser.add_argument(
@@ -175,10 +215,10 @@ Example usage:
         help="Path to main YAML configuration file (default: yaml_files/main.yml)",
     )
     parser.add_argument(
-        "--host", type=str, default=None, help=f"Server host (default: {settings.host})"
+        "--host", type=str, default=None, help="Server host (overrides YAML config)"
     )
     parser.add_argument(
-        "--port", type=int, default=None, help=f"Server port (default: {settings.port})"
+        "--port", type=int, default=None, help="Server port (overrides YAML config)"
     )
     parser.add_argument(
         "--reload", action="store_true", help="Enable auto-reload for development"
@@ -186,15 +226,23 @@ Example usage:
 
     args = parser.parse_args()
 
-    # Load main configuration if provided
-    if args.yaml_file:
-        try:
-            config_paths = load_main_config(args.yaml_file)
-            _config_paths.update(config_paths)
-            print(f"✅ Loaded configuration from: {args.yaml_file}")
-        except Exception as e:
-            print(f"⚠️  Failed to load configuration from {args.yaml_file}: {e}")
-            print("   Using default configuration paths")
+    # Load main configuration
+    try:
+        config_paths = load_main_config(args.yaml_file)
+        _config_paths.update(config_paths)
+        print(f"✅ Loaded configuration from: {args.yaml_file}")
+    except Exception as e:
+        print(f"⚠️  Failed to load configuration from {args.yaml_file}: {e}")
+        import traceback
+
+        traceback.print_exc()
+        exit(1)
+
+    # Get settings after initialization
+    settings = get_settings()
+
+    # Create app after settings are initialized
+    app = create_app()
 
     # Determine server settings
     host = args.host or settings.host

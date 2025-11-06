@@ -4,3 +4,26 @@ services:
   agent_service: openai_chat_agent.yml
   stm_service: mongodb.yml
   ltm_service: mem0.yml
+
+# Main application settings
+settings:
+  # Server configuration
+  host: "127.0.0.1"
+  port: 8000
+
+  # CORS configuration
+  cors_origins:
+    - "*"
+
+  # Application metadata
+  app_name: "DesktopMate+ Backend"
+  app_version: "0.1.0"
+  debug: false
+
+  # Health check settings
+  health_check_timeout: 5
+
+  # WebSocket configuration
+  max_error_tolerance: 5
+  error_backoff_seconds: 0.5
+  inactivity_timeout_seconds: 300

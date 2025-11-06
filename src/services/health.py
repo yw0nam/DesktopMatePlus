@@ -2,7 +2,6 @@
 
 from typing import Tuple
 
-from src.configs.settings import settings
 from src.models.responses import HealthResponse, ModuleStatus
 
 
@@ -15,7 +14,18 @@ class HealthService:
         Args:
             timeout: Timeout for health checks in seconds. Uses settings default if not provided.
         """
-        self.timeout = timeout or settings.health_check_timeout
+        if timeout is None:
+            # Lazy load settings to avoid circular import and module-level initialization issues
+            try:
+                from src.configs.settings import get_settings
+
+                settings = get_settings()
+                self.timeout = settings.health_check_timeout
+            except RuntimeError:
+                # Settings not initialized yet (e.g., during tests), use default
+                self.timeout = 5
+        else:
+            self.timeout = timeout
 
     async def check_vlm(self) -> Tuple[bool, str | None]:
         """Check VLM (Vision Language Model) service health.
