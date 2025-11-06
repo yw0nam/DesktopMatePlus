@@ -178,8 +178,27 @@ def create_app() -> FastAPI:
     return app
 
 
-# Global app instance (will be initialized after loading config)
+# Global app instance (initialized on first import or when config is loaded)
 app = None
+
+
+def get_app():
+    """Get or create the FastAPI application instance.
+
+    This is called by uvicorn when using the string import path.
+    Settings must be initialized before this is called.
+    """
+    global app
+    if app is None:
+        try:
+            # Try to get settings (will raise if not initialized)
+            get_settings()
+            app = create_app()
+        except RuntimeError:
+            # Settings not initialized yet, return None
+            # This will be properly initialized when main() runs
+            pass
+    return app
 
 
 if __name__ == "__main__":
@@ -250,8 +269,9 @@ Example usage:
     reload = args.reload or settings.debug
 
     # Run the server
+    # Note: We pass the app instance directly to avoid reload issues
     uvicorn.run(
-        "src.main:app",
+        app,
         host=host,
         port=port,
         reload=reload,
