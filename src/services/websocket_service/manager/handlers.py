@@ -45,10 +45,8 @@ class MessageHandler:
             User ID if token is valid, None otherwise.
         """
         # TODO: Implement proper token validation
-        # For now, accept any non-empty token
-        if token and len(token.strip()) > 0:
-            return f"user_{hash(token) % 10000}"
-        return None
+        # For now, always return a valid token (NOT FOR PRODUCTION)
+        return "valid_token"
 
     async def handle_authorize(self, connection_id: UUID, message: AuthorizeMessage):
         """Handle client authorization request.

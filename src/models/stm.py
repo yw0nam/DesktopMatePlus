@@ -23,9 +23,8 @@ class AddChatHistoryRequest(BaseModel):
         description="Session identifier (optional, will create new if None)",
     )
     messages: list[dict] = Field(
-        ...,
+        default=[],
         description="List of messages to add (format: [{type: 'human'|'ai'|'system', content: 'text'}])",
-        min_length=1,
     )
 
 
