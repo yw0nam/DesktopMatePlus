@@ -3,12 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage
-
-from src.main import app
-
-client = TestClient(app)
 
 
 @pytest.fixture
@@ -20,7 +15,7 @@ def mock_stm_service():
         yield service
 
 
-def test_add_chat_history_success(mock_stm_service):
+def test_add_chat_history_success(mock_stm_service, client):
     """Test successful chat history addition."""
     mock_stm_service.add_chat_history.return_value = "test_session_123"
 
@@ -43,7 +38,7 @@ def test_add_chat_history_success(mock_stm_service):
     assert data["message_count"] == 2
 
 
-def test_add_chat_history_invalid_message_type(mock_stm_service):
+def test_add_chat_history_invalid_message_type(mock_stm_service, client):
     """Test adding chat history with invalid message type."""
     response = client.post(
         "/v1/stm/chat-history",
@@ -60,7 +55,7 @@ def test_add_chat_history_invalid_message_type(mock_stm_service):
     assert "Invalid message type" in response.json()["detail"]
 
 
-def test_add_chat_history_empty_content(mock_stm_service):
+def test_add_chat_history_empty_content(mock_stm_service, client):
     """Test adding chat history with empty content."""
     response = client.post(
         "/v1/stm/chat-history",
@@ -77,7 +72,7 @@ def test_add_chat_history_empty_content(mock_stm_service):
     assert "Message content cannot be empty" in response.json()["detail"]
 
 
-def test_add_chat_history_service_not_initialized():
+def test_add_chat_history_service_not_initialized(client):
     """Test adding chat history when service is not initialized."""
     with patch("src.api.routes.stm.get_stm_service", return_value=None):
         response = client.post(
@@ -95,7 +90,7 @@ def test_add_chat_history_service_not_initialized():
     assert "STM service not initialized" in response.json()["detail"]
 
 
-def test_get_chat_history_success(mock_stm_service):
+def test_get_chat_history_success(mock_stm_service, client):
     """Test successful chat history retrieval."""
     mock_stm_service.get_chat_history.return_value = [
         HumanMessage(content="Hello!"),
@@ -121,7 +116,7 @@ def test_get_chat_history_success(mock_stm_service):
     assert data["messages"][1]["content"] == "Hi there!"
 
 
-def test_get_chat_history_with_limit(mock_stm_service):
+def test_get_chat_history_with_limit(mock_stm_service, client):
     """Test chat history retrieval with limit."""
     mock_stm_service.get_chat_history.return_value = [
         HumanMessage(content="Hello!"),
@@ -146,7 +141,7 @@ def test_get_chat_history_with_limit(mock_stm_service):
     )
 
 
-def test_list_sessions_success(mock_stm_service):
+def test_list_sessions_success(mock_stm_service, client):
     """Test successful session listing."""
     from datetime import datetime, timezone
 
@@ -176,7 +171,7 @@ def test_list_sessions_success(mock_stm_service):
     assert data["sessions"][0]["metadata"]["title"] == "Test Session"
 
 
-def test_delete_session_success(mock_stm_service):
+def test_delete_session_success(mock_stm_service, client):
     """Test successful session deletion."""
     mock_stm_service.delete_session.return_value = True
 
@@ -194,7 +189,7 @@ def test_delete_session_success(mock_stm_service):
     assert "deleted successfully" in data["message"]
 
 
-def test_delete_session_not_found(mock_stm_service):
+def test_delete_session_not_found(mock_stm_service, client):
     """Test deleting non-existent session."""
     mock_stm_service.delete_session.return_value = False
 
@@ -210,7 +205,7 @@ def test_delete_session_not_found(mock_stm_service):
     assert "Session not found" in response.json()["detail"]
 
 
-def test_update_session_metadata_success(mock_stm_service):
+def test_update_session_metadata_success(mock_stm_service, client):
     """Test successful session metadata update."""
     mock_stm_service.update_session_metadata.return_value = True
 
@@ -228,7 +223,7 @@ def test_update_session_metadata_success(mock_stm_service):
     assert "updated successfully" in data["message"]
 
 
-def test_update_session_metadata_not_found(mock_stm_service):
+def test_update_session_metadata_not_found(mock_stm_service, client):
     """Test updating metadata for non-existent session."""
     mock_stm_service.update_session_metadata.return_value = False
 
@@ -244,7 +239,7 @@ def test_update_session_metadata_not_found(mock_stm_service):
     assert "Session not found" in response.json()["detail"]
 
 
-def test_message_parsing_all_types(mock_stm_service):
+def test_message_parsing_all_types(mock_stm_service, client):
     """Test parsing all message types (human, ai, system)."""
     mock_stm_service.add_chat_history.return_value = "session_xyz"
 

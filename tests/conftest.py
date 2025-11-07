@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -65,3 +66,25 @@ def initialize_test_settings(test_settings_yaml):
 
     settings = initialize_settings(test_settings_yaml)
     return settings
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_app(test_settings_yaml):
+    """Initialize the FastAPI app for all tests."""
+    import src.main
+    from src.configs.settings import initialize_settings
+    from src.main import create_app
+
+    # Initialize settings from test YAML
+    initialize_settings(test_settings_yaml)
+
+    # Create app and set it globally
+    src.main.app = create_app()
+
+    return src.main.app
+
+
+@pytest.fixture(scope="function")
+def client(setup_test_app):
+    """Create a test client for each test function."""
+    return TestClient(setup_test_app)

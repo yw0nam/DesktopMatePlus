@@ -4,20 +4,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
-from src.main import app
 from src.models.responses import HealthResponse, ModuleStatus
 from src.services.health import HealthService
-
-client = TestClient(app)
 
 
 class TestHealthEndpoint:
     """Test suite for /health endpoint."""
 
     @pytest.mark.asyncio
-    async def test_health_check_all_services_healthy(self):
+    async def test_health_check_all_services_healthy(self, client):
         """Test health check when all services are healthy."""
         # Mock the health service
         mock_health_response = HealthResponse(
@@ -45,7 +41,7 @@ class TestHealthEndpoint:
             assert all(module["ready"] for module in data["modules"])
 
     @pytest.mark.asyncio
-    async def test_health_check_all_services_unhealthy(self):
+    async def test_health_check_all_services_unhealthy(self, client):
         """Test health check when all services are unhealthy."""
         mock_health_response = HealthResponse(
             status="unhealthy",
@@ -74,7 +70,7 @@ class TestHealthEndpoint:
             assert all(module["error"] is not None for module in data["modules"])
 
     @pytest.mark.asyncio
-    async def test_health_check_response_structure(self):
+    async def test_health_check_response_structure(self, client):
         """Test that health check response has correct structure."""
         mock_health_response = HealthResponse(
             status="healthy",
