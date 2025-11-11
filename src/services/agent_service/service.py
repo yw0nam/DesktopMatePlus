@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -8,6 +9,9 @@ from langgraph.checkpoint.memory import BaseCheckpointSaver
 
 from src.services.ltm_service import LTMService
 from src.services.stm_service import STMService
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class AgentService(ABC):
@@ -61,44 +65,39 @@ class AgentService(ABC):
             For stream start:
                 {
                     "type": "stream_start",
-                    "data": {
-                        "turn_id": "unique_turn_id",
-                        "client_id": client_id,
-                    }
+                    "turn_id": "unique_turn_id",
+                    "client_id": client_id,
                 }
             For agent streaming response:
                 {
                     "type": "stream_token",
-                    "data": "message chunk",
+                    "chunk": "message chunk",
                     "node": "node_id_123",
                 }
             For tool call:
                 {
                     "type": "tool_call",
-                    "data": {
-                        "tool_name": "example_tool",
-                        "args": "input for the tool",
-                    },
+                    "tool_name": "example_tool",
+                    "args": "input for the tool",
                     "node": "node_id_123",
                 }
             For tool result:
                 {
                     "type": "tool_result",
-                    "data": "result from the tool",
+                    "result": "result from the tool",
                     "node": "node_id_123",
                 }
             For stream end:
                 {
                     "type": "stream_end",
-                    "data": {
-                        "turn_id": "unique_turn_id",
-                        "client_id": client_id,
-                    }
+                    "turn_id": "unique_turn_id",
+                    "client_id": client_id,
+                    "content": "final complete message",
                 }
             For error handling:
                 {
                     "type": "error",
-                    "data": "error message",
+                    "error": "error message",
                 }
 
         Args:
@@ -113,3 +112,39 @@ class AgentService(ABC):
         Yields:
             dict: The model's response stream.
         """
+
+    def save_memory(
+        self,
+        new_chats: list[BaseMessage],
+        stm_service: STMService,
+        ltm_service: LTMService,
+        user_id: str,
+        agent_id: str,
+        session_id: str,
+    ):
+        """Save new chats to memory.
+
+        Args:
+            new_chats (list[BaseMessage]): New chat messages to save.
+            stm_service (STMService): Short-Term memory service instance.
+            ltm_service (LTMService): Long-Term memory service instance.
+            user_id (str): Persistent user identifier for memory tool.
+            agent_id (str): Persistent agent identifier for memory tool.
+            session_id (str): Session identifier for the current conversation.
+        """
+
+        if new_chats != [] and stm_service:
+            stm_result = stm_service.add_chat_history(
+                user_id=user_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                messages=new_chats,
+            )
+            logger.info("Chat history saved to STM: %s", stm_result)
+        if new_chats != [] and ltm_service:
+            # TODO: Need to be optimized this part.
+            # Add persona information to memory?...
+            ltm_result = ltm_service.add_memory(
+                messages=new_chats, user_id=user_id, agent_id=agent_id
+            )
+            logger.info("Memory added to LTM: %s", ltm_result)

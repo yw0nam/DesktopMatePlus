@@ -55,7 +55,7 @@ class MongoDBSTM(STMService[MongoDBClientType]):
         """
         try:
             # Initialize MongoDB client
-            self._client = pymongo.MongoClient(self.connection_string)
+            self._client = pymongo.MongoClient(self.connection_string, uuidRepresentation='standard')
 
             # Get database and collections
             self._db = self._client[self.database_name]

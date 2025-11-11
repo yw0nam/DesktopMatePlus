@@ -22,6 +22,7 @@ class MessageType(str, Enum):
     PING = "ping"
     CHAT_RESPONSE = "chat_response"
     STREAM_START = "stream_start"
+    STREAM_TOKEN = "stream_token"
     STREAM_END = "stream_end"
     TTS_READY_CHUNK = "tts_ready_chunk"
     TOOL_CALL = "tool_call"
@@ -37,31 +38,16 @@ class BaseMessage(BaseModel):
     timestamp: Optional[float] = Field(default=None, description="Message timestamp")
 
 
+# =================================================================================
+# Client -> Server Messages
+# =================================================================================
+
+
 class AuthorizeMessage(BaseMessage):
     """Client authorization message."""
 
     type: MessageType = MessageType.AUTHORIZE
     token: str = Field(..., description="Authentication token")
-
-
-class AuthorizeSuccessMessage(BaseMessage):
-    """Server authorization success response."""
-
-    type: MessageType = MessageType.AUTHORIZE_SUCCESS
-    connection_id: UUID = Field(..., description="Unique connection identifier")
-
-
-class AuthorizeErrorMessage(BaseMessage):
-    """Server authorization error response."""
-
-    type: MessageType = MessageType.AUTHORIZE_ERROR
-    error: str = Field(..., description="Error message")
-
-
-class PingMessage(BaseMessage):
-    """Server ping message for heartbeat."""
-
-    type: MessageType = MessageType.PING
 
 
 class PongMessage(BaseMessage):
@@ -108,6 +94,31 @@ class InterruptStreamMessage(BaseMessage):
     )
 
 
+# =================================================================================
+# Server -> Client Messages
+# =================================================================================
+
+
+class AuthorizeSuccessMessage(BaseMessage):
+    """Server authorization success response."""
+
+    type: MessageType = MessageType.AUTHORIZE_SUCCESS
+    connection_id: UUID = Field(..., description="Unique connection identifier")
+
+
+class AuthorizeErrorMessage(BaseMessage):
+    """Server authorization error response."""
+
+    type: MessageType = MessageType.AUTHORIZE_ERROR
+    error: str = Field(..., description="Error message")
+
+
+class PingMessage(BaseMessage):
+    """Server ping message for heartbeat."""
+
+    type: MessageType = MessageType.PING
+
+
 class ChatResponseMessage(BaseMessage):
     """Server chat response message."""
 
@@ -118,13 +129,67 @@ class ChatResponseMessage(BaseMessage):
     )
 
 
+class StreamStartMessage(BaseMessage):
+    """Server message indicating the start of a stream."""
+
+    type: MessageType = MessageType.STREAM_START
+    turn_id: str
+    client_id: str
+
+
+class StreamTokenMessage(BaseMessage):
+    """Server message for a streaming response token."""
+
+    type: MessageType = MessageType.STREAM_TOKEN
+    chunk: str
+    node: Optional[str] = None
+
+
+class ToolCallMessage(BaseMessage):
+    """Server message for a tool call."""
+
+    type: MessageType = MessageType.TOOL_CALL
+    tool_name: str
+    args: str
+    node: Optional[str] = None
+
+
+class ToolResultMessage(BaseMessage):
+    """Server message for a tool result."""
+
+    type: MessageType = MessageType.TOOL_RESULT
+    result: str
+    node: Optional[str] = None
+
+
+class StreamEndMessage(BaseMessage):
+    """Server message indicating the end of a stream."""
+
+    type: MessageType = MessageType.STREAM_END
+    turn_id: str
+    client_id: str
+    content: str
+
+
+class TTSReadyChunkMessage(BaseMessage):
+    """Server message with a chunk of text ready for TTS."""
+
+    type: MessageType = MessageType.TTS_READY_CHUNK
+    chunk: str
+    emotion: Optional[str] = None
+
+
 class ErrorMessage(BaseMessage):
     """Server error message."""
 
     type: MessageType = MessageType.ERROR
-    error: str = Field(..., description="Error message")
-    code: Optional[int] = Field(default=None, description="Error code")
+    error: str
+    code: Optional[int] = None
 
+
+# =================================================================================
+# Union Types
+# =================================================================================
 
 # Union type for all possible client messages
 ClientMessage = Union[
@@ -140,6 +205,12 @@ ServerMessage = Union[
     AuthorizeErrorMessage,
     PingMessage,
     ChatResponseMessage,
+    StreamStartMessage,
+    StreamTokenMessage,
+    ToolCallMessage,
+    ToolResultMessage,
+    StreamEndMessage,
+    TTSReadyChunkMessage,
     ErrorMessage,
 ]
 

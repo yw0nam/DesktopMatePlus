@@ -210,7 +210,7 @@ class TestWebSocketManager:
                 ltm_service=None,
             ):
                 yield {"type": "stream_start"}
-                yield {"type": "stream_token", "data": "Hello, world!"}
+                yield {"type": "stream_token", "chunk": "Hello, world!"}
                 yield {"type": "stream_end"}
 
         class FakeSTMService:

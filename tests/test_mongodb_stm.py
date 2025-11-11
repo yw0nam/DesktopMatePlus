@@ -73,8 +73,10 @@ def test_mongodb_stm_initialize_memory():
             messages_collection_name=messages_collection_name,
         )
 
-        # Verify the client was created with correct connection string
-        mock_client.assert_called_once_with(connection_string)
+        # Verify the client was created with correct connection string and uuidRepresentation
+        mock_client.assert_called_once_with(
+            connection_string, uuidRepresentation="standard"
+        )
         assert stm.memory_client is mock_client_instance
 
 
@@ -106,8 +108,10 @@ def test_mongodb_stm_with_config_defaults():
             messages_collection_name=config.mongodb.messages_collection_name,
         )
 
-        # Verify the client was created with default connection string
-        mock_client.assert_called_once_with("mongodb://admin:test@localhost:27017/")
+        # Verify the client was created with default connection string and uuidRepresentation
+        mock_client.assert_called_once_with(
+            "mongodb://admin:test@localhost:27017/", uuidRepresentation="standard"
+        )
         assert stm.connection_string == config.mongodb.connection_string
         assert stm.database_name == config.mongodb.database_name
 

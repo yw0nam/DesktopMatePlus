@@ -9,7 +9,7 @@ services:
 settings:
   # Server configuration
   host: "127.0.0.1"
-  port: 8000
+  port: 5500
 
   # CORS configuration
   cors_origins:

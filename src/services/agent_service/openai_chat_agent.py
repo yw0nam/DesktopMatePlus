@@ -162,9 +162,10 @@ class OpenAIChatAgent(AgentService):
             # stream 메서드는 process_message 라는 비동기 제너레이터를 반환합니다.
             yield {
                 "type": "stream_start",
-                "data": {"turn_id": run_id, "client_id": client_id},
+                "turn_id": run_id,
+                "client_id": client_id,
             }
-            new_chats = []  # Initialize to empty list
+            new_chats: list[BaseMessage] = []  # Initialize to empty list
             async for item in self._process_message(
                 messages=messages, agent=agent, config=config
             ):
@@ -174,29 +175,25 @@ class OpenAIChatAgent(AgentService):
                     new_chats = item["data"]
                     # 최종 응답은 채팅 기록 저장에만 사용됩니다.
 
-            # Only save to memory services if we have new chats
-            if new_chats and stm_service:
-                stm_result = stm_service.add_chat_history(
+            # Save new chats to STM and LTM if services are provided
+            if stm_service or ltm_service:
+                self.save_memory(
+                    new_chats=new_chats,
+                    stm_service=stm_service,
+                    ltm_service=ltm_service,
                     user_id=user_id,
                     agent_id=agent_id,
                     session_id=client_id,
-                    messages=new_chats,
                 )
-                logger.info("Chat history saved to STM: %s", stm_result)
 
-            if new_chats and ltm_service:
-                # TODO: Need to be optimized this part.
-                # Add persona information to memory?...
-                ltm_result = ltm_service.add_memory(
-                    messages=new_chats, user_id=user_id, agent_id=agent_id
-                )
-                logger.info("Memory added to LTM: %s", ltm_result)
+            # Get final content safely
+            content = new_chats[-1].content if new_chats else ""
+
             yield {
                 "type": "stream_end",
-                "data": {
-                    "turn_id": run_id,
-                    "client_id": client_id,
-                },
+                "turn_id": run_id,
+                "client_id": client_id,
+                "content": content,
             }
         except Exception as e:
             logger.error(f"Error in stream method: {e}")
@@ -253,15 +250,13 @@ class OpenAIChatAgent(AgentService):
                             if node == "tools":
                                 yield {
                                     "type": "tool_result",
-                                    "data": {
-                                        "execution_result": content_buffer.strip()
-                                    },
+                                    "result": content_buffer.strip(),
                                     "node": node,
                                 }
                             elif node == "agent":
                                 yield {
                                     "type": "stream_token",
-                                    "data": {"chunk": content_buffer.strip()},
+                                    "chunk": content_buffer.strip(),
                                     "node": node,
                                 }
                             chunk_count += 1
@@ -288,13 +283,13 @@ class OpenAIChatAgent(AgentService):
                         if node == "tools":
                             yield {
                                 "type": "tool_result",
-                                "data": content_buffer.strip(),
+                                "result": content_buffer.strip(),
                                 "node": node,
                             }
                         elif node == "agent":
                             yield {
                                 "type": "stream_token",
-                                "data": content_buffer.strip(),
+                                "chunk": content_buffer.strip(),
                                 "node": node,
                             }
                         chunk_count += 1
@@ -319,10 +314,8 @@ class OpenAIChatAgent(AgentService):
                             logger.info(f"Tool call detected: '{tool_name}'")
                             yield {
                                 "type": "tool_call",
-                                "data": {
-                                    "tool_name": tool_name,
-                                    "args": args_str,
-                                },
+                                "tool_name": tool_name,
+                                "args": args_str,
                                 "node": node,
                             }
                             # 상태 리셋
@@ -334,13 +327,13 @@ class OpenAIChatAgent(AgentService):
                 if node == "tools":
                     yield {
                         "type": "tool_result",
-                        "data": content_buffer.strip(),
+                        "result": content_buffer.strip(),
                         "node": node,
                     }
                 elif node == "agent":
                     yield {
                         "type": "stream_token",
-                        "data": content_buffer.strip(),
+                        "chunk": content_buffer.strip(),
                         "node": node,
                     }
                 chunk_count += 1
@@ -360,20 +353,21 @@ class OpenAIChatAgent(AgentService):
             logger.error(f"Error in process_message: {e}")
             # 버퍼에 남은 내용이 있으면 먼저 전송
             if content_buffer.strip():
-                yield {
-                    "type": "tool_result",
-                    "data": content_buffer.strip(),
-                    "node": node,
-                }
-            elif node == "agent":
-                yield {
-                    "type": "stream_token",
-                    "data": content_buffer.strip(),
-                    "node": node,
-                }
+                if node == "tools":
+                    yield {
+                        "type": "tool_result",
+                        "result": content_buffer.strip(),
+                        "node": node,
+                    }
+                elif node == "agent":
+                    yield {
+                        "type": "stream_token",
+                        "chunk": content_buffer.strip(),
+                        "node": node,
+                    }
             yield {
                 "type": "error",
-                "data": "메시지 처리 중 오류가 발생했습니다.",
+                "error": "메시지 처리 중 오류가 발생했습니다.",
             }
 
 

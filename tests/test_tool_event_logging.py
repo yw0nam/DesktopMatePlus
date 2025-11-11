@@ -97,10 +97,8 @@ async def mock_agent_stream_with_tools() -> AsyncIterator[Dict[str, Any]]:
     # Tool call event
     yield {
         "type": "tool_call",
-        "data": {
-            "tool_name": "search_documents",
-            "args": '{"query": "test query", "index": "test_index"}',
-        },
+        "tool_name": "search_documents",
+        "args": '{"query": "test query", "index": "test_index"}',
     }
 
     # Simulate tool execution time
@@ -109,7 +107,7 @@ async def mock_agent_stream_with_tools() -> AsyncIterator[Dict[str, Any]]:
     # Tool result event
     yield {
         "type": "tool_result",
-        "data": "Found 5 relevant documents",
+        "result": "Found 5 relevant documents",
         "node": "tools",
     }
 
@@ -129,10 +127,8 @@ async def mock_agent_stream_with_error() -> AsyncIterator[Dict[str, Any]]:
     # Tool call
     yield {
         "type": "tool_call",
-        "data": {
-            "tool_name": "failing_tool",
-            "args": '{"param": "value"}',
-        },
+        "tool_name": "failing_tool",
+        "args": '{"param": "value"}',
     }
 
     await asyncio.sleep(0.05)
@@ -140,7 +136,7 @@ async def mock_agent_stream_with_error() -> AsyncIterator[Dict[str, Any]]:
     # Tool result with error
     yield {
         "type": "tool_result",
-        "data": "Error: Tool execution failed due to timeout",
+        "result": "Error: Tool execution failed due to timeout",
         "node": "tools",
     }
 
@@ -320,20 +316,22 @@ async def test_multiple_tools_in_sequence(
         # First tool
         yield {
             "type": "tool_call",
-            "data": {"tool_name": "tool_one", "args": '{"arg": "1"}'},
+            "tool_name": "tool_one",
+            "args": '{"arg": "1"}',
         }
         await asyncio.sleep(0.05)
-        yield {"type": "tool_result", "data": "Result 1", "node": "tools"}
+        yield {"type": "tool_result", "result": "Result 1", "node": "tools"}
 
         yield {"type": "stream_token", "data": "Second tool... "}
 
         # Second tool
         yield {
             "type": "tool_call",
-            "data": {"tool_name": "tool_two", "args": '{"arg": "2"}'},
+            "tool_name": "tool_two",
+            "args": '{"arg": "2"}',
         }
         await asyncio.sleep(0.05)
-        yield {"type": "tool_result", "data": "Result 2", "node": "tools"}
+        yield {"type": "tool_result", "result": "Result 2", "node": "tools"}
 
         yield {"type": "stream_end"}
 

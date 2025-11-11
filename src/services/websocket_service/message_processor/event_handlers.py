@@ -150,7 +150,7 @@ class EventHandler:
         if not turn.tts_processor:
             turn.tts_processor = TTSTextProcessor()
 
-        chunk = token_event.get("data") or token_event.get("chunk")
+        chunk = token_event.get("chunk")
         if not chunk:
             logger.debug("Token event missing chunk data: %s", token_event)
             return
@@ -201,9 +201,7 @@ class EventHandler:
         """Construct a tts_ready_chunk event with optional emotion metadata."""
         event = self.processor._normalize_event(turn_id, base_event)
         tts_event = {
-            key: value
-            for key, value in event.items()
-            if key not in {"type", "data", "chunk"}
+            key: value for key, value in event.items() if key not in {"type", "chunk"}
         }
         tts_event["type"] = "tts_ready_chunk"
         tts_event["chunk"] = chunk
@@ -277,10 +275,10 @@ class EventHandler:
         turn = self.processor.turns.get(turn_id)
         conversation_id = turn.conversation_id if turn else "unknown"
 
-        # Extract tool information from event
-        data = event.get("data", {})
-        tool_name = data.get("tool_name", "unknown")
-        args = data.get("args", "{}")
+        # Extract tool information from event - handle both old nested and new flat structure
+        # New flat structure
+        tool_name = event.get("tool_name", "unknown")
+        args = event.get("args", "{}")
 
         # Record start time for duration calculation
         tool_key = f"{turn_id}:{tool_name}"
@@ -311,7 +309,7 @@ class EventHandler:
         conversation_id = turn.conversation_id if turn else "unknown"
 
         # Extract tool information - try to infer tool_name from recent calls
-        data = event.get("data", "")
+        data = event.get("result")
         node = event.get("node", "unknown")
 
         # Calculate duration if we have a start time
