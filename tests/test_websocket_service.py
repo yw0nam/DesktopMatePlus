@@ -201,7 +201,7 @@ class TestWebSocketManager:
             async def stream(
                 self,
                 messages,
-                client_id,
+                conversation_id,
                 tools=None,
                 persona="",
                 user_id="default_user",

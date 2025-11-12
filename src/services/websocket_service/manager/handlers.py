@@ -209,7 +209,7 @@ class MessageHandler:
 
             agent_stream = agent_service.stream(
                 messages=message_history,
-                client_id=conversation_id,
+                conversation_id=conversation_id,
                 tools=[],  # TODO: support tools per agent
                 persona=persona,
                 user_id=user_id,

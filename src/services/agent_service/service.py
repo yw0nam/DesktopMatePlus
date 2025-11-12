@@ -50,7 +50,7 @@ class AgentService(ABC):
     async def stream(
         self,
         messages: list[BaseMessage],
-        client_id: str = "default_client",
+        conversation_id: str = "default_conversation",
         tools: Optional[list[BaseTool]] = None,
         persona: str = "",
         user_id: str = "default_user",
@@ -66,7 +66,7 @@ class AgentService(ABC):
                 {
                     "type": "stream_start",
                     "turn_id": "unique_turn_id",
-                    "client_id": client_id,
+                    "conversation_id": conversation_id,
                 }
             For agent streaming response:
                 {
@@ -91,7 +91,7 @@ class AgentService(ABC):
                 {
                     "type": "stream_end",
                     "turn_id": "unique_turn_id",
-                    "client_id": client_id,
+                    "conversation_id": conversation_id,
                     "content": "final complete message",
                 }
             For error handling:
@@ -102,7 +102,7 @@ class AgentService(ABC):
 
         Args:
             messages (list[BaseMessage]): The messages to include in the request.
-            client_id (str): Client identifier.
+            conversation_id (str): conversation  identifier.
             tools (Optional[list[BaseTool]]): Additional tools for the agent.
             user_id (str): Persistent user identifier for memory tool.
             agent_id (str): Persistent agent identifier for memory tool.

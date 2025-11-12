@@ -20,7 +20,6 @@ class MessageType(str, Enum):
     AUTHORIZE_SUCCESS = "authorize_success"
     AUTHORIZE_ERROR = "authorize_error"
     PING = "ping"
-    CHAT_RESPONSE = "chat_response"
     STREAM_START = "stream_start"
     STREAM_TOKEN = "stream_token"
     STREAM_END = "stream_end"
@@ -119,22 +118,12 @@ class PingMessage(BaseMessage):
     type: MessageType = MessageType.PING
 
 
-class ChatResponseMessage(BaseMessage):
-    """Server chat response message."""
-
-    type: MessageType = MessageType.CHAT_RESPONSE
-    content: str = Field(..., description="Response content")
-    metadata: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional metadata"
-    )
-
-
 class StreamStartMessage(BaseMessage):
     """Server message indicating the start of a stream."""
 
     type: MessageType = MessageType.STREAM_START
     turn_id: str
-    client_id: str
+    conversation_id: str
 
 
 class StreamTokenMessage(BaseMessage):
@@ -167,7 +156,7 @@ class StreamEndMessage(BaseMessage):
 
     type: MessageType = MessageType.STREAM_END
     turn_id: str
-    client_id: str
+    conversation_id: str
     content: str
 
 
@@ -204,7 +193,6 @@ ServerMessage = Union[
     AuthorizeSuccessMessage,
     AuthorizeErrorMessage,
     PingMessage,
-    ChatResponseMessage,
     StreamStartMessage,
     StreamTokenMessage,
     ToolCallMessage,
