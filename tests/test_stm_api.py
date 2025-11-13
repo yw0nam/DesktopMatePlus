@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 
 @pytest.fixture
@@ -26,8 +26,8 @@ def test_add_chat_history_success(mock_stm_service, client):
             "agent_id": "agent456",
             "session_id": None,
             "messages": [
-                {"type": "human", "content": "Hello!"},
-                {"type": "ai", "content": "Hi there!"},
+                {"role": "user", "content": "Hello!"},
+                {"role": "assistant", "content": "Hi there!"},
             ],
         },
     )
@@ -46,13 +46,16 @@ def test_add_chat_history_invalid_message_type(mock_stm_service, client):
             "user_id": "user123",
             "agent_id": "agent456",
             "messages": [
-                {"type": "invalid", "content": "Hello!"},
+                {
+                    "role": "invalid_role",
+                    "content": "What is the length of the word 'extraordinary'?",
+                },
             ],
         },
     )
 
     assert response.status_code == 400
-    assert "Invalid message type" in response.json()["detail"]
+    assert "Unexpected message type" in response.json()["detail"]
 
 
 def test_add_chat_history_empty_content(mock_stm_service, client):
@@ -62,14 +65,12 @@ def test_add_chat_history_empty_content(mock_stm_service, client):
         json={
             "user_id": "user123",
             "agent_id": "agent456",
-            "messages": [
-                {"type": "human", "content": ""},
-            ],
+            "messages": [{"role": "user", "content": ""}],
         },
     )
 
     assert response.status_code == 400
-    assert "Message content cannot be empty" in response.json()["detail"]
+    assert "Input should be a valid string" in response.json()["detail"]
 
 
 def test_add_chat_history_service_not_initialized(client):
@@ -81,7 +82,10 @@ def test_add_chat_history_service_not_initialized(client):
                 "user_id": "user123",
                 "agent_id": "agent456",
                 "messages": [
-                    {"type": "human", "content": "Hello!"},
+                    {
+                        "role": "user",
+                        "content": "What is the length of the word 'extraordinary'?",
+                    }
                 ],
             },
         )
@@ -94,7 +98,20 @@ def test_get_chat_history_success(mock_stm_service, client):
     """Test successful chat history retrieval."""
     mock_stm_service.get_chat_history.return_value = [
         HumanMessage(content="Hello!"),
-        AIMessage(content="Hi there!"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "test_tool",
+                    "args": {"test_arg": "arg1"},
+                    "id": "tool_id_test_123",
+                    "type": "tool_call",
+                }
+            ],
+        ),
+        ToolMessage(
+            content="Tool result", tool_call_id="tool_id_test_123", name="test_tool"
+        ),
     ]
 
     response = client.get(
@@ -109,11 +126,21 @@ def test_get_chat_history_success(mock_stm_service, client):
     assert response.status_code == 200
     data = response.json()
     assert data["session_id"] == "session789"
-    assert len(data["messages"]) == 2
-    assert data["messages"][0]["type"] == "human"
+    assert len(data["messages"]) == 3
+    assert data["messages"][0]["role"] == "user"
     assert data["messages"][0]["content"] == "Hello!"
-    assert data["messages"][1]["type"] == "ai"
-    assert data["messages"][1]["content"] == "Hi there!"
+    assert data["messages"][1]["role"] == "assistant"
+    assert data["messages"][1]["tool_calls"] == [
+        {
+            "type": "function",
+            "id": "tool_id_test_123",
+            "function": {"name": "test_tool", "arguments": '{"test_arg": "arg1"}'},
+        }
+    ]
+    assert data["messages"][2]["role"] == "tool"
+    assert data["messages"][2]["name"] == "test_tool"
+    assert data["messages"][2]["tool_call_id"] == "tool_id_test_123"
+    assert data["messages"][2]["content"] == "Tool result"
 
 
 def test_get_chat_history_with_limit(mock_stm_service, client):
@@ -240,7 +267,7 @@ def test_update_session_metadata_not_found(mock_stm_service, client):
 
 
 def test_message_parsing_all_types(mock_stm_service, client):
-    """Test parsing all message types (human, ai, system)."""
+    """Test parsing all message types (system, user, assistant, tool)."""
     mock_stm_service.add_chat_history.return_value = "session_xyz"
 
     response = client.post(
@@ -249,12 +276,38 @@ def test_message_parsing_all_types(mock_stm_service, client):
             "user_id": "user123",
             "agent_id": "agent456",
             "messages": [
-                {"type": "system", "content": "You are a helpful assistant"},
-                {"type": "human", "content": "Hello!"},
-                {"type": "ai", "content": "Hi! How can I help?"},
+                {"role": "system", "content": "You are a helpful assistant"},
+                {
+                    "role": "user",
+                    "content": "What is the length of the word 'extraordinary'?",
+                },
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": "chatcmpl-tool-11d1a983d7e241d6b015c804a0fd412d",
+                            "function": {
+                                "name": "get_word_length",
+                                "arguments": '{"word": "extraordinary"}',
+                            },
+                        }
+                    ],
+                    "content": "",
+                },
+                {
+                    "role": "tool",
+                    "name": "get_word_length",
+                    "tool_call_id": "chatcmpl-tool-11d1a983d7e241d6b015c804a0fd412d",
+                    "content": "13",
+                },
+                {
+                    "role": "assistant",
+                    "content": 'The word "extraordinary" has a length of 13 letters.',
+                },
             ],
         },
     )
 
     assert response.status_code == 201
-    assert response.json()["message_count"] == 3
+    assert response.json()["message_count"] == 5

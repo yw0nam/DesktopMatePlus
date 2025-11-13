@@ -6,7 +6,11 @@ from datetime import datetime, timezone
 from typing import Optional, TypeVar
 
 import pymongo
-from langchain_core.messages import BaseMessage, messages_from_dict, messages_to_dict
+from langchain_core.messages import (
+    BaseMessage,
+    convert_to_messages,
+    convert_to_openai_messages,
+)
 
 from src.services.stm_service.service import STMService
 
@@ -55,7 +59,9 @@ class MongoDBSTM(STMService[MongoDBClientType]):
         """
         try:
             # Initialize MongoDB client
-            self._client = pymongo.MongoClient(self.connection_string, uuidRepresentation='standard')
+            self._client = pymongo.MongoClient(
+                self.connection_string, uuidRepresentation="standard"
+            )
 
             # Get database and collections
             self._db = self._client[self.database_name]
@@ -180,7 +186,7 @@ class MongoDBSTM(STMService[MongoDBClientType]):
                 )
 
             # Serialize messages to dictionaries
-            serialized_messages = messages_to_dict(messages)
+            serialized_messages = convert_to_openai_messages(messages)
 
             # Prepare message documents for MongoDB
             message_docs = []
@@ -249,7 +255,7 @@ class MongoDBSTM(STMService[MongoDBClientType]):
                 message_dicts.append(doc["message_data"])
 
             # Deserialize messages
-            messages = messages_from_dict(message_dicts)
+            messages = convert_to_messages(message_dicts)
 
             logger.info(f"Retrieved {len(messages)} messages from session {session_id}")
             return messages

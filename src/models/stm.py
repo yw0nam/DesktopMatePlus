@@ -24,7 +24,7 @@ class AddChatHistoryRequest(BaseModel):
     )
     messages: list[dict] = Field(
         default=[],
-        description="List of messages to add (format: [{type: 'human'|'ai'|'system', content: 'text'}])",
+        description="List of messages to add (OpenAI-compatible format: [{role: 'user'|'assistant'|'system', content: 'text'}])",
     )
 
 
@@ -69,8 +69,15 @@ class GetChatHistoryRequest(BaseModel):
 class MessageResponse(BaseModel):
     """Response model for a single message."""
 
-    type: str = Field(..., description="Message type (human, ai, system)")
+    role: str = Field(..., description="Message role (user, assistant, tool, system)")
     content: str = Field(..., description="Message content")
+    tool_calls: Optional[list] = Field(
+        default=None, description="Tool call information if applicable"
+    )
+    tool_call_id: Optional[str] = Field(
+        default=None, description="Tool call identifier if applicable"
+    )
+    name: Optional[str] = Field(default=None, description="Tool name for tool messages")
 
 
 class GetChatHistoryResponse(BaseModel):

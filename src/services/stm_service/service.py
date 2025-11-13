@@ -17,7 +17,7 @@ class STMService(ABC, Generic[MemoryClientType]):
     managed by Long-Term memory services.
 
     Currently, STM use DB for backend storage.
-
+    Note, Use openai-compatible message formats for chat history.
     Args:
         memory_config (dict, Optional): Configuration for the memory connection.
     """

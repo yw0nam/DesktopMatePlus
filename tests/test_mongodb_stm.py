@@ -436,8 +436,8 @@ def test_get_chat_history_retrieves_messages():
             {
                 "session_id": "test-session",
                 "message_data": {
-                    "type": "human",
-                    "data": {"content": "Hello", "type": "human"},
+                    "role": "user",
+                    "content": "What is the length of the word 'extraordinary'?",
                 },
                 "created_at": "2024-01-01T00:00:00",
                 "sequence": 0,
@@ -445,8 +445,8 @@ def test_get_chat_history_retrieves_messages():
             {
                 "session_id": "test-session",
                 "message_data": {
-                    "type": "ai",
-                    "data": {"content": "Hi there!", "type": "ai"},
+                    "role": "assistant",
+                    "content": 'The word "extraordinary" has a length of 13 letters.',
                 },
                 "created_at": "2024-01-01T00:00:01",
                 "sequence": 1,
@@ -502,8 +502,8 @@ def test_get_chat_history_with_limit():
             {
                 "session_id": "test-session",
                 "message_data": {
-                    "type": "human",
-                    "data": {"content": f"Message {i}", "type": "human"},
+                    "role": "user",
+                    "content": "What is the length of the word 'extraordinary'?",
                 },
                 "created_at": f"2024-01-01T00:00:0{i}",
                 "sequence": i,

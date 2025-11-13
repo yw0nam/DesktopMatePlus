@@ -3,7 +3,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import convert_to_messages, convert_to_openai_messages
 
 from src.models.stm import (
     AddChatHistoryRequest,
@@ -19,40 +19,6 @@ from src.models.stm import (
 from src.services import get_stm_service
 
 router = APIRouter(prefix="/v1/stm", tags=["STM"])
-
-
-def _parse_messages(messages_data: list[dict]) -> list:
-    """Parse message dictionaries into LangChain message objects.
-
-    Args:
-        messages_data: List of message dictionaries
-
-    Returns:
-        List of LangChain message objects
-
-    Raises:
-        ValueError: If message format is invalid
-    """
-    parsed_messages = []
-    for msg in messages_data:
-        msg_type = msg.get("type", "").lower()
-        content = msg.get("content", "")
-
-        if not content:
-            raise ValueError("Message content cannot be empty")
-
-        if msg_type == "human":
-            parsed_messages.append(HumanMessage(content=content))
-        elif msg_type == "ai":
-            parsed_messages.append(AIMessage(content=content))
-        elif msg_type == "system":
-            parsed_messages.append(SystemMessage(content=content))
-        else:
-            raise ValueError(
-                f"Invalid message type: {msg_type}. Must be 'human', 'ai', or 'system'"
-            )
-
-    return parsed_messages
 
 
 @router.post(
@@ -114,7 +80,7 @@ async def add_chat_history(request: AddChatHistoryRequest) -> AddChatHistoryResp
 
     try:
         # Parse messages
-        messages = _parse_messages(request.messages)
+        messages = convert_to_messages(request.messages)
 
         # Add chat history
         session_id = stm_service.add_chat_history(
@@ -219,17 +185,11 @@ async def get_chat_history(
             session_id=session_id,
             limit=limit,
         )
-
+        messages = convert_to_openai_messages(messages)
         # Convert to response format
         message_responses = []
         for msg in messages:
-            msg_type = msg.__class__.__name__.lower().replace("message", "")
-            message_responses.append(
-                MessageResponse(
-                    type=msg_type,
-                    content=msg.content,
-                )
-            )
+            message_responses.append(MessageResponse(**msg))
 
         return GetChatHistoryResponse(
             session_id=session_id,
