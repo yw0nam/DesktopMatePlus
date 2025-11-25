@@ -10,6 +10,7 @@ import yaml
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import router as api_router
 from src.configs.settings import get_settings, initialize_settings
@@ -174,6 +175,25 @@ def create_app() -> FastAPI:
 
     # Include API routes
     app.include_router(api_router)
+
+    # Mount static asset directories so the frontend can fetch backgrounds and Live2D models
+    project_root = Path(__file__).resolve().parent.parent
+    backgrounds_dir = project_root / "resources" / "backgrounds"
+    live2d_dir = project_root / "resources" / "live2d-models"
+
+    if backgrounds_dir.exists():
+        app.mount(
+            "/v1/bg",
+            StaticFiles(directory=str(backgrounds_dir)),
+            name="backgrounds",
+        )
+
+    if live2d_dir.exists():
+        app.mount(
+            "/v1/live2d",
+            StaticFiles(directory=str(live2d_dir)),
+            name="live2d-models",
+        )
 
     return app
 

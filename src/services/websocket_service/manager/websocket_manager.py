@@ -13,10 +13,13 @@ from pydantic import ValidationError
 from src.models.websocket import (
     AuthorizeMessage,
     ErrorMessage,
+    FetchAvatarConfigsMessage,
+    FetchBackgroundsMessage,
     InterruptStreamMessage,
     MessageType,
     PongMessage,
     ServerMessage,
+    SwitchAvatarConfigMessage,
 )
 
 from .connection import ConnectionState
@@ -304,6 +307,39 @@ class WebSocketManager:
 
                 message = InterruptStreamMessage(**message_data)
                 await self.interrupt_active_turn(connection_id, message.turn_id)
+
+            elif message_type == MessageType.FETCH_BACKGROUNDS:
+                if not connection_state.is_authenticated:
+                    await self.send_message(
+                        connection_id, ErrorMessage(error="Authentication required")
+                    )
+                    return
+                message = FetchBackgroundsMessage(**message_data)
+                await self._message_handler.handle_fetch_backgrounds(
+                    connection_id, message
+                )
+
+            elif message_type == MessageType.FETCH_AVATAR_CONFIGS:
+                if not connection_state.is_authenticated:
+                    await self.send_message(
+                        connection_id, ErrorMessage(error="Authentication required")
+                    )
+                    return
+                message = FetchAvatarConfigsMessage(**message_data)
+                await self._message_handler.handle_fetch_avatar_configs(
+                    connection_id, message
+                )
+
+            elif message_type == MessageType.SWITCH_AVATAR_CONFIG:
+                if not connection_state.is_authenticated:
+                    await self.send_message(
+                        connection_id, ErrorMessage(error="Authentication required")
+                    )
+                    return
+                message = SwitchAvatarConfigMessage(**message_data)
+                await self._message_handler.handle_switch_avatar_config(
+                    connection_id, message
+                )
 
             else:
                 # Check if connection is authenticated for other message types

@@ -2,9 +2,11 @@
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Optional
 from uuid import UUID, uuid4
 
+import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
@@ -12,8 +14,15 @@ from src.models.websocket import (
     AuthorizeErrorMessage,
     AuthorizeMessage,
     AuthorizeSuccessMessage,
+    AvatarConfigFile,
+    AvatarConfigFilesMessage,
+    AvatarConfigSwitchedMessage,
+    BackgroundFilesMessage,
     ErrorMessage,
+    FetchAvatarConfigsMessage,
+    FetchBackgroundsMessage,
     PongMessage,
+    SwitchAvatarConfigMessage,
 )
 from src.services import get_agent_service, get_ltm_service, get_stm_service
 from src.services.websocket_service.message_processor import MessageProcessor
@@ -315,6 +324,157 @@ class MessageHandler:
                 )
 
             return interrupted_count > 0
+
+    async def handle_fetch_backgrounds(
+        self, connection_id: UUID, message: FetchBackgroundsMessage
+    ):
+        """Handle fetch backgrounds request.
+
+        Args:
+            connection_id: Connection identifier.
+            message: Fetch backgrounds message.
+        """
+        try:
+            # TODO: Make this path configurable
+            bg_dir = Path("resources/backgrounds")
+            if not bg_dir.exists():
+                logger.warning(f"Backgrounds directory not found: {bg_dir}")
+                files = []
+            else:
+                files = [
+                    f"/bg/{f.name}"
+                    for f in bg_dir.iterdir()
+                    if f.is_file()
+                    and f.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}
+                ]
+
+            response = BackgroundFilesMessage(files=files)
+            await self.send_message(connection_id, response)
+            logger.info(f"Sent {len(files)} background files to {connection_id}")
+        except Exception as e:
+            logger.error(f"Error fetching backgrounds: {e}")
+            await self.send_message(connection_id, ErrorMessage(error=str(e)))
+
+    async def handle_fetch_avatar_configs(
+        self, connection_id: UUID, message: FetchAvatarConfigsMessage
+    ):
+        """Handle fetch avatar configs request.
+
+        Args:
+            connection_id: Connection identifier.
+            message: Fetch avatar configs message.
+        """
+        try:
+            # TODO: Make this path configurable
+            config_dir = Path("resources/characters")
+            configs = []
+
+            if config_dir.exists():
+                for file_path in config_dir.glob("*.yaml"):
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            data = yaml.safe_load(f)
+                            # Extract name from config, similar to reference implementation
+                            # Assuming structure: character_config: { conf_name: "Name" }
+                            name = file_path.name
+                            if data and "character_config" in data:
+                                name = data["character_config"].get(
+                                    "conf_name", file_path.name
+                                )
+
+                            configs.append(
+                                AvatarConfigFile(filename=file_path.name, name=name)
+                            )
+                    except Exception as e:
+                        logger.warning(f"Error reading config {file_path}: {e}")
+                        # Add with filename as fallback
+                        configs.append(
+                            AvatarConfigFile(
+                                filename=file_path.name, name=file_path.name
+                            )
+                        )
+            else:
+                logger.warning(f"Configs directory not found: {config_dir}")
+
+            response = AvatarConfigFilesMessage(configs=configs)
+            await self.send_message(connection_id, response)
+            logger.info(f"Sent {len(configs)} avatar configs to {connection_id}")
+        except Exception as e:
+            logger.error(f"Error fetching avatar configs: {e}")
+            await self.send_message(connection_id, ErrorMessage(error=str(e)))
+
+    async def handle_switch_avatar_config(
+        self, connection_id: UUID, message: SwitchAvatarConfigMessage
+    ):
+        """Handle switch avatar config request.
+
+        Args:
+            connection_id: Connection identifier.
+            message: Switch avatar config message.
+        """
+        try:
+            logger.info(
+                f"Switching avatar config to {message.file} for {connection_id}"
+            )
+
+            # Verify file exists
+            config_path = Path("resources/characters") / message.file
+            if not config_path.exists():
+                raise FileNotFoundError(f"Config file not found: {message.file}")
+
+            # Load the new configuration
+            with open(config_path, "r", encoding="utf-8") as f:
+                new_config_data = yaml.safe_load(f)
+
+            if not new_config_data or "character_config" not in new_config_data:
+                raise ValueError(f"Invalid config file format: {message.file}")
+
+            character_config = new_config_data["character_config"]
+            conf_name = character_config.get("conf_name", message.file)
+            conf_uid = character_config.get("conf_uid", str(uuid4()))
+
+            # TODO: In a full implementation, you would:
+            # 1. Update the connection's service context with new config
+            # For now, we'll send back the config info
+
+            # Extract model info and hydrate URL if missing
+            model_info = character_config.get("live2d_model_info", {}) or {}
+            model_name = character_config.get("live2d_model_name")
+
+            if model_name and "url" not in model_info:
+                runtime_file = (
+                    Path("resources/live2d-models")
+                    / model_name
+                    / "runtime"
+                    / f"{model_name}.model3.json"
+                )
+                if runtime_file.exists():
+                    model_info["url"] = f"/live2d/{model_name}/runtime/{runtime_file.name}"
+                else:
+                    logger.warning(
+                        f"Live2D runtime file missing for model {model_name}: {runtime_file}"
+                    )
+
+            # Send set_model_and_conf message
+            from src.models.websocket import SetModelAndConfMessage
+
+            set_model_msg = SetModelAndConfMessage(
+                model_info=model_info,
+                conf_name=conf_name,
+                conf_uid=conf_uid,
+                client_uid=str(connection_id),
+            )
+            await self.send_message(connection_id, set_model_msg)
+
+            # Send config switched confirmation
+            response = AvatarConfigSwitchedMessage(file=message.file)
+            await self.send_message(connection_id, response)
+
+            logger.info(f"Configuration switched to {message.file} for {connection_id}")
+
+        except Exception as e:
+            logger.error(f"Error switching avatar config: {e}")
+            await self.send_message(connection_id, ErrorMessage(error=str(e)))
 
 
 async def forward_turn_events(

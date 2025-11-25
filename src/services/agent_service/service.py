@@ -22,9 +22,15 @@ class AgentService(ABC):
         checkpoint_config (dict, optional): Configuration for checkpoint saving.
     """
 
-    def __init__(self, mcp_config: dict = None, checkpoint_config: dict = None):
+    def __init__(
+        self,
+        mcp_config: dict = None,
+        checkpoint_config: dict = None,
+        support_image: bool = False,
+    ):
         self.mcp_config = mcp_config
         self.checkpoint = checkpoint_config
+        self.support_image = support_image
 
         self.llm, self.checkpoint = self.initialize_model()
 

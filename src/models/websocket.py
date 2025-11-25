@@ -15,6 +15,9 @@ class MessageType(str, Enum):
     PONG = "pong"
     CHAT_MESSAGE = "chat_message"
     INTERRUPT_STREAM = "interrupt_stream"
+    FETCH_BACKGROUNDS = "fetch_backgrounds"
+    FETCH_AVATAR_CONFIGS = "fetch_avatar_configs"
+    SWITCH_AVATAR_CONFIG = "switch_avatar_config"
 
     # Server -> Client
     AUTHORIZE_SUCCESS = "authorize_success"
@@ -27,6 +30,10 @@ class MessageType(str, Enum):
     TOOL_CALL = "tool_call"
     TOOL_RESULT = "tool_result"
     ERROR = "error"
+    BACKGROUND_FILES = "background_files"
+    AVATAR_CONFIG_FILES = "avatar_config_files"
+    AVATAR_CONFIG_SWITCHED = "avatar_config_switched"
+    SET_MODEL_AND_CONF = "set_model_and_conf"
 
 
 class BaseMessage(BaseModel):
@@ -91,6 +98,25 @@ class InterruptStreamMessage(BaseMessage):
         default=None,
         description="Specific turn ID to interrupt, or None for all active turns",
     )
+
+
+class FetchBackgroundsMessage(BaseMessage):
+    """Client request to fetch available backgrounds."""
+
+    type: MessageType = MessageType.FETCH_BACKGROUNDS
+
+
+class FetchAvatarConfigsMessage(BaseMessage):
+    """Client request to fetch available avatar configurations."""
+
+    type: MessageType = MessageType.FETCH_AVATAR_CONFIGS
+
+
+class SwitchAvatarConfigMessage(BaseMessage):
+    """Client request to switch avatar configuration."""
+
+    type: MessageType = MessageType.SWITCH_AVATAR_CONFIG
+    file: str = Field(..., description="Configuration filename to switch to")
 
 
 # =================================================================================
@@ -176,6 +202,46 @@ class ErrorMessage(BaseMessage):
     code: Optional[int] = None
 
 
+class BackgroundFilesMessage(BaseMessage):
+    """Server response with list of background files."""
+
+    type: MessageType = MessageType.BACKGROUND_FILES
+    files: List[str] = Field(..., description="List of background filenames")
+
+
+class AvatarConfigFile(BaseModel):
+    """Avatar configuration file info."""
+
+    filename: str
+    name: str
+
+
+class AvatarConfigFilesMessage(BaseMessage):
+    """Server response with list of avatar configuration files."""
+
+    type: MessageType = MessageType.AVATAR_CONFIG_FILES
+    configs: List[AvatarConfigFile] = Field(
+        ..., description="List of avatar configurations"
+    )
+
+
+class AvatarConfigSwitchedMessage(BaseMessage):
+    """Server confirmation of avatar configuration switch."""
+
+    type: MessageType = MessageType.AVATAR_CONFIG_SWITCHED
+    file: str = Field(..., description="Filename of the switched configuration")
+
+
+class SetModelAndConfMessage(BaseMessage):
+    """Server message to set model and configuration."""
+
+    type: MessageType = MessageType.SET_MODEL_AND_CONF
+    model_info: Dict[str, Any] = Field(..., description="Live2D model information")
+    conf_name: str = Field(..., description="Configuration name")
+    conf_uid: str = Field(..., description="Configuration UID")
+    client_uid: str = Field(..., description="Client UID")
+
+
 # =================================================================================
 # Union Types
 # =================================================================================
@@ -186,6 +252,9 @@ ClientMessage = Union[
     PongMessage,
     ChatMessage,
     InterruptStreamMessage,
+    FetchBackgroundsMessage,
+    FetchAvatarConfigsMessage,
+    SwitchAvatarConfigMessage,
 ]
 
 # Union type for all possible server messages
@@ -200,6 +269,10 @@ ServerMessage = Union[
     StreamEndMessage,
     TTSReadyChunkMessage,
     ErrorMessage,
+    BackgroundFilesMessage,
+    AvatarConfigFilesMessage,
+    AvatarConfigSwitchedMessage,
+    SetModelAndConfMessage,
 ]
 
 # Union type for all messages
