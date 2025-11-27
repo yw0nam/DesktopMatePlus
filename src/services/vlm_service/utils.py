@@ -63,29 +63,48 @@ def create_url_image_dict(url: str) -> Dict[str, str]:
 
 
 def prepare_image_for_vlm(
-    image: Union[str, bytes], mime_type: str = "image/png"
-) -> Dict[str, str]:
+    images: Union[str, bytes, list[Union[str, bytes]]], mime_type: str = "image/png"
+) -> Union[Dict[str, str], list[Dict[str, str]]]:
     """
     Prepare image input for VLM API request.
 
     Handles both URL strings and raw bytes, converting to appropriate format.
+    Can accept single image or list of images.
 
     Args:
-        image: Image as URL string or raw bytes
+        images: Single image or list of images as URL string(s) or raw bytes
         mime_type: MIME type for bytes input (default: image/png)
 
     Returns:
-        Dict with image data formatted for VLM API
+        Dict or list of dicts with image data formatted for VLM API
 
     Raises:
         ValueError: If image type is not supported
     """
-    if isinstance(image, str):
-        return create_url_image_dict(image)
-    elif isinstance(image, bytes):
-        base64_str = encode_image_to_base64(image)
-        return create_base64_image_dict(base64_str, mime_type)
-    else:
+    # Handle single image (not a list)
+    if isinstance(images, (str, bytes)):
+        if isinstance(images, str):
+            return create_url_image_dict(images)
+        else:
+            base64_str = encode_image_to_base64(images)
+            return create_base64_image_dict(base64_str, mime_type)
+
+    # Validate that it's a list before attempting iteration
+    if not isinstance(images, list):
         raise ValueError(
-            f"Invalid image type: {type(image)}. Expected str (URL) or bytes."
+            f"Invalid image type: {type(images)}. Expected str (URL), bytes, or list."
         )
+
+    # Handle list of images
+    image_dicts = []
+    for image in images:
+        if isinstance(image, str):
+            image_dicts.append(create_url_image_dict(image))
+        elif isinstance(image, bytes):
+            base64_str = encode_image_to_base64(image)
+            image_dicts.append(create_base64_image_dict(base64_str, mime_type))
+        else:
+            raise ValueError(
+                f"Invalid image type in list: {type(image)}. Expected str (URL) or bytes."
+            )
+    return image_dicts

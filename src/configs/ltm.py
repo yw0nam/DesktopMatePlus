@@ -16,6 +16,7 @@ class Mem0LLMConfigValues(BaseModel):
     openai_base_url: str = "http://localhost:55120/v1"
     api_key: Optional[str] = Field(default_factory=lambda: os.getenv("LTM_API_KEY"))
     model: str = "chat_model"
+    enable_vision: bool = True
 
 
 class Mem0EmbedderConfigValues(BaseModel):

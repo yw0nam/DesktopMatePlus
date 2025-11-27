@@ -86,6 +86,35 @@ class Mem0LTM(LTMService[Memory]):
         """
         try:
             messages = convert_to_openai_messages(messages)
+            # Mem0 work better when each message is prefixed with user_id or agent_id
+            for msg in messages:
+                # Skip tool calls (assistant with tool_calls) and tool messages
+                if msg.get("role") == "tool" or msg.get("tool_calls"):
+                    continue
+
+                # Process user and assistant messages
+                if msg.get("role") in ("user", "assistant"):
+                    prefix = (
+                        f"{user_id}: " if msg["role"] == "user" else f"{agent_id}: "
+                    )
+                    content = msg.get("content")
+
+                    if content is None:
+                        continue
+
+                    # Handle string content
+                    if isinstance(content, str):
+                        if not content.startswith(prefix):
+                            msg["content"] = prefix + content
+                    # Handle list content (multimodal)
+                    elif isinstance(content, list):
+                        for item in content:
+                            # Only add prefix to text items, skip image_url
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                if not item["text"].startswith(prefix):
+                                    item["text"] = prefix + item["text"]
+                                break  # Only prefix the first text item
+
             result = self.memory_client.add(
                 messages,
                 user_id=user_id,

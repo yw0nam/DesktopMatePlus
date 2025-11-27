@@ -26,6 +26,10 @@ class OpenAIChatAgentConfig(BaseModel):
         default=None,
         description="MCP client configuration for OpenAI Chat Agent",
     )
+    support_image: bool = Field(
+        default=False,
+        description="Whether the agent supports image inputs in messages",
+    )
 
 
 class AgentConfig(BaseModel):

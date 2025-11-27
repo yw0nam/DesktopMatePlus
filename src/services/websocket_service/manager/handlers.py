@@ -18,6 +18,7 @@ from src.models.websocket import (
     AvatarConfigFilesMessage,
     AvatarConfigSwitchedMessage,
     BackgroundFilesMessage,
+    ChatMessage,
     ErrorMessage,
     FetchAvatarConfigsMessage,
     FetchBackgroundsMessage,
@@ -25,6 +26,7 @@ from src.models.websocket import (
     SwitchAvatarConfigMessage,
 )
 from src.services import get_agent_service, get_ltm_service, get_stm_service
+from src.services.vlm_service.utils import prepare_image_for_vlm
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
@@ -112,7 +114,7 @@ class MessageHandler:
             logger.debug(f"Received pong from {connection_id}")
 
     async def handle_chat_message(
-        self, connection_id: UUID, message_data: dict, forward_events_fn
+        self, connection_id: UUID, message_data: ChatMessage, forward_events_fn
     ):
         """Handle incoming chat message.
 
@@ -170,6 +172,7 @@ class MessageHandler:
             persona = message_data.get("persona")
             conversation_id = message_data.get("conversation_id", str(uuid4()))
             message_limit = message_data.get("limit", 10)
+            images = message_data.get("images", None)
             metadata = dict(message_data.get("metadata", {}) or {})
             # Validate required persistent identifiers
             if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
@@ -211,9 +214,18 @@ class MessageHandler:
                     session_id=conversation_id,
                     limit=message_limit,
                 )
+
+            content = [{"type": "text", "text": content}]
+            if images and agent_service.support_image:
+                image_dicts = prepare_image_for_vlm(images)
+                # Ensure image_dicts is a list for extend
+                if isinstance(image_dicts, dict):
+                    content.append(image_dicts)
+                else:
+                    content.extend(image_dicts)
+
             message_history.append(HumanMessage(content=content))
             # TODO: Add tools support here
-
             # Use persistent user_id for client_id instead of connection-based ID
 
             agent_stream = agent_service.stream(
@@ -449,7 +461,9 @@ class MessageHandler:
                     / f"{model_name}.model3.json"
                 )
                 if runtime_file.exists():
-                    model_info["url"] = f"/live2d/{model_name}/runtime/{runtime_file.name}"
+                    model_info["url"] = (
+                        f"/live2d/{model_name}/runtime/{runtime_file.name}"
+                    )
                 else:
                     logger.warning(
                         f"Live2D runtime file missing for model {model_name}: {runtime_file}"

@@ -5,11 +5,12 @@
 llm_config:
   type: "openai_chat_agent"  # Service type for factory
   configs:
-    openai_api_base: "http://localhost:5530/v1"
+    openai_api_base: "http://localhost:55235/v1"
     model_name: chat_model
-    # openai_api_key is loaded from LLM_API_KEY environment variable
     temperature: 0.7
     top_p: 0.9
+    support_image: True  # Enable image support
+    # openai_api_key is loaded from LLM_API_KEY environment variable
 
 # mcp_config:
 #   "sequential-thinking": {

@@ -7,8 +7,9 @@ ltm_config:
     llm:
       provider: "openai"
       config:
-        openai_base_url: "http://localhost:55120/v1"
+        openai_base_url: "http://localhost:55235/v1"
         model: "chat_model"
+        enable_vision: true
         # api_key: "${LTM_API_KEY}"
     embedder:
       provider: "langchain" # Currently only langchain is supported. This is compatible with OpenAI compatible embeddings API.

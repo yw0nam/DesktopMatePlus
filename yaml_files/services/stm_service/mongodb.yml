@@ -11,3 +11,4 @@ stm_config:
     database_name: "stm_db"
     sessions_collection_name: "sessions"
     messages_collection_name: "messages"
+    base_dir: "static/images"  # Base directory for storing images

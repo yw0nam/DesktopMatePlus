@@ -3,6 +3,8 @@ from typing import Generic, Optional, TypeVar
 
 from langchain_core.messages import BaseMessage
 
+from src.services.stm_service.utils.image_manager import LocalImageManager
+
 MemoryClientType = TypeVar(
     "MemoryClientType"
 )  # A generic type for memory client instances.
@@ -23,6 +25,9 @@ class STMService(ABC, Generic[MemoryClientType]):
     """
 
     def __init__(self, **kwargs):
+        self.image_manager = LocalImageManager(
+            base_dir=kwargs.get("base_dir", "static/images")
+        )
         self.memory_client = self.initialize_memory()
 
     @abstractmethod
@@ -53,7 +58,18 @@ class STMService(ABC, Generic[MemoryClientType]):
     ) -> str:
         """
         Add chat history. If session_id is None, creates a new session.
+        Note
+        - use openai-compatible message formats for messages.
+        - store images using LocalImageManager before storing messages.
 
+        example:
+        ```python
+        serialized_messages = convert_to_openai_messages(messages)
+        serialized_messages = self.image_manager.process_images(
+            serialized_messages, user_id
+        )
+        After that process the serialized_messages for storage.
+        ```
         Args:
             user_id (str): User identifier.
             agent_id (str): Agent identifier.

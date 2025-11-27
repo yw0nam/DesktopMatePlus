@@ -29,12 +29,14 @@ class VLMService(ABC):
             return False, f"VLM health check failed: {str(e)}"
 
     def generate_response(
-        self, image: str | bytes, prompt: str = "Describe this image"
+        self,
+        image: str | bytes | list[str | bytes],
+        prompt: str = "Describe this image",
     ) -> str:
         """Generate a response from the model based on the prompt and image.
 
         Args:
-            image (str | bytes): The image to include in the request, either as a URL or raw bytes.
+            image (str | bytes | list): The image(s) to include in the request, either as a URL, raw bytes, or list.
             prompt (str): The text prompt to send to the model. Default is "Describe this image".
 
         TODO: Add support of video, multi-image inputs.
@@ -44,14 +46,16 @@ class VLMService(ABC):
         # Use utility function to prepare image for VLM API
         input_image_dict = prepare_image_for_vlm(image)
 
+        # Build content list with text and image(s)
+        content = [{"type": "text", "text": prompt}]
+        if isinstance(input_image_dict, list):
+            content.extend(input_image_dict)
+        else:
+            content.append(input_image_dict)
+
         message = [
             SystemMessage(content=DEFAULT_VLM_SYSTEM_PROMPT),
-            HumanMessage(
-                content=[
-                    {"type": "text", "text": prompt},
-                    input_image_dict,
-                ]
-            ),
+            HumanMessage(content=content),
         ]
         response = self.model.invoke(message)
         return response.content

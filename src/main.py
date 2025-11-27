@@ -182,18 +182,24 @@ def create_app() -> FastAPI:
     live2d_dir = project_root / "resources" / "live2d-models"
 
     if backgrounds_dir.exists():
+        print(f"📁 Serving backgrounds from {backgrounds_dir}")
         app.mount(
             "/v1/bg",
             StaticFiles(directory=str(backgrounds_dir)),
             name="backgrounds",
         )
+    else:
+        print(f"⚠️ Backgrounds directory not found: {backgrounds_dir}")
 
     if live2d_dir.exists():
+        print(f"📁 Serving Live2D models from {live2d_dir}")
         app.mount(
             "/v1/live2d",
             StaticFiles(directory=str(live2d_dir)),
             name="live2d-models",
         )
+    else:
+        print(f"⚠️ Live2D directory not found: {live2d_dir}")
 
     return app
 

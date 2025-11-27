@@ -187,6 +187,9 @@ class MongoDBSTM(STMService[MongoDBClientType]):
 
             # Serialize messages to dictionaries
             serialized_messages = convert_to_openai_messages(messages)
+            serialized_messages = self.image_manager.process_images(
+                serialized_messages, user_id
+            )
 
             # Prepare message documents for MongoDB
             message_docs = []
