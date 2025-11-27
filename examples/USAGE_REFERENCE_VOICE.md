@@ -19,8 +19,9 @@ uv run python examples/realtime_tts_streaming_demo.py --reference-id "ナツメ"
 ### Full example with all options
 ```bash
 uv run python examples/realtime_tts_streaming_demo.py \
-    --message "Tell me a story" \
+    --message "I make this illustration, that will be your appearance of you. Is it your type?" \
     --reference-id "ナツメ" \
+    --image "https://www.1999.co.jp/itbig67/10676525a.jpg" \
     --output ./my_tts_files
 ```
 

@@ -119,7 +119,7 @@ class AgentService(ABC):
             dict: The model's response stream.
         """
 
-    def save_memory(
+    async def save_memory(
         self,
         new_chats: list[BaseMessage],
         stm_service: STMService,
@@ -128,7 +128,11 @@ class AgentService(ABC):
         agent_id: str,
         session_id: str,
     ):
-        """Save new chats to memory.
+        """Save new chats to memory asynchronously.
+
+        This method runs in the background and does not block the response stream.
+        Uses asyncio.to_thread() to run blocking I/O operations in a thread pool.
+        Errors are logged but do not affect the client response.
 
         Args:
             new_chats (list[BaseMessage]): New chat messages to save.
@@ -138,19 +142,32 @@ class AgentService(ABC):
             agent_id (str): Persistent agent identifier for memory tool.
             session_id (str): Session identifier for the current conversation.
         """
+        import asyncio
 
-        if new_chats != [] and stm_service:
-            stm_result = stm_service.add_chat_history(
-                user_id=user_id,
-                agent_id=agent_id,
-                session_id=session_id,
-                messages=new_chats,
+        try:
+            if new_chats != [] and stm_service:
+                # Run blocking STM operation in thread pool
+                stm_result = await asyncio.to_thread(
+                    stm_service.add_chat_history,
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    messages=new_chats,
+                )
+                logger.info("Chat history saved to STM: %s", stm_result)
+            if new_chats != [] and ltm_service:
+                # Run blocking LTM operation in thread pool
+                # TODO: Need to be optimized this part.
+                # Add persona information to memory?...
+                ltm_result = await asyncio.to_thread(
+                    ltm_service.add_memory,
+                    messages=new_chats,
+                    user_id=user_id,
+                    agent_id=agent_id,
+                )
+                logger.info("Memory added to LTM: %s", ltm_result)
+            logger.info("Memory save completed for session %s", session_id)
+        except Exception as e:
+            logger.error(
+                "Background memory save failed for session %s: %s", session_id, e
             )
-            logger.info("Chat history saved to STM: %s", stm_result)
-        if new_chats != [] and ltm_service:
-            # TODO: Need to be optimized this part.
-            # Add persona information to memory?...
-            ltm_result = ltm_service.add_memory(
-                messages=new_chats, user_id=user_id, agent_id=agent_id
-            )
-            logger.info("Memory added to LTM: %s", ltm_result)

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import traceback
@@ -175,15 +176,18 @@ class OpenAIChatAgent(AgentService):
                     new_chats = item["data"]
                     # 최종 응답은 채팅 기록 저장에만 사용됩니다.
 
-            # Save new chats to STM and LTM if services are provided
+            # Save new chats to STM and LTM in background (fire-and-forget)
             if stm_service or ltm_service:
-                self.save_memory(
-                    new_chats=new_chats,
-                    stm_service=stm_service,
-                    ltm_service=ltm_service,
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    session_id=conversation_id,
+                asyncio.create_task(
+                    self.save_memory(
+                        new_chats=new_chats,
+                        stm_service=stm_service,
+                        ltm_service=ltm_service,
+                        user_id=user_id,
+                        agent_id=agent_id,
+                        session_id=conversation_id,
+                    ),
+                    name=f"save-memory-{conversation_id}",
                 )
 
             # Get final content safely

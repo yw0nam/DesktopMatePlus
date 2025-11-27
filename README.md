@@ -128,24 +128,7 @@ The server will start on `http://localhost:5500` by default.
 
 - **Swagger UI**: `http://localhost:5500/docs`
 - **ReDoc**: `http://localhost:5500/redoc`
-- **C# Integration Guide**: `docs/api/INDEX.md`
-
-### Example Usage
-
-```bash
-# Test TTS API
-curl -X POST http://localhost:5500/v1/tts/synthesize \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Hello from DesktopMatePlus!", "reference_id": "ナツメ"}'
-
-# Test VLM API
-curl -X POST http://localhost:5500/v1/vlm/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"image": "data:image/png;base64,...", "prompt": "What is in this image?"}'
-
-# Run real-time streaming demo
-uv run python examples/realtime_tts_streaming_demo.py
-```
+- **Frontend Integration Guide**: `docs/API_GUIDE.md`
 
 ## Testing
 
@@ -167,123 +150,57 @@ uv run pytest tests/test_memory.py
 bash script/lint.sh
 
 ```
+#### Avatar & Background Management
 
-## API Endpoints
+The WebSocket API also supports avatar configuration and background management:
 
-### HTTP REST APIs
+- **Fetch Backgrounds**: Request available background images
+- **Fetch Avatar Configs**: Request available avatar/character configurations
+- **Switch Avatar Config**: Change the active avatar configuration
 
-#### Short-Term Memory (STM)
-- `POST /v1/stm/chat-history` - Add messages to a session
-- `GET /v1/stm/chat-history` - Retrieve conversation history
-- `GET /v1/stm/sessions` - List all sessions
-- `DELETE /v1/stm/sessions/{session_id}` - Delete a session
-- `PATCH /v1/stm/sessions/{session_id}/metadata` - Update session metadata
+See [WebSocket API Guide](docs/websocket/WEBSOCKET_API_GUIDE.md) for complete message documentation.
 
-#### Text-to-Speech (TTS)
-- `POST /v1/tts/synthesize` - Convert text to speech (returns base64 WAV)
+**Client → Server Messages:**
 
-#### Vision Language Model (VLM)
-- `POST /v1/vlm/analyze` - Analyze images with AI
+| Message Type | Description |
+|-------------|-------------|
+| `authorize` | Authenticate the connection with a token |
+| `pong` | Response to server ping for heartbeat |
+| `chat_message` | Send a user's message to the agent |
+| `interrupt_stream` | Interrupt an active response stream |
+| `fetch_backgrounds` | Request list of available backgrounds |
+| `fetch_avatar_configs` | Request list of avatar configurations |
+| `switch_avatar_config` | Switch to a different avatar configuration |
 
-#### Health Check
-- `GET /health` - Backend health status
+**Server → Client Messages:**
 
-### WebSocket API
+| Message Type | Description |
+|-------------|-------------|
+| `authorize_success` | Confirms successful authorization (includes `connection_id`) |
+| `authorize_error` | Indicates authorization failure |
+| `ping` | Heartbeat message from server |
+| `stream_start` | Beginning of agent response (includes `turn_id`, `conversation_id`) |
+| `stream_token` | Internal token chunk (not typically used by clients) |
+| `tts_ready_chunk` | Complete sentence ready for TTS (includes `chunk`, optional `emotion`) |
+| `tool_call` | Agent is calling a tool (includes `tool_name`, `args`) |
+| `tool_result` | Result from tool execution |
+| `stream_end` | End of agent response (includes `turn_id`, `conversation_id`, `content`) |
+| `error` | Error message (includes `error`, optional `code`) |
+| `background_files` | List of available background files |
+| `avatar_config_files` | List of avatar configurations |
+| `avatar_config_switched` | Confirmation of config switch |
+| `set_model_and_conf` | Set Live2D model and configuration |
 
-#### Real-time Chat Streaming ⭐
-- `WS /v1/chat/stream` - Real-time chat with automatic TTS chunk generation
+See `docs/websocket/WEBSOCKET_API_GUIDE.md` for complete documentation.
 
-**Key Events:**
-- `authorize` / `authorize_success` - Connection authentication
-- `chat_message` - Send message to agent
-- `stream_start` - Agent starts responding
-- `tts_ready_chunk` - Sentence-level TTS chunks (ready for synthesis)
-- `stream_end` - Agent finished responding
-- `ping` / `pong` - Heartbeat mechanism
+## Documentation
 
-See `docs/api/WebSocket_ChatStream.md` for complete documentation.
+Complete documentation is available in `docs/`:
 
-## C# Integration
+- **[API_GUIDE.md](docs/API_GUIDE.md)** - Frontend integration overview
+- **[REST_API_GUIDE.md](docs/api/REST_API_GUIDE.md)** - REST API reference
+- **[WEBSOCKET_API_GUIDE.md](docs/websocket/WEBSOCKET_API_GUIDE.md)** - WebSocket API reference
 
-Complete C# integration documentation is available in `docs/api/`:
-
-- **[INDEX.md](docs/api/INDEX.md)** - Documentation overview and quick search
-- **[GettingStarted.md](docs/api/GettingStarted.md)** - 5-minute integration guide
-- **[CSharp_QuickReference.md](docs/api/CSharp_QuickReference.md)** - Common patterns and examples
-- **[WebSocket_ChatStream.md](docs/api/WebSocket_ChatStream.md)** - Real-time streaming details
-
-### Quick C# Example
-
-```csharp
-// HTTP Client
-var client = new DesktopMatePlusClient("http://localhost:5500");
-var audio = await client.SynthesizeSpeechAsync("Hello!", "ナツメ");
-
-// WebSocket Client
-var ws = new DesktopMatePlusWebSocketClient();
-ws.OnTTSReady += async (s, chunk) => await PlayAudio(chunk.Text);
-await ws.ConnectAsync();
-await ws.SendChatMessageAsync("Tell me a story");
-```
-
-## Real-time TTS Streaming
-
-The WebSocket streaming gateway provides real-time TTS chunk generation:
-
-### How It Works
-
-1. Client sends a `chat_message`
-2. Agent starts streaming tokens (internal, not sent to client)
-3. Sentences are detected automatically by punctuation
-4. `tts_ready_chunk` events are emitted **DURING** streaming (not after)
-5. Client synthesizes and plays audio immediately
-6. Natural conversation flow with no waiting
-
-### Key Events
-
-- `tts_ready_chunk` - Sentence-level text chunks ready for TTS synthesis
-- `stream_start` / `stream_end` - Stream lifecycle
-- `tool_call` / `tool_result` - Tool execution (logged server-side only)
-- `error` - Error handling
-
-**Note:** Raw `stream_token` events are processed internally. Clients should use `tts_ready_chunk` for both UI rendering and TTS playback.
-
-### Example Flow
-
-```text
-User: "Tell me a story"
-  → stream_start
-  → tts_ready_chunk: "Once upon a time, there was a brave knight."
-  → [Client plays audio immediately]
-  → tts_ready_chunk: "He lived in a castle on a hill."
-  → [Client plays audio]
-  → tts_ready_chunk: "The end."
-  → [Client plays audio]
-  → stream_end
-```
-
-## Examples
-
-Several example scripts are provided in the `examples/` directory:
-
-```bash
-# Real-time TTS streaming demo
-uv run python examples/realtime_tts_streaming_demo.py
-
-# Custom message with Japanese voice
-uv run python examples/realtime_tts_streaming_demo.py \
-  --message "君の名前は何？" \
-  --reference-id "ナツメ"
-
-# WebSocket client demo
-uv run python examples/websocket_client_demo.py
-
-# Screen capture and VLM integration
-uv run python examples/screen_vlm_integration.py
-
-# TTS synthesis demo
-uv run python examples/tts_synthesis_demo.py
-```
 
 ## Service Dependencies
 
@@ -306,37 +223,8 @@ The backend requires the following external services to be running:
    - Default: `http://localhost:6333`
    - Or use mem0 cloud service
 
-## Architecture Highlights
 
-### Service Manager Pattern
-
-All services are managed through a centralized `ServiceManager`:
-
-```python
-from src.services import get_tts_service, get_vlm_service, get_agent_service, get_stm_service, get_ltm_service
-
-tts_service = get_tts_service()
-vlm_service = get_vlm_service()
-agent_service = get_agent_service()
-stm_service = get_stm_service()
-ltm_service = get_ltm_service()
-```
-
-### WebSocket Message Processor
-
-The `MessageProcessor` handles real-time streaming with:
-- Token buffering and sentence detection
-- Automatic TTS chunk generation
-- Turn-based conversation management
-- Error handling and recovery
-
-### Memory System
-
-- **STM (MongoDB)**: Session-based conversation history
-- **LTM (mem0)**: Long-term user context and preferences
-- Automatic memory integration in agent responses
-
-## Testing
+## Test Suite
 
 ```bash
 # Run all tests
@@ -356,20 +244,28 @@ uv run pytest tests/test_vlm*.py
 The backend is designed to be deployed as:
 
 1. **Standalone Service** - Run as a Python service
-2. **Docker Container** - Containerized deployment
-3. **Executable** - PyInstaller bundled executable (future)
 
 ## Release Notes
 
+### Version 2.1 (November 2025)
+
+- ✅ Avatar configuration management via WebSocket
+- ✅ Background image management via WebSocket
+- ✅ Live2D model configuration support
+- ✅ Updated documentation structure
+
 ### Version 2.0 (November 2025)
+
 - ✅ Complete WebSocket streaming with real-time TTS chunks
 - ✅ MongoDB-based STM for session management
 - ✅ mem0 integration for long-term memory
 - ✅ Customizable agent personas per message
+- ✅ Non-blocking async memory save (no TTS blocking)
 - ✅ Production-ready error handling and reconnection
 - ✅ Full test coverage for all services
 
 ### Version 1.0 (October 2025)
+
 - Initial release with basic HTTP APIs
 - WebSocket streaming foundation
 - VLM and TTS service integration

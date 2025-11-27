@@ -253,8 +253,8 @@ class RealtimeTTSDemo:
                             "type": "chat_message",
                             "content": message,
                             "session_id": "c157b220-47c0-4c48-a878-382ba6448cd6",
-                            "agent_id": "demo_agent",
-                            "user_id": "demo_user",
+                            "agent_id": "yuri",
+                            "user_id": "nanami",
                         }
 
                         # Include images if provided
