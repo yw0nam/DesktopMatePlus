@@ -1,5 +1,7 @@
 # REST API Guide
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: RESTful API for STM, TTS, and VLM services

@@ -1,5 +1,7 @@
 # Agent Service
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: AI agent with LLM, tool calling, streaming, and memory integration

@@ -1,5 +1,7 @@
 # LTM Configuration Fields
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Configure mem0-based Long-Term Memory with vector and graph stores

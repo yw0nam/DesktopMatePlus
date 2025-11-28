@@ -1,5 +1,7 @@
 # TTS Configuration Fields
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Configure Fish Speech TTS service settings

@@ -1,5 +1,7 @@
 # WebSocket API Guide
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Real-time streaming chat with agent responses and TTS integration

@@ -1,5 +1,7 @@
 # VLM Configuration Fields
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Configure OpenAI-compatible Vision-Language Model settings

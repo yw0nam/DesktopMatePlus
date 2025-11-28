@@ -1,5 +1,7 @@
 # Settings Configuration Fields
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Application-level settings for server, CORS, and WebSocket

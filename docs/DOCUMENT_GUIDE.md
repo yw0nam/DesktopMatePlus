@@ -11,6 +11,7 @@ All documents focus on **Actionability** and **Modularity**.
 | **Zero-Latency Start** | Readers should be able to write code or perform tasks immediately after reading—no additional exploration needed. |
 | **Hard Limit 200** | Core content must not exceed 200 lines. This is a physical limit considering agent context windows and human attention span. |
 | **Lazy Loading (Appendix)** | Edge cases, references, and detailed configurations that aren't immediately needed should be separated into an Appendix for on-demand reference. |
+| **Reflect src code structure** | Document structure should mirror the source code organization to facilitate easy navigation and maintenance. |
 
 ---
 
@@ -20,6 +21,8 @@ All documents follow this markdown structure:
 
 ```markdown
 # [Document Title: Feature/Module Name]
+
+Updated: YYYY-MM-DD
 
 ## 1. Synopsis
 - **Purpose**: One-line summary of the module's core function

@@ -1,5 +1,7 @@
 # Agent Configuration Fields
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Configure OpenAI-compatible chat agent with LLM settings

@@ -1,5 +1,7 @@
 # VLM Service
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Vision-Language Model for image analysis and understanding

@@ -1,5 +1,7 @@
 # Release Notes Template
 
+Updated: 2025-11-28
+
 Pro-tip: look through the github diff between the previous release to see what's changed. The commit titles should give an outline of what's happened.
 
 ### Upgrade Steps

@@ -1,5 +1,7 @@
 # LTM Service (Long-Term Memory)
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Semantic long-term memory for user preferences and context using mem0

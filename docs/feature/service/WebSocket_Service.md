@@ -1,5 +1,7 @@
 # WebSocket Service
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Real-time communication with streaming responses and TTS integration

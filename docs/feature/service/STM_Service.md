@@ -1,5 +1,7 @@
 # STM Service (Short-Term Memory)
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Session-based chat history and conversation management using MongoDB

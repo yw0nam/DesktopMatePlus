@@ -1,5 +1,7 @@
 # STM Configuration Fields
 
+Updated: 2025-11-28
+
 ## 1. Synopsis
 
 - **Purpose**: Configure MongoDB-based Short-Term Memory settings
