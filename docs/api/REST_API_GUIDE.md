@@ -1,35 +1,52 @@
 # REST API Guide
 
-This document provides a detailed guide to the RESTful API endpoints available in the DesktopMatePlus backend.
+## 1. Synopsis
 
-## Base URL
+- **Purpose**: RESTful API for STM, TTS, and VLM services
+- **I/O**: HTTP requests → JSON responses
 
-All API endpoints are prefixed with `/v1`.
+## 2. Core Logic
 
-- **Development Server**: `http://127.0.0.1:5500/v1`
+### Base URL
 
-## Endpoints
-
-The REST API is organized by service.
+- **Development**: `http://127.0.0.1:5500/v1`
 
 ### Short-Term Memory (STM)
 
-The STM service is responsible for managing chat history.
-
-- **[List Sessions](./STM_ListSessions.md)**: `GET /stm/sessions`
-- **[Get Chat History](./STM_GetChatHistory.md)**: `GET /stm/chat-history`
-- **[Add Chat History](./STM_AddChatHistory.md)**: `POST /stm/chat-history`
-- **[Update Session Metadata](./STM_UpdateSessionMetadata.md)**: `PATCH /stm/sessions/{session_id}/metadata`
-- **[Delete Session](./STM_DeleteSession.md)**: `DELETE /stm/sessions/{session_id}`
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/stm/sessions` | GET | [List Sessions](./STM_ListSessions.md) |
+| `/stm/chat-history` | GET | [Get Chat History](./STM_GetChatHistory.md) |
+| `/stm/chat-history` | POST | [Add Chat History](./STM_AddChatHistory.md) |
+| `/stm/sessions/{session_id}/metadata` | PATCH | [Update Metadata](./STM_UpdateSessionMetadata.md) |
+| `/stm/sessions/{session_id}` | DELETE | [Delete Session](./STM_DeleteSession.md) |
 
 ### Text-to-Speech (TTS)
 
-The TTS service converts text into audible speech.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/tts/synthesize` | POST | [Synthesize Speech](./TTS_Synthesize.md) |
 
-- **[Synthesize Speech](./TTS_Synthesize.md)**: `POST /tts/synthesize`
+### Vision-Language Model (VLM)
 
-### Vision and Language Model (VLM)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/vlm/analyze` | POST | [Analyze Image](./VLM_Analyze.md) |
 
-The VLM service analyzes images and provides descriptions or answers questions about them.
+## 3. Usage
 
-- **[Analyze Image](./VLM_Analyze.md)**: `POST /vlm/analyze`
+```bash
+# Example: Synthesize speech
+curl -X POST "http://127.0.0.1:5500/v1/tts/synthesize" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello!", "output_format": "base64"}'
+```
+
+---
+
+## Appendix
+
+### A. Related Documents
+
+- [WebSocket API Guide](../websocket/WEBSOCKET_API_GUIDE.md)
+- [Service Layer](../feature/service/README.md)
