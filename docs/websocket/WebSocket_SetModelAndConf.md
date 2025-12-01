@@ -25,7 +25,8 @@ Server → Client
   },
   "conf_name": "Mao Pro",
   "conf_uid": "mao-pro-001",
-  "client_uid": "client-123"
+  "client_uid": "client-123",
+  "persona_prompt": "You are a friendly virtual assistant named Mao."
 }
 ```
 
@@ -38,6 +39,7 @@ Server → Client
 | `conf_name` | string | Yes | Configuration display name |
 | `conf_uid` | string | Yes | Configuration unique ID |
 | `client_uid` | string | Yes | Client unique ID |
+| `persona_prompt` | string | Yes | Persona prompt for the agent |
 
 ### Behavior
 
