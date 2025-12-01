@@ -1,10 +1,10 @@
 # REST API Guide
 
-Updated: 2025-11-28
+Updated: 2025-12-01
 
 ## 1. Synopsis
 
-- **Purpose**: RESTful API for STM, TTS, and VLM services
+- **Purpose**: RESTful API for STM, LTM, TTS, and VLM services
 - **I/O**: HTTP requests → JSON responses
 
 ## 2. Core Logic
@@ -22,6 +22,14 @@ Updated: 2025-11-28
 | `/stm/chat-history` | POST | [Add Chat History](./STM_AddChatHistory.md) |
 | `/stm/sessions/{session_id}/metadata` | PATCH | [Update Metadata](./STM_UpdateSessionMetadata.md) |
 | `/stm/sessions/{session_id}` | DELETE | [Delete Session](./STM_DeleteSession.md) |
+
+### Long-Term Memory (LTM)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/ltm/add_memory` | POST | [Add Memory](./LTM_AddMemory.md) |
+| `/ltm/search_memory` | POST | [Search Memory](./LTM_SearchMemory.md) |
+| `/ltm/delete_memory` | DELETE | [Delete Memory](./LTM_DeleteMemory.md) |
 
 ### Text-to-Speech (TTS)
 
