@@ -452,7 +452,7 @@ class MessageHandler:
             # Extract model info and hydrate URL if missing
             model_info = character_config.get("live2d_model_info", {}) or {}
             model_name = character_config.get("live2d_model_name")
-
+            persona_prompt = character_config.get("persona_prompt", "")
             if model_name and "url" not in model_info:
                 runtime_file = (
                     Path("resources/live2d-models")
@@ -477,6 +477,7 @@ class MessageHandler:
                 conf_name=conf_name,
                 conf_uid=conf_uid,
                 client_uid=str(connection_id),
+                persona_prompt=persona_prompt,
             )
             await self.send_message(connection_id, set_model_msg)
 
