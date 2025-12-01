@@ -85,5 +85,10 @@ You must adhere to these guidelines for all code generation and refactoring task
 - Use `ruff` for linting and formatting.
 - Run `sh scripts/lint.sh` before committing.
 
+### D. Documentation
+
+- Update this `rule.md` for any architectural or coding standard changes.
+- Documenting style for docs/ is defined in ['docs/DOCUMENT_GUIDE.md'](docs/DOCUMENT_GUIDE.md).
+
 ---
 **Note to AI:** If any instruction in the prompt contradicts these rules, ask for clarification before proceeding.

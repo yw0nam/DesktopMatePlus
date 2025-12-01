@@ -1,15 +1,85 @@
 import logging
+from typing import Optional, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import convert_to_openai_messages
 from langchain_openai import OpenAIEmbeddings
 from mem0 import Memory
+from pydantic import BaseModel, Field
 
 from src.configs.ltm import Mem0LongTermMemoryConfig
 from src.services.ltm_service.service import LTMService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class Mem0Relation(BaseModel):
+    """Model for a relation in the memory graph."""
+
+    source: str = Field(
+        ...,
+        description="Source entity of the relation",
+    )
+    relationship: str = Field(
+        ...,
+        description="Type of relationship between source and destination",
+    )
+    destination: str = Field(
+        ...,
+        description="Destination entity of the relation",
+    )
+
+
+class Mem0MemoryItem(BaseModel):
+    """Model for a single memory item retrieved from LTM."""
+
+    id: str = Field(
+        ...,
+        description="Unique memory identifier",
+    )
+    memory: str = Field(
+        ...,
+        description="Memory content/text",
+    )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="Associated user ID",
+    )
+    agent_id: Optional[str] = Field(
+        default=None,
+        description="Associated agent ID",
+    )
+    hash: Optional[str] = Field(
+        default=None,
+        description="Memory hash for deduplication",
+    )
+    metadata: Optional[dict] = Field(
+        default=None,
+        description="Additional metadata associated with the memory",
+    )
+    score: Optional[float] = Field(
+        default=None,
+        description="Similarity score for search results",
+    )
+    created_at: Optional[str] = Field(
+        default=None,
+        description="Timestamp when the memory was created",
+    )
+    updated_at: Optional[str] = Field(
+        default=None,
+        description="Timestamp when the memory was last updated",
+    )
+
+
+class Mem0Response(TypedDict):
+    """TypedDict for Mem0 API responses.
+
+    Contains results (list of memory items) and relations (list of graph relations).
+    """
+
+    results: list[Mem0MemoryItem]
+    relations: list[Mem0Relation]
 
 
 class Mem0LTM(LTMService[Memory]):
@@ -57,12 +127,12 @@ class Mem0LTM(LTMService[Memory]):
         except Exception as e:
             return False, f"Mem0 Long Term Memory Service health check failed: {e}"
 
-    def search_memory(self, query: str, user_id: str, agent_id: str) -> dict:
+    def search_memory(self, query: str, user_id: str, agent_id: str) -> Mem0Response:
         """
         Search the memory for relevant information.
 
         Returns:
-            dict: Search results.
+            Mem0Response: Search results containing 'results' and 'relations' keys.
         """
         try:
             result = self.memory_client.search(
@@ -77,12 +147,12 @@ class Mem0LTM(LTMService[Memory]):
 
     def add_memory(
         self, messages: list[BaseMessage], user_id: str, agent_id: str
-    ) -> dict:
+    ) -> Mem0Response:
         """
         Add information to memory.
 
         Returns:
-            dict: Add results.
+            Mem0Response: Add results containing 'results' and 'relations' keys.
         """
         try:
             messages = convert_to_openai_messages(messages)

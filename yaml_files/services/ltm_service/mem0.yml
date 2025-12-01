@@ -7,7 +7,7 @@ ltm_config:
     llm:
       provider: "openai"
       config:
-        openai_base_url: "http://localhost:55235/v1"
+        openai_base_url: "http://localhost:5530/v1"
         model: "chat_model"
         enable_vision: true
         # api_key: "${LTM_API_KEY}"

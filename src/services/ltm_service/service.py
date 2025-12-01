@@ -43,7 +43,11 @@ class LTMService(ABC, Generic[MemoryClientType]):
         Search the long term memory for relevant information.
 
         Returns:
-            dict: Search results.
+            dict: Search results. Note it always have below structure.
+                {
+                    'results': [ ... ],  # List of memory items
+                    'relations': [ ... ] # List of relations extracted from the memory
+                }
         """
 
     @abstractmethod
@@ -54,7 +58,11 @@ class LTMService(ABC, Generic[MemoryClientType]):
         Add long term information to memory.
 
         Returns:
-            dict: Add results.
+            dict: Add results. Note it always have below structure.
+                {
+                    'results': [ ... ],  # List of added memory entries
+                    'relations': [ ... ] # List of relations extracted from the memory
+                }
         """
 
     @abstractmethod

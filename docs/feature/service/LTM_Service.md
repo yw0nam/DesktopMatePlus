@@ -97,6 +97,63 @@ ltm.delete_memory(
 )
 ```
 
+## 4. Output Examples
+
+### Memory Add Output (`add_memory`)
+
+- output format: dict
+- Note, this structure may vary based on LTM service.
+
+```python
+{
+    'results': [
+        {
+            'id': '146b2c68-0770-45ae-8710-6612d4bb5303',
+            'memory': 'Name is Nanami',
+            'event': 'ADD'
+        },
+        # ... more memory items
+    ],
+    'relations': {
+        'deleted_entities': [[], [], []],
+        'added_entities': [
+            [{'source': 'nanami', 'relationship': 'is', 'target': 'researcher'}],
+            # ... more relations
+        ]
+    }
+}
+```
+
+### Memory Search Output (`search_memory`)
+
+- output format: dict
+- Note, this structure may vary based on LTM service.
+
+```python
+{
+    'results': [
+        {
+            'id': 'eb47bffb-95a8-4bc5-a24b-70a0d9c4a9c1',
+            'memory': 'Yuri is a Live2D desktop girl',
+            'hash': '9b5a5a1fcb7632d250d995a7367a021d',
+            'metadata': None,
+            'score': 0.57437557,
+            'created_at': '2025-11-30T21:13:00.607828-08:00',
+            'updated_at': None,
+            'user_id': 'nanami_user',
+            'agent_id': 'yuri'
+        },
+        # ... more results
+    ],
+    'relations': [
+        {'source': 'nanami', 'relationship': 'is', 'destination': 'researcher'},
+        # ... more relations
+    ]
+}
+```
+
+**Note:** The output keys and structure may vary slightly depending on the underlying memory framework configuration, but generally follow a `{'results': [...], 'relations': [...]}` pattern.
+
 ---
 
 ## Appendix
