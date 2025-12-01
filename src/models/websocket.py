@@ -240,6 +240,7 @@ class SetModelAndConfMessage(BaseMessage):
     conf_name: str = Field(..., description="Configuration name")
     conf_uid: str = Field(..., description="Configuration UID")
     client_uid: str = Field(..., description="Client UID")
+    persona_prompt: str = Field(..., description="Persona prompt for the agent")
 
 
 # =================================================================================

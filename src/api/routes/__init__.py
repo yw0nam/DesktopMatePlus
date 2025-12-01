@@ -66,6 +66,8 @@ async def health_check(
     - VLM (Vision Language Model) service
     - TTS (Text-to-Speech) service
     - Agent (LangGraph) module
+    - LTM (Long-Term Memory) service
+    - STM (Short-Term Memory) service
 
     Returns:
         JSONResponse: Health status with appropriate HTTP status code
