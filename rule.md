@@ -83,7 +83,7 @@ You must adhere to these guidelines for all code generation and refactoring task
 ### C. Linting & Formatting
 
 - Use `ruff` for linting and formatting.
-- Run `sh scripts/lint.sh` before committing.
+- Run `sh scripts/lint.sh` before end the task.
 
 ### D. Documentation
 
