@@ -93,4 +93,3 @@ node_modules/
 .qwen/
 # Audio files
 *.wav
-resources/
