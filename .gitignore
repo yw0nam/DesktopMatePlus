@@ -88,8 +88,8 @@ node_modules/
 
 # Task Master (keep configs but ignore reports)
 .taskmaster
-.taskmaster
 # Qwen code
 .qwen/
 # Audio files
 *.wav
+static

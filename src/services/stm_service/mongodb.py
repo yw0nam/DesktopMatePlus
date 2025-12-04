@@ -12,6 +12,7 @@ from langchain_core.messages import (
     convert_to_openai_messages,
 )
 
+from src.services.agent_service.utils.message_util import strip_images_from_messages
 from src.services.stm_service.service import STMService
 
 # Configure logging
@@ -185,11 +186,9 @@ class MongoDBSTM(STMService[MongoDBClientType]):
                     {"$set": {"updated_at": datetime.now(timezone.utc)}},
                 )
 
-            # Serialize messages to dictionaries
+            # Serialize messages to dictionaries and strip images
             serialized_messages = convert_to_openai_messages(messages)
-            serialized_messages = self.image_manager.process_images(
-                serialized_messages, user_id
-            )
+            serialized_messages = strip_images_from_messages(serialized_messages)
 
             # Prepare message documents for MongoDB
             message_docs = []

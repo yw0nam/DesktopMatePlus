@@ -1,6 +1,6 @@
 # STM Configuration Fields
 
-Updated: 2025-11-28
+Updated: 2025-12-04
 
 ## 1. Synopsis
 
@@ -17,7 +17,8 @@ Updated: 2025-11-28
 | `database_name` | str | `"desktopmate_db"` | Database name |
 | `sessions_collection_name` | str | `"sessions"` | Sessions collection |
 | `messages_collection_name` | str | `"messages"` | Messages collection |
-| `base_dir` | str | `"static/images"` | Image storage directory |
+
+> **Note**: Images are not stored in STM. Only the current screen context matters for the agent, not the history of previous screens.
 
 ## 3. Usage
 
@@ -30,7 +31,6 @@ stm_config:
     database_name: "stm_db"
     sessions_collection_name: "sessions"
     messages_collection_name: "messages"
-    base_dir: "static/images"
 ```
 
 ---

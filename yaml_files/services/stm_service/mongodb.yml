@@ -1,8 +1,5 @@
-# OpenAI Compatible VLM Service Configuration
-# API credentials are loaded from environment variables (.env file):
-#   - VLM_API_KEY (optional, defaults to "dummy-key" for local servers)
-#   - VLM_BASE_URL (required, defaults to "http://localhost:8001")
-#   - VLM_MODEL_NAME (required, defaults to "chat_model")
+# MongoDB Short-Term Memory Service Configuration
+# Stores chat history and session data (text only, images are not persisted)
 
 stm_config:
   type: "mongodb"  # Service type for factory
@@ -11,4 +8,3 @@ stm_config:
     database_name: "stm_db"
     sessions_collection_name: "sessions"
     messages_collection_name: "messages"
-    base_dir: "static/images"  # Base directory for storing images

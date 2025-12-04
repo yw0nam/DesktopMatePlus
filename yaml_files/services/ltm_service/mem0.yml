@@ -9,20 +9,20 @@ ltm_config:
       config:
         openai_base_url: "http://localhost:5530/v1"
         model: "chat_model"
-        enable_vision: true
+        enable_vision: false
         # api_key: "${LTM_API_KEY}"
     embedder:
       provider: "langchain" # Currently only langchain is supported. This is compatible with OpenAI compatible embeddings API.
       config:
         openai_base_url: "http://localhost:5504/v1"
         model_name: "chat_model"
-        embedding_dims: 2560
+        embedding_dims: 1024
         # openai_api_key: "${EMB_API_KEY}"
     vector_store:
       provider: "qdrant"
       config:
         url: "localhost"
-        embedding_model_dims: 2560
+        embedding_model_dims: 1024
         collection_name: "ltm_collection"
     graph_store:
       provider: "neo4j"

@@ -1,11 +1,13 @@
 # STM Service (Short-Term Memory)
 
-Updated: 2025-11-28
+Updated: 2025-12-04
 
 ## 1. Synopsis
 
 - **Purpose**: Session-based chat history and conversation management using MongoDB
 - **I/O**: User/Agent IDs + Messages → Stored sessions and chat history
+
+> **Note**: Images are stripped from messages before storage. Only text content is preserved in chat history. This is because the current screen context matters for the agent, not the history of previous screens.
 
 ## 2. Core Logic
 
@@ -34,11 +36,11 @@ Updated: 2025-11-28
     "metadata": {}
 }
 
-# Message (OpenAI-compatible format)
+# Message (OpenAI-compatible format, text only)
 {
     "session_id": "uuid",
     "role": "user|assistant|system",
-    "content": "...",
+    "content": "...",  # Images are stripped, only text is stored
     "timestamp": datetime
 }
 ```
@@ -47,7 +49,7 @@ Updated: 2025-11-28
 
 - MongoDB-backed storage
 - Separate collections for sessions and messages
-- Image storage via `LocalImageManager`
+- Images are stripped from messages (text only storage)
 - OpenAI-compatible message format
 
 ### Configuration
@@ -61,7 +63,6 @@ stm_config:
     database_name: "stm_db"
     sessions_collection_name: "sessions"
     messages_collection_name: "messages"
-    base_dir: "static/images"
 ```
 
 ## 3. Usage

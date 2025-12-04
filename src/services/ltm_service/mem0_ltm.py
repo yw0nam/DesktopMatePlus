@@ -8,6 +8,7 @@ from mem0 import Memory
 from pydantic import BaseModel, Field
 
 from src.configs.ltm import Mem0LongTermMemoryConfig
+from src.services.agent_service.utils.message_util import strip_images_from_messages
 from src.services.ltm_service.service import LTMService
 
 logging.basicConfig(level=logging.INFO)
@@ -146,7 +147,7 @@ class Mem0LTM(LTMService[Memory]):
         return result
 
     def add_memory(
-        self, messages: list[BaseMessage], user_id: str, agent_id: str
+        self, messages: list[BaseMessage] | str, user_id: str, agent_id: str
     ) -> Mem0Response:
         """
         Add information to memory.
@@ -185,6 +186,13 @@ class Mem0LTM(LTMService[Memory]):
             #                     if not item["text"].startswith(prefix):
             #                         item["text"] = prefix + item["text"]
             #                     break  # Only prefix the first text item
+
+            # TODO: Make description using vlm service?
+            # But, in that case, latency can be a concern..
+            if (
+                not self.memory_config.llm.config.enable_vision
+            ):  # If vision is not enabled, remove image_url items from messages
+                messages = strip_images_from_messages(messages)
 
             result = self.memory_client.add(
                 messages,

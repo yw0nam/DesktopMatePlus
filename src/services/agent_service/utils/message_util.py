@@ -197,3 +197,39 @@ async def process_message(
             "type": "error",
             "message": f"메시지 처리 중 오류가 발생했습니다.{str(e)}",
         }
+
+
+def strip_images_from_messages(messages: list[dict]) -> list[dict]:
+    """
+    Strip image content from messages, keeping only text.
+
+    Args:
+        messages: List of OpenAI-format message dictionaries
+
+    Returns:
+        list[dict]: Messages with images removed
+    """
+    stripped = []
+    for msg in messages:
+        msg_copy = msg.copy()
+        content = msg_copy.get("content")
+
+        if isinstance(content, list):
+            # Filter out image_url items, keep only text
+            text_items = [
+                item
+                for item in content
+                if not (isinstance(item, dict) and item.get("type") == "image_url")
+            ]
+
+            # If only text items remain, simplify to string if single text
+            if len(text_items) == 1 and text_items[0].get("type") == "text":
+                msg_copy["content"] = text_items[0].get("text", "")
+            elif text_items:
+                msg_copy["content"] = text_items
+            else:
+                # All content was images, set to empty string
+                msg_copy["content"] = ""
+
+        stripped.append(msg_copy)
+    return stripped

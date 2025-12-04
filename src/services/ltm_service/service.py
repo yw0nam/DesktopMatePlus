@@ -52,7 +52,7 @@ class LTMService(ABC, Generic[MemoryClientType]):
 
     @abstractmethod
     def add_memory(
-        self, messages: list[BaseMessage], user_id: str, agent_id: str
+        self, messages: list[BaseMessage] | str, user_id: str, agent_id: str
     ) -> dict:
         """
         Add long term information to memory.
