@@ -225,7 +225,7 @@ class MessageHandler:
                     content.extend(image_dicts)
 
             message_history.append(HumanMessage(content=content))
-            # TODO: Add tools support here
+            # TODO: Add Custom tools support here
             # Use persistent user_id for client_id instead of connection-based ID
 
             agent_stream = agent_service.stream(

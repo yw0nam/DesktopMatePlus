@@ -212,10 +212,7 @@ class MessageProcessor:
                 interrupted_count += 1
 
         logger.info(
-            "Interrupted %d active turns for connection %s. Reason: %s",
-            interrupted_count,
-            self.connection_id,
-            reason,
+            f"Interrupted {interrupted_count} active turns for connection {self.connection_id}. Reason: {reason}",
         )
         return interrupted_count
 
