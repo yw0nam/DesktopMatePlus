@@ -523,12 +523,26 @@ async def forward_turn_events(
 
     try:
         async for event in message_processor.stream_events(turn_id):
+            event_type = event.get("type")
+            logger.debug(
+                "Forwarding event %s for turn %s to connection %s",
+                event_type,
+                turn_id,
+                connection_id,
+            )
             try:
-                await websocket.send_text(json.dumps(event, default=str))
+                event_json = json.dumps(event, default=str)
+                await websocket.send_text(event_json)
+                logger.info(
+                    "Sent %s event to connection %s (turn %s)",
+                    event_type,
+                    connection_id,
+                    turn_id,
+                )
             except Exception as send_error:  # noqa: BLE001
                 logger.error(
                     "Failed to send event %s for turn %s on connection %s: %s",
-                    event.get("type"),
+                    event_type,
                     turn_id,
                     connection_id,
                     send_error,

@@ -51,6 +51,10 @@ class EventHandler:
                 if event_type == "stream_end":
                     await self._signal_token_stream_closed(turn_id)
                     await self._wait_for_token_queue(turn_id)
+                    logger.info(
+                        "Emitting stream_end for turn %s (all TTS chunks processed)",
+                        turn_id,
+                    )
                     await self.processor._put_event(turn_id, event)
                     await self.processor.complete_turn(turn_id)
                     continue
@@ -155,38 +159,94 @@ class EventHandler:
             logger.debug("Token event missing chunk data: %s", token_event)
             return
 
+        logger.debug(
+            "Processing token chunk for turn %s: %s (len=%d)",
+            turn_id,
+            repr(chunk[:50]) if len(chunk) > 50 else repr(chunk),
+            len(chunk),
+        )
+
+        sentence_count = 0
         for sentence in turn.chunk_processor.process(chunk):
+            sentence_count += 1
+            logger.debug(
+                "Chunk processor yielded sentence %d for turn %s: %s (len=%d)",
+                sentence_count,
+                turn_id,
+                repr(sentence[:50]) if len(sentence) > 50 else repr(sentence),
+                len(sentence),
+            )
+
             processed = turn.tts_processor.process(sentence)
             text = processed.filtered_text
             if not text or not any(char.isalnum() for char in text):
+                logger.debug(
+                    "Filtered text is empty or has no alnum chars for turn %s",
+                    turn_id,
+                )
                 continue
+
             tts_event = self._build_tts_event(
                 turn_id,
                 token_event,
                 text,
                 processed.emotion_tag,
             )
+            logger.info(
+                "Emitting tts_ready_chunk for turn %s: %s (len=%d, emotion=%s)",
+                turn_id,
+                repr(text[:50]) if len(text) > 50 else repr(text),
+                len(text),
+                processed.emotion_tag,
+            )
             await self.processor._put_event(turn_id, tts_event)
+
+        if sentence_count == 0:
+            logger.debug(
+                "No sentences yielded from chunk for turn %s (chunk buffered)",
+                turn_id,
+            )
 
     async def _flush_tts_buffer(self, turn_id: str) -> None:
         """Flush any remaining buffered text for a turn."""
         turn = self.processor.turns.get(turn_id)
         if not turn or not turn.chunk_processor or not turn.tts_processor:
+            logger.debug(
+                "Cannot flush TTS buffer for turn %s (missing turn/processors)", turn_id
+            )
             return
 
         remainder = turn.chunk_processor.flush()
         if not remainder:
+            logger.debug("No remainder to flush for turn %s", turn_id)
             return
+
+        logger.debug(
+            "Flushing TTS buffer for turn %s: %s (len=%d)",
+            turn_id,
+            repr(remainder[:50]) if len(remainder) > 50 else repr(remainder),
+            len(remainder),
+        )
 
         processed = turn.tts_processor.process(remainder)
         text = processed.filtered_text
         if not text or not any(char.isalnum() for char in text):
+            logger.debug(
+                "Flushed text is empty or has no alnum chars for turn %s", turn_id
+            )
             return
 
         tts_event = self._build_tts_event(
             turn_id,
             {},
             text,
+            processed.emotion_tag,
+        )
+        logger.info(
+            "Emitting flushed tts_ready_chunk for turn %s: %s (len=%d, emotion=%s)",
+            turn_id,
+            repr(text[:50]) if len(text) > 50 else repr(text),
+            len(text),
             processed.emotion_tag,
         )
         await self.processor._put_event(turn_id, tts_event)
@@ -241,14 +301,16 @@ class EventHandler:
         turn.token_stream_closed = True
 
     async def _wait_for_token_queue(self, turn_id: str) -> None:
-        """Wait for the token queue to drain pending items."""
+        """Wait for the token queue to drain and consumer to finish processing."""
         turn = self.processor.turns.get(turn_id)
         queue = turn.token_queue if turn else None
         if not queue:
             return
 
+        # First, wait for all items to be removed from queue
         try:
             await asyncio.wait_for(queue.join(), timeout=INTERRUPT_WAIT_TIMEOUT)
+            logger.debug("Token queue drained for turn %s", turn_id)
         except asyncio.TimeoutError:
             logger.debug(
                 "Timed out waiting for token queue join for turn %s",
@@ -262,6 +324,26 @@ class EventHandler:
                 turn_id,
                 exc,
             )
+
+        # Then, wait for consumer task to finish (flush buffer, emit final chunks)
+        consumer_task = turn.token_consumer_task if turn else None
+        if consumer_task and not consumer_task.done():
+            try:
+                await asyncio.wait_for(consumer_task, timeout=INTERRUPT_WAIT_TIMEOUT)
+                logger.debug("Token consumer finished for turn %s", turn_id)
+            except asyncio.TimeoutError:
+                logger.debug(
+                    "Timed out waiting for token consumer for turn %s",
+                    turn_id,
+                )
+            except asyncio.CancelledError:  # pragma: no cover - defensive
+                raise
+            except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+                logger.debug(
+                    "Error waiting for token consumer for turn %s: %s",
+                    turn_id,
+                    exc,
+                )
 
     async def _log_tool_call(self, turn_id: str, event: Dict[str, Any]) -> None:
         """Log tool call event with structured metadata.

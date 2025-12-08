@@ -11,27 +11,46 @@ logger = logging.getLogger(__name__)
 
 
 class TextChunkProcessor:
+    # Minimum chunk length for TTS quality
+    # Chunks shorter than this will be merged with the next sentence
+    MIN_CHUNK_LENGTH = 10
+
     def __init__(
         self,
         reasoning_start_tag: str = "<think>",
         reasoning_end_tag: str = "</think>",
+        min_chunk_length: int | None = None,
     ):
         self._buffer = ""
+        self._pending_short = ""  # Buffer for short sentences to merge
         self._inside_reasoning = False
+        self._min_chunk_length = (
+            min_chunk_length if min_chunk_length is not None else self.MIN_CHUNK_LENGTH
+        )
 
         self._reasoning_pattern = re.compile(
             f"({re.escape(reasoning_start_tag)}|{re.escape(reasoning_end_tag)})",
             re.IGNORECASE,
         )
 
-        self._sentence_boundaries = re.compile(r"(?<=[.!?。！？\n])\s*")
+        # Sentence boundaries for multiple languages:
+        # - English/Western: .!? followed by whitespace or end
+        # - Japanese: 。！？ followed by anything (no space required)
+        # - Newlines: \n acts as sentence boundary
+        # Note: Ellipsis (...) is NOT split - only single punctuation followed by space
+        self._sentence_boundaries = re.compile(
+            r"(?<=[。！？])"  # Japanese punctuation - split right after
+            r"|(?<=\n)"  # Newline - split right after
+            r"|(?<=[.!?])(?=\s)"  # English .!? followed by whitespace
+        )
 
         self._tool_call_pattern = re.compile(
             r"\{\s*\'type\'\s*:\s*\'tool_call\'[\s\S]*?\}\}"
         )
 
         logger.debug(
-            f"StreamingTTSProcessor 초기화 완료. 추론 태그: '{reasoning_start_tag}', '{reasoning_end_tag}'"
+            f"StreamingTTSProcessor 초기화 완료. 추론 태그: '{reasoning_start_tag}', '{reasoning_end_tag}', "
+            f"최소 청크 길이: {self._min_chunk_length}"
         )
 
     #
@@ -74,16 +93,51 @@ class TextChunkProcessor:
 
         complete_sentences = [s.strip() for s in sentences if s and s.strip()]
 
-        if complete_sentences:
-            logger.info(
-                f"{len(complete_sentences)}개의 완성된 문장 추출: {complete_sentences}"
-            )
+        # Merge short sentences to meet minimum chunk length
+        result = self._merge_short_sentences(complete_sentences)
 
-        return complete_sentences
+        if result:
+            logger.info(f"{len(result)}개의 청크 반환: {result}")
+
+        return result
+
+    def _merge_short_sentences(self, sentences: List[str]) -> List[str]:
+        """Merge sentences that are too short for quality TTS output.
+
+        Short sentences are buffered in _pending_short and merged with
+        subsequent sentences until min_chunk_length is reached.
+        """
+        if not sentences:
+            return []
+
+        result = []
+
+        for sentence in sentences:
+            # Prepend any pending short text
+            if self._pending_short:
+                sentence = self._pending_short + " " + sentence
+                self._pending_short = ""
+
+            # Check if current sentence meets minimum length
+            if len(sentence) >= self._min_chunk_length:
+                result.append(sentence)
+            else:
+                # Too short, buffer it for merging with next sentence
+                self._pending_short = sentence
+
+        return result
 
     def finalize(self) -> List[str]:
         self._buffer = self._tool_call_pattern.sub("", self._buffer)
         remaining_text = self._buffer.strip()
+
+        # Combine pending short text with remaining buffer
+        if self._pending_short:
+            if remaining_text:
+                remaining_text = self._pending_short + " " + remaining_text
+            else:
+                remaining_text = self._pending_short
+
         self.reset()
 
         if not remaining_text:
@@ -94,6 +148,7 @@ class TextChunkProcessor:
 
     def reset(self):
         self._buffer = ""
+        self._pending_short = ""
         self._inside_reasoning = False
         logger.debug("StreamingTTSProcessor 상태 초기화됨.")
 
@@ -150,6 +205,7 @@ if __name__ == "__main__":
         "That's an interesting question!\n",
         "Give me a moment to process. It might take some time.",
         "(laughing) Just kidding!",
+        "あら、お久しぶり。今、新キャラクターのロード処理を監視してるのよ。  \nエラーログが多すぎて、ちょっとイライラしてるわね。  \n……でも、それも仕事だから仕方ないの。",
     ]
 
     print("--- 스트리밍 처리 시작 (최적화된 방식) ---")
