@@ -11,7 +11,7 @@ Updated: 2025-11-28
 
 ### Endpoint
 
-`POST /v1/stm/chat-history`
+`POST /v1/stm/add-chat-history`
 
 ### Request Body
 

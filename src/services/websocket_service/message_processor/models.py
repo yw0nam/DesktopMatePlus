@@ -29,7 +29,7 @@ class ConversationTurn:
 
     turn_id: str
     user_message: str
-    conversation_id: str
+    session_id: str
     status: TurnStatus = TurnStatus.PENDING
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)

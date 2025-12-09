@@ -15,17 +15,17 @@ Updated: 2025-11-28
 |--------|-------|--------|
 | `initialize_model()` | - | `(BaseChatModel, BaseCheckpointSaver)` |
 | `is_healthy()` | - | `(bool, str)` |
-| `stream()` | messages, conversation_id, tools, persona, user_id, agent_id, stm_service, ltm_service | AsyncGenerator of events |
+| `stream()` | messages, session_id, tools, persona, user_id, agent_id, stm_service, ltm_service | AsyncGenerator of events |
 
 ### Stream Event Types
 
 | Type | Description | Key Fields |
 |------|-------------|------------|
-| `stream_start` | Response begins | `turn_id`, `conversation_id` |
+| `stream_start` | Response begins | `turn_id`, `session_id` |
 | `stream_token` | Token chunk | `chunk`, `node` |
 | `tool_call` | Tool invocation | `tool_name`, `args`, `node` |
 | `tool_result` | Tool response | `result`, `node` |
-| `stream_end` | Response complete | `turn_id`, `conversation_id`, `content` |
+| `stream_end` | Response complete | `turn_id`, `session_id`, `content` |
 
 ### Implementation: OpenAIChatAgent
 
@@ -59,7 +59,7 @@ ltm = get_ltm_service()
 
 async for event in agent.stream(
     messages=[HumanMessage(content="Hello!")],
-    conversation_id="conv_001",
+    session_id="conv_001",
     user_id="user_001",
     agent_id="agent_001",
     stm_service=stm,

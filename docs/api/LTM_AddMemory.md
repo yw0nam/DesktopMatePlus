@@ -54,6 +54,8 @@ Updated: 2025-12-01
 
 ## 3. Usage
 
+- Note, request url can be varying based on your server address and port.
+
 ```bash
 curl -X POST "http://127.0.0.1:5500/v1/ltm/add_memory" \
   -H "Content-Type: application/json" \

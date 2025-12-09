@@ -11,7 +11,7 @@ Updated: 2025-11-28
 
 ### Endpoint
 
-`GET /v1/stm/chat-history`
+`GET /v1/stm/get-chat-history`
 
 ### Query Parameters
 

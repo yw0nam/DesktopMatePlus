@@ -146,9 +146,9 @@ async def mock_agent_stream_with_error() -> AsyncIterator[Dict[str, Any]]:
 @pytest.mark.asyncio
 async def test_tool_events_not_sent_to_client(processor: MessageProcessor):
     """Test that tool events are not forwarded to the client event stream."""
-    conversation_id = "test_conv_123"
+    session_id = "test_conv_123"
     turn_id = await processor.start_turn(
-        conversation_id=conversation_id,
+        session_id=session_id,
         user_input="Test message",
         agent_stream=mock_agent_stream_with_tools(),
     )
@@ -176,9 +176,9 @@ async def test_tool_events_are_logged_with_metadata(
     processor: MessageProcessor, log_handler: MockLogHandler
 ):
     """Test that tool events are logged with structured metadata."""
-    conversation_id = "test_conv_456"
+    session_id = "test_conv_456"
     turn_id = await processor.start_turn(
-        conversation_id=conversation_id,
+        session_id=session_id,
         user_input="Test message",
         agent_stream=mock_agent_stream_with_tools(),
     )
@@ -204,7 +204,7 @@ async def test_tool_events_are_logged_with_metadata(
 
     # Verify tool_call log has required fields
     tool_call_log = tool_call_logs[0]
-    assert tool_call_log.get("conversation_id") == conversation_id
+    assert tool_call_log.get("session_id") == session_id
     assert tool_call_log.get("turn_id") == turn_id
     assert tool_call_log.get("tool_name") == "search_documents"
     assert "query" in tool_call_log.get("args", "")
@@ -218,7 +218,7 @@ async def test_tool_events_are_logged_with_metadata(
 
     # Verify tool_result log has required fields
     tool_result_log = tool_result_logs[0]
-    assert tool_result_log.get("conversation_id") == conversation_id
+    assert tool_result_log.get("session_id") == session_id
     assert tool_result_log.get("turn_id") == turn_id
     assert tool_result_log.get("tool_name") is not None
     assert tool_result_log.get("status") in ["success", "error"]
@@ -231,9 +231,9 @@ async def test_tool_duration_is_captured(
     processor: MessageProcessor, log_handler: MockLogHandler
 ):
     """Test that tool execution duration is logged in milliseconds."""
-    conversation_id = "test_conv_789"
+    session_id = "test_conv_789"
     turn_id = await processor.start_turn(
-        conversation_id=conversation_id,
+        session_id=session_id,
         user_input="Test message",
         agent_stream=mock_agent_stream_with_tools(),
     )
@@ -273,9 +273,9 @@ async def test_tool_error_status_detected(
     processor: MessageProcessor, log_handler: MockLogHandler
 ):
     """Test that tool errors are detected and logged with error status."""
-    conversation_id = "test_conv_error"
+    session_id = "test_conv_error"
     turn_id = await processor.start_turn(
-        conversation_id=conversation_id,
+        session_id=session_id,
         user_input="Test message",
         agent_stream=mock_agent_stream_with_error(),
     )
@@ -335,9 +335,9 @@ async def test_multiple_tools_in_sequence(
 
         yield {"type": "stream_end"}
 
-    conversation_id = "test_conv_multi"
+    session_id = "test_conv_multi"
     turn_id = await processor.start_turn(
-        conversation_id=conversation_id,
+        session_id=session_id,
         user_input="Test message",
         agent_stream=multi_tool_stream(),
     )
@@ -372,7 +372,7 @@ async def test_json_log_format(log_handler: MockLogHandler):
     logger.info(
         "Test tool log",
         extra={
-            "conversation_id": "test_123",
+            "session_id": "test_123",
             "turn_id": "turn_456",
             "tool_name": "test_tool",
             "args": '{"test": "value"}',
@@ -401,7 +401,7 @@ async def test_json_log_format(log_handler: MockLogHandler):
     if "extra" in extra:
         extra = extra["extra"]
 
-    assert extra.get("conversation_id") == "test_123"
+    assert extra.get("session_id") == "test_123"
     assert extra.get("turn_id") == "turn_456"
     assert extra.get("tool_name") == "test_tool"
     assert extra.get("status") == "success"

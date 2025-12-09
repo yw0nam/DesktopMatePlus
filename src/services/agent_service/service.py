@@ -56,7 +56,7 @@ class AgentService(ABC):
     async def stream(
         self,
         messages: list[BaseMessage],
-        conversation_id: str = "default_conversation",
+        session_id: str = "",
         tools: Optional[list[BaseTool]] = None,
         persona: str = "",
         user_id: str = "default_user",
@@ -72,7 +72,7 @@ class AgentService(ABC):
                 {
                     "type": "stream_start",
                     "turn_id": "unique_turn_id",
-                    "conversation_id": conversation_id,
+                    "session_id": session_id,
                 }
             For agent streaming response:
                 {
@@ -97,7 +97,7 @@ class AgentService(ABC):
                 {
                     "type": "stream_end",
                     "turn_id": "unique_turn_id",
-                    "conversation_id": conversation_id,
+                    "session_id": session_id,
                     "content": "final complete message",
                 }
             For error handling:
@@ -108,7 +108,7 @@ class AgentService(ABC):
 
         Args:
             messages (list[BaseMessage]): The messages to include in the request.
-            conversation_id (str): conversation  identifier.
+            session_id (str): conversation  identifier.
             tools (Optional[list[BaseTool]]): Additional tools for the agent.
             user_id (str): Persistent user identifier for memory tool.
             agent_id (str): Persistent agent identifier for memory tool.
@@ -119,7 +119,58 @@ class AgentService(ABC):
             dict: The model's response stream.
         """
 
-    async def save_memory(
+    def save_memory(
+        self,
+        new_chats: list[BaseMessage],
+        stm_service: STMService,
+        ltm_service: LTMService,
+        user_id: str,
+        agent_id: str,
+        session_id: str,
+    ):
+        """Save new chats to memory asynchronously.
+
+        This method runs in the background and does not block the response stream.
+        Uses asyncio.to_thread() to run blocking I/O operations in a thread pool.
+        Errors are logged but do not affect the client response.
+
+        Args:
+            new_chats (list[BaseMessage]): New chat messages to save.
+            stm_service (STMService): Short-Term memory service instance.
+            ltm_service (LTMService): Long-Term memory service instance.
+            user_id (str): Persistent user identifier for memory tool.
+            agent_id (str): Persistent agent identifier for memory tool.
+            session_id (str): Session identifier for the current conversation.
+        """
+
+        try:
+            if new_chats != [] and stm_service:
+                # Run blocking STM operation in thread pool
+                session_id = stm_service.add_chat_history(
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    messages=new_chats,
+                )
+                logger.info("Chat history saved to STM: %s", session_id)
+            # if new_chats != [] and ltm_service:
+            #     # Run blocking LTM operation in thread pool
+            #     # TODO: Need to be optimized this part.
+            #     # Add persona information to memory?...
+            #     ltm_result = ltm_service.add_memory(
+            #         messages=new_chats,
+            #         user_id=user_id,
+            #         agent_id=agent_id,
+            #     )
+            #     logger.info("Memory added to LTM: %s", ltm_result)
+            logger.info("Memory save completed for session %s", session_id)
+            return session_id
+        except Exception as e:
+            logger.error(
+                "Background memory save failed for session %s: %s", session_id, e
+            )
+
+    async def async_save_memory(
         self,
         new_chats: list[BaseMessage],
         stm_service: STMService,
@@ -155,17 +206,17 @@ class AgentService(ABC):
                     messages=new_chats,
                 )
                 logger.info("Chat history saved to STM: %s", stm_result)
-            if new_chats != [] and ltm_service:
-                # Run blocking LTM operation in thread pool
-                # TODO: Need to be optimized this part.
-                # Add persona information to memory?...
-                ltm_result = await asyncio.to_thread(
-                    ltm_service.add_memory,
-                    messages=new_chats,
-                    user_id=user_id,
-                    agent_id=agent_id,
-                )
-                logger.info("Memory added to LTM: %s", ltm_result)
+            # if new_chats != [] and ltm_service:
+            #     # Run blocking LTM operation in thread pool
+            #     # TODO: Need to be optimized this part.
+            #     # Add persona information to memory?...
+            #     ltm_result = await asyncio.to_thread(
+            #         ltm_service.add_memory,
+            #         messages=new_chats,
+            #         user_id=user_id,
+            #         agent_id=agent_id,
+            #     )
+            #     logger.info("Memory added to LTM: %s", ltm_result)
             logger.info("Memory save completed for session %s", session_id)
         except Exception as e:
             logger.error(

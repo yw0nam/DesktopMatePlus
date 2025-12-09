@@ -355,7 +355,7 @@ class EventHandler:
             event: The tool call event containing tool_name and args
         """
         turn = self.processor.turns.get(turn_id)
-        conversation_id = turn.conversation_id if turn else "unknown"
+        session_id = turn.session_id if turn else "unknown"
 
         # Extract tool information from event - handle both old nested and new flat structure
         # New flat structure
@@ -370,7 +370,7 @@ class EventHandler:
         logger.info(
             "Tool call started",
             extra={
-                "conversation_id": conversation_id,
+                "session_id": session_id,
                 "turn_id": turn_id,
                 "tool_name": tool_name,
                 "args": args,
@@ -388,7 +388,7 @@ class EventHandler:
             event: The tool result event
         """
         turn = self.processor.turns.get(turn_id)
-        conversation_id = turn.conversation_id if turn else "unknown"
+        session_id = turn.session_id if turn else "unknown"
 
         # Extract tool information - try to infer tool_name from recent calls
         data = event.get("result")
@@ -423,7 +423,7 @@ class EventHandler:
         logger.info(
             "Tool result received",
             extra={
-                "conversation_id": conversation_id,
+                "session_id": session_id,
                 "turn_id": turn_id,
                 "tool_name": tool_name,
                 "duration_ms": duration_ms,

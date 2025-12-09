@@ -89,7 +89,7 @@ socket.send(JSON.stringify({
     content: 'Hello!',
     user_id: 'user_001',
     agent_id: 'agent_001',
-    conversation_id: 'conv_001'
+    session_id: 'conv_001'
 }));
 ```
 

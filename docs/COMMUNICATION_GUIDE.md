@@ -20,7 +20,7 @@ Both the REST API and WebSocket connections require authentication. The backend 
 - **Agent**: The AI model that processes user input and generates responses.
 - **User**: The end-user interacting with the application. Identified by `user_id`.
 - **Agent ID**: Persistent agent identifier (`agent_id`) for multi-agent support.
-- **Session/Conversation**: A series of interactions between a user and an agent. A `conversation_id` is used to track this.
+- **Session/Conversation**: A series of interactions between a user and an agent. A `session_id` is used to track this.
 - **Turn**: A single user request and the agent's full response, which may include multiple messages or tool calls. A `turn_id` is used to track this.
 
 ## Typical Workflow
@@ -29,7 +29,7 @@ Both the REST API and WebSocket connections require authentication. The backend 
 1. Connect to WebSocket: ws://localhost:5500/v1/chat/stream
 2. Send 'authorize' message with token
 3. Receive 'authorize_success' with connection_id
-4. Send 'chat_message' with content, agent_id, user_id, conversation_id
+4. Send 'chat_message' with content, agent_id, user_id, session_id
 5. Receive 'stream_start'
 6. Receive multiple 'tts_ready_chunk' events (sentence-level text)
    → For each chunk, call POST /v1/tts/synthesize to get audio
@@ -72,12 +72,12 @@ Note, This memory rely on agent_id and user_id. If any of these change, the memo
 | `authorize_success` | Confirms successful authorization (includes `connection_id`) |
 | `authorize_error` | Indicates authorization failure |
 | `ping` | Heartbeat message from server |
-| `stream_start` | Beginning of agent response (includes `turn_id`, `conversation_id`) |
+| `stream_start` | Beginning of agent response (includes `turn_id`, `session_id`) |
 | `stream_token` | Internal token chunk (not typically used by clients) |
 | `tts_ready_chunk` | Complete sentence ready for TTS (includes `chunk`, optional `emotion`) |
 | `tool_call` | Agent is calling a tool (includes `tool_name`, `args`) |
 | `tool_result` | Result from tool execution |
-| `stream_end` | End of agent response (includes `turn_id`, `conversation_id`, `content`) |
+| `stream_end` | End of agent response (includes `turn_id`, `session_id`, `content`) |
 | `error` | Error message (includes `error`, optional `code`) |
 | `background_files` | List of available background files |
 | `avatar_config_files` | List of avatar configurations |

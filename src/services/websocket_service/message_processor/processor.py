@@ -65,7 +65,7 @@ class MessageProcessor:
 
     async def start_turn(
         self,
-        conversation_id: str,
+        session_id: str,
         user_input: str,
         *,
         agent_stream: Optional[AsyncIterator[Dict[str, Any]]] = None,
@@ -74,7 +74,7 @@ class MessageProcessor:
         """Start a new conversation turn.
 
         Args:
-            conversation_id: Logical conversation identifier.
+            session_id: Logical conversation identifier.
             user_input: Raw user input for the turn.
             agent_stream: Optional async iterator yielding AgentService events.
             metadata: Optional metadata for the turn.
@@ -91,7 +91,7 @@ class MessageProcessor:
             turn = ConversationTurn(
                 turn_id=turn_id,
                 user_message=user_input,
-                conversation_id=conversation_id,
+                session_id=session_id,
                 metadata=metadata or {},
             )
 
@@ -104,10 +104,10 @@ class MessageProcessor:
             self._current_turn_id = turn_id
             await self.update_turn_status(turn_id, TurnStatus.PROCESSING)
             logger.info(
-                "Started conversation turn %s for connection %s (conversation %s)",
+                "Started conversation turn %s for connection %s (session %s)",
                 turn_id,
                 self.connection_id,
-                conversation_id,
+                session_id,
             )
 
         self._task_manager.ensure_token_consumer(turn_id)
@@ -126,10 +126,10 @@ class MessageProcessor:
     ) -> str:
         """Backward compatible wrapper that generates a conversation id."""
 
-        conversation_id = metadata.get("conversation_id") if metadata else None
-        conversation_id = conversation_id or str(uuid4())
+        session_id = metadata.get("session_id") if metadata else None
+        session_id = session_id or str(uuid4())
         return await self.start_turn(
-            conversation_id=conversation_id,
+            session_id=session_id,
             user_input=user_message,
             metadata=metadata,
         )
@@ -591,20 +591,20 @@ class MessageProcessor:
         return normalized
 
     async def _default_agent_stream(
-        self, turn_id: str, conversation_id: str, user_input: str
+        self, turn_id: str, session_id: str, user_input: str
     ) -> AsyncIterator[Dict[str, Any]]:
         """Synthetic stream used when no agent is provided."""
 
         yield {
             "type": "stream_start",
             "turn_id": turn_id,
-            "conversation_id": conversation_id,
+            "session_id": session_id,
             "content": user_input,
         }
         yield {
             "type": "stream_end",
             "turn_id": turn_id,
-            "conversation_id": conversation_id,
+            "session_id": session_id,
         }
 
     def __del__(self):

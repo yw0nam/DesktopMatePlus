@@ -170,10 +170,12 @@ class MessageHandler:
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
             persona = message_data.get("persona")
-            conversation_id = message_data.get("conversation_id", str(uuid4()))
+            # Extract session_id from client (None for new conversations)
+            session_id = str(message_data.get("session_id"))
             message_limit = message_data.get("limit", 10)
             images = message_data.get("images", None)
             metadata = dict(message_data.get("metadata", {}) or {})
+
             # Validate required persistent identifiers
             if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
                 await self.send_message(
@@ -193,7 +195,19 @@ class MessageHandler:
                 )
                 return
 
-            metadata.setdefault("conversation_id", conversation_id)
+            # CRITICAL: Generate UUID for new conversations (when client sends None)
+            # This ensures a single UUID is used throughout the entire conversation turn
+            if session_id is None:
+                session_id = str(uuid4())
+                logger.info(
+                    f"Generated new session_id {session_id} for user {user_id}, agent {agent_id}"
+                )
+            else:
+                logger.info(
+                    f"Using existing session_id {session_id} for user {user_id}, agent {agent_id}"
+                )
+
+            metadata.setdefault("session_id", session_id)
             message_history = []
             # Retrieve long-term memories if available
             if ltm_service:
@@ -211,7 +225,7 @@ class MessageHandler:
                 message_history = stm_service.get_chat_history(
                     user_id=user_id,
                     agent_id=agent_id,
-                    session_id=conversation_id,
+                    session_id=session_id,
                     limit=message_limit,
                 )
 
@@ -230,7 +244,7 @@ class MessageHandler:
 
             agent_stream = agent_service.stream(
                 messages=message_history,
-                conversation_id=conversation_id,
+                session_id=session_id,
                 tools=[],  # TODO: support tools per agent
                 persona=persona,
                 user_id=user_id,
@@ -240,7 +254,7 @@ class MessageHandler:
             )
 
             turn_id = await connection_state.message_processor.start_turn(
-                conversation_id=conversation_id,
+                session_id=session_id,
                 user_input=content,
                 agent_stream=agent_stream,
                 metadata=metadata,

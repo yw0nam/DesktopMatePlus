@@ -24,12 +24,12 @@ class TestConversationTurn:
         turn = ConversationTurn(
             turn_id="test-turn",
             user_message="Hello",
-            conversation_id="conv-1",
+            session_id="conv-1",
         )
 
         assert turn.turn_id == "test-turn"
         assert turn.user_message == "Hello"
-        assert turn.conversation_id == "conv-1"
+        assert turn.session_id == "conv-1"
         assert turn.status == TurnStatus.PENDING
         assert turn.response_content == ""
         assert turn.error_message is None
@@ -43,7 +43,7 @@ class TestConversationTurn:
         turn = ConversationTurn(
             turn_id="test-turn",
             user_message="Hello",
-            conversation_id="conv-1",
+            session_id="conv-1",
         )
         initial_time = turn.updated_at
 
@@ -82,7 +82,7 @@ async def test_start_turn_initializes_queue_and_status(processor: MessageProcess
     turn_id = await processor.start_turn("conv-123", "Hello", metadata={"k": "v"})
 
     turn = processor.turns[turn_id]
-    assert turn.conversation_id == "conv-123"
+    assert turn.session_id == "conv-123"
     assert turn.metadata == {"k": "v"}
     assert turn.status == TurnStatus.PROCESSING
     assert turn.event_queue is not None
@@ -96,7 +96,7 @@ async def test_start_conversation_turn_wrapper(processor: MessageProcessor):
 
     turn_id = await processor.start_conversation_turn("Hi there")
     turn = processor.turns[turn_id]
-    assert turn.conversation_id
+    assert turn.session_id
     assert turn.status == TurnStatus.PROCESSING
 
 

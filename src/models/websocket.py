@@ -81,7 +81,7 @@ class ChatMessage(BaseMessage):
         default=10,
         description="Optional limit for short-term memory messages",
     )
-    conversation_id: Optional[UUID] = Field(
+    session_id: Optional[UUID] = Field(
         default=None,
         description="Persistent conversation identifier, First message in a new conversation if None, Note should be None or UUID",
     )
@@ -149,7 +149,7 @@ class StreamStartMessage(BaseMessage):
 
     type: MessageType = MessageType.STREAM_START
     turn_id: str
-    conversation_id: str
+    session_id: str
 
 
 class StreamTokenMessage(BaseMessage):
@@ -182,7 +182,7 @@ class StreamEndMessage(BaseMessage):
 
     type: MessageType = MessageType.STREAM_END
     turn_id: str
-    conversation_id: str
+    session_id: str
     content: str
 
 

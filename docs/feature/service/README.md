@@ -98,7 +98,7 @@ response = vlm.generate_response(
 
 ```python
 agent = get_agent_service()
-async for event in agent.stream(messages, conversation_id="conv_001"):
+async for event in agent.stream(messages, session_id="conv_001"):
     if event["type"] == "stream_token":
         print(event["chunk"], end="")
     elif event["type"] == "stream_end":

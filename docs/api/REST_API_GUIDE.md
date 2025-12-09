@@ -18,8 +18,8 @@ Updated: 2025-12-01
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/stm/sessions` | GET | [List Sessions](./STM_ListSessions.md) |
-| `/stm/chat-history` | GET | [Get Chat History](./STM_GetChatHistory.md) |
-| `/stm/chat-history` | POST | [Add Chat History](./STM_AddChatHistory.md) |
+| `/stm/get-chat-history` | GET | [Get Chat History](./STM_GetChatHistory.md) |
+| `/stm/add-chat-history` | POST | [Add Chat History](./STM_AddChatHistory.md) |
 | `/stm/sessions/{session_id}/metadata` | PATCH | [Update Metadata](./STM_UpdateSessionMetadata.md) |
 | `/stm/sessions/{session_id}` | DELETE | [Delete Session](./STM_DeleteSession.md) |
 

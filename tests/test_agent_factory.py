@@ -88,7 +88,7 @@ class TestOpenAIChatAgent:
         async def mock_stream(*args, **kwargs):
             yield {
                 "type": "stream_start",
-                "data": {"turn_id": "test", "conversation_id": "test"},
+                "data": {"turn_id": "test", "session_id": "test"},
             }
 
         agent_service.stream = mock_stream
@@ -148,7 +148,7 @@ class TestOpenAIChatAgent:
 
                 async for result in agent_service.stream(
                     messages=messages,
-                    conversation_id="test_client",
+                    session_id="test_client",
                     stm_service=mock_stm_service,
                     ltm_service=mock_ltm_service,
                 ):
@@ -211,7 +211,7 @@ class TestOpenAIChatAgent:
 
                 async for result in agent_service.stream(
                     messages=messages,
-                    conversation_id="test_client",
+                    session_id="test_client",
                     stm_service=mock_stm_service,
                     ltm_service=mock_ltm_service,
                 ):

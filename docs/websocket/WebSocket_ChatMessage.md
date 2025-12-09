@@ -21,7 +21,7 @@ Client → Server
   "content": "Hello, what's the weather?",
   "agent_id": "yuri-assistant",
   "user_id": "user-123",
-  "conversation_id": "optional-uuid"
+  "session_id": "optional-uuid"
 }
 ```
 
@@ -36,7 +36,7 @@ Client → Server
 | `persona` | string | No | Custom persona/system prompt |
 | `images` | array | No | Image URLs or base64 strings |
 | `limit` | integer | No | STM message limit (default: 10) |
-| `conversation_id` | string | No | Session ID (new if omitted) |
+| `session_id` | string | No | Session ID (new if omitted) |
 | `metadata` | object | No | Additional metadata |
 
 ### Response Flow

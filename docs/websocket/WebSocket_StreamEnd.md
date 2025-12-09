@@ -19,7 +19,7 @@ Server → Client
 {
   "type": "stream_end",
   "turn_id": "turn-uuid",
-  "conversation_id": "conv-uuid",
+  "session_id": "conv-uuid",
   "content": "Complete response text here."
 }
 ```
@@ -30,7 +30,7 @@ Server → Client
 |-------|------|----------|-------------|
 | `type` | string | Yes | Must be `"stream_end"` |
 | `turn_id` | string | Yes | Turn that completed |
-| `conversation_id` | string | Yes | Session identifier |
+| `session_id` | string | Yes | Session identifier |
 | `content` | string | Yes | Full aggregated response |
 
 ### Behavior

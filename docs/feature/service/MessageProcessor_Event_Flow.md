@@ -161,7 +161,7 @@ processor = MessageProcessor(
 # Start turn with agent stream
 turn_id = await processor.start_turn(
     user_message="Hello!",
-    conversation_id="conv-001",
+    session_id="conv-001",
     agent_stream=agent_service.stream_response(...)
 )
 
