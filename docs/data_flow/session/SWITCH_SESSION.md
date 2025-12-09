@@ -15,7 +15,7 @@ sequenceDiagram
     User->>FE: 특정 세션(Session Item) 클릭
 
     Note over FE, BE: Data Flow
-    FE->>BE: GET /v1/stm/chat-history
+    FE->>BE: GET /v1/stm/get-chat-history
     Note right of FE: params: { session_id, agent_id, user_id }
     activate BE
     BE-->>FE: Chat History 데이터 반환 (JSON)

@@ -1,6 +1,6 @@
 # STM: Get Chat History
 
-Updated: 2025-11-28
+Updated: 2025-12-09
 
 ## 1. Synopsis
 
@@ -40,7 +40,7 @@ Updated: 2025-11-28
 ## 3. Usage
 
 ```bash
-curl "http://127.0.0.1:5500/v1/stm/chat-history?user_id=user123&agent_id=agent456&session_id=abc123"
+curl "http://127.0.0.1:5500/v1/stm/get-chat-history?user_id=user123&agent_id=agent456&session_id=abc123"
 ```
 
 ---

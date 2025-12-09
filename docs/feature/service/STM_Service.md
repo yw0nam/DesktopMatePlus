@@ -51,6 +51,8 @@ Updated: 2025-12-04
 - Separate collections for sessions and messages
 - Images are stripped from messages (text only storage)
 - OpenAI-compatible message format
+- Idempotent session creation using MongoDB upsert operations
+- Session timestamps: `created_at` (set once), `updated_at` (refreshed on each update)
 
 ### Configuration
 

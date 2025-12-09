@@ -1,6 +1,6 @@
 # STM: Add Chat History
 
-Updated: 2025-11-28
+Updated: 2025-12-09
 
 ## 1. Synopsis
 
@@ -40,10 +40,17 @@ Updated: 2025-11-28
 
 **Errors**: `400` (validation), `503` (STM not initialized), `500` (internal)
 
+### Implementation Notes
+
+- Session creation uses MongoDB's `upsert` operation with `$setOnInsert` for idempotent session management
+- If `session_id` is provided and session exists, messages are appended and `updated_at` is refreshed
+- If `session_id` is provided but session doesn't exist, a new session is created with the given ID
+- The `created_at` timestamp is only set during initial session creation
+
 ## 3. Usage
 
 ```bash
-curl -X POST "http://127.0.0.1:5500/v1/stm/chat-history" \
+curl -X POST "http://127.0.0.1:5500/v1/stm/add-chat-history" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "user123",
