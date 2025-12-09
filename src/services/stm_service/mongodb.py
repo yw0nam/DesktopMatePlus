@@ -1,7 +1,6 @@
 """MongoDB implementation of Short-Term Memory service."""
 
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Optional, TypeVar
 
@@ -157,35 +156,25 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             str: The session_id (newly created or existing)
         """
         try:
-            # Generate new session_id if not provided
-            if session_id is None:
-                session_id = str(uuid.uuid4())
-                logger.info(f"Generated new session_id: {session_id}")
-
-                # Create new session document
-                session_doc = {
+            self._sessions_collection.update_one(
+                {
                     "session_id": session_id,
                     "user_id": user_id,
                     "agent_id": agent_id,
-                    "created_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc),
-                    "metadata": {},
-                }
-                self._sessions_collection.insert_one(session_doc)
-                logger.info(
-                    f"Created new session: {session_id} for user {user_id} and agent {agent_id}"
-                )
-            else:
-                # Update existing session's updated_at timestamp
-                self._sessions_collection.update_one(
-                    {
-                        "session_id": session_id,
-                        "user_id": user_id,
-                        "agent_id": agent_id,
+                },
+                {
+                    "$set": {
+                        # 업데이트/생성 시: 'updated_at'은 항상 현재 시각으로 설정
+                        "updated_at": datetime.now(timezone.utc),
                     },
-                    {"$set": {"updated_at": datetime.now(timezone.utc)}},
-                )
-
+                    "$setOnInsert": {
+                        # 생성 시에만: 'created_at'은 처음 생성되는 시각으로 설정
+                        "created_at": datetime.now(timezone.utc),
+                        "metadata": {},
+                    },
+                },
+                upsert=True,  # 세션이 없으면 새로 생성하도록 설정
+            )
             # Serialize messages to dictionaries and strip images
             serialized_messages = convert_to_openai_messages(messages)
             serialized_messages = strip_images_from_messages(serialized_messages)

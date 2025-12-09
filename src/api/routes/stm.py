@@ -22,7 +22,7 @@ router = APIRouter(prefix="/v1/stm", tags=["STM"])
 
 
 @router.post(
-    "/chat-history",
+    "/add-chat-history",
     response_model=AddChatHistoryResponse,
     summary="Add chat history",
     status_code=status.HTTP_201_CREATED,
@@ -108,7 +108,7 @@ async def add_chat_history(request: AddChatHistoryRequest) -> AddChatHistoryResp
 
 
 @router.get(
-    "/chat-history",
+    "/get-chat-history",
     response_model=GetChatHistoryResponse,
     summary="Get chat history",
     status_code=status.HTTP_200_OK,

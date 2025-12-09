@@ -171,7 +171,7 @@ class MessageHandler:
             user_id = message_data.get("user_id")
             persona = message_data.get("persona")
             # Extract session_id from client (None for new conversations)
-            session_id = str(message_data.get("session_id"))
+            session_id = message_data.get("session_id")
             message_limit = message_data.get("limit", 10)
             images = message_data.get("images", None)
             metadata = dict(message_data.get("metadata", {}) or {})
@@ -207,6 +207,7 @@ class MessageHandler:
                     f"Using existing session_id {session_id} for user {user_id}, agent {agent_id}"
                 )
 
+            session_id = str(session_id)
             metadata.setdefault("session_id", session_id)
             message_history = []
             # Retrieve long-term memories if available
