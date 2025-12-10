@@ -105,6 +105,7 @@ QDRANT_API_KEY=your_qdrant_key  # Optional
 HOST=0.0.0.0
 PORT=5500
 LOG_LEVEL=INFO
+LOG_RETENTION="30 days"
 ```
 
 ## Running
@@ -128,7 +129,7 @@ The server will start on `http://localhost:5500` by default.
 
 - **Swagger UI**: `http://localhost:5500/docs`
 - **ReDoc**: `http://localhost:5500/redoc`
-- **Frontend Integration Guide**: `docs/API_GUIDE.md`
+- **Frontend Integration Guide**: `docs/api/REST_API_GUIDE.md`
 
 ## Testing
 
@@ -197,7 +198,6 @@ See `docs/websocket/WEBSOCKET_API_GUIDE.md` for complete documentation.
 
 Complete documentation is available in `docs/`:
 
-- **[API_GUIDE.md](docs/API_GUIDE.md)** - Frontend integration overview
 - **[REST_API_GUIDE.md](docs/api/REST_API_GUIDE.md)** - REST API reference
 - **[WEBSOCKET_API_GUIDE.md](docs/websocket/WEBSOCKET_API_GUIDE.md)** - WebSocket API reference
 

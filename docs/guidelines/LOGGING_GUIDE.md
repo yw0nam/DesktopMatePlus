@@ -190,28 +190,7 @@ logger.info(f"Detected {len(objects)} objects")
 logger.debug(f"Detection details: {objects}")
 ```
 
-### B. Migration Phases
-
-**Phase 1: Update Logger Configuration**
-- Modify `src/core/logger.py` with new format
-- Add Request ID support via contextvars
-- Configure daily rotation
-
-**Phase 2: Add Middleware**
-- Implement `RequestIDMiddleware` for FastAPI
-- Add WebSocket connection tracking
-
-**Phase 3: Refactor Service Logs**
-- Update all service modules to follow new patterns
-- Replace `logging` module with `loguru`
-- Add emoji markers (➡️, ⬅️, 🔌, etc.)
-
-**Phase 4: Testing & Validation**
-- Verify log format in development
-- Test Request ID propagation
-- Confirm rotation and retention
-
-### C. Best Practices
+### B. Best Practices
 
 **✅ DO:**
 - Use Request ID for all logs within request context
@@ -240,7 +219,7 @@ logger.info("starting the chat processing now...")
 logger.info(f"Full message object: {entire_message_dump}")
 ```
 
-### D. Environment Configuration
+### C. Environment Configuration
 
 ```python
 import os
@@ -250,7 +229,7 @@ LOG_RETENTION = os.getenv("LOG_RETENTION", "30 days")
 LOG_DIR = os.getenv("LOG_DIR", "logs")
 ```
 
-### E. File Rotation Details
+### D. File Rotation Details
 
 **Naming Convention:**
 ```
@@ -265,8 +244,8 @@ logs/
 - Production: 30 days
 - Automatic cleanup after retention period
 
-### F. Related Documents
+### E. Related Documents
 
-- `docs/DOCUMENT_GUIDE.md` - Documentation standards
+- `docs/guidelines/DOCUMENT_GUIDE.md` - Documentation standards
 - `rule.md` - Backend development guidelines
 - `src/core/logger.py` - Logger implementation
