@@ -1,15 +1,13 @@
 import base64
-import logging
 from typing import Literal, Optional
 
 import ormsgpack
 import requests  # type: ignore
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, conint, model_validator
 from typing_extensions import Annotated
 
 from src.services.tts_service.service import TTSService
-
-logger = logging.getLogger(__name__)
 
 
 class ServeReferenceAudio(BaseModel):
@@ -103,7 +101,7 @@ class FishSpeechTTS(TTSService):
         self.repetition_penalty = repetition_penalty
         self.temperature = temperature
 
-        logger.info("FishTTS initialized at %s", self.base_url)
+        logger.info(f"FishTTS initialized at {self.base_url}")
 
     def _request_tts_stream(self, request_payload: ServeTTSRequest) -> Optional[bytes]:
         """

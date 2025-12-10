@@ -58,9 +58,7 @@ class MessageProcessor:
         self._task_manager = TaskManager(self)
 
         logger.info(
-            "MessageProcessor initialized for connection %s, user %s",
-            connection_id,
-            user_id,
+            f"MessageProcessor initialized for connection {self.connection_id}, user {user_id}"
         )
 
     async def start_turn(
@@ -87,6 +85,9 @@ class MessageProcessor:
             if self._current_turn_id is not None:
                 raise RuntimeError("Another turn is already active")
 
+            # Prune old completed turns to prevent memory leaks
+            await self.cleanup_completed_turns()
+
             turn_id = str(uuid4())
             turn = ConversationTurn(
                 turn_id=turn_id,
@@ -104,10 +105,7 @@ class MessageProcessor:
             self._current_turn_id = turn_id
             await self.update_turn_status(turn_id, TurnStatus.PROCESSING)
             logger.info(
-                "Started conversation turn %s for connection %s (session %s)",
-                turn_id,
-                self.connection_id,
-                session_id,
+                f"Started conversation turn {turn_id} for connection {self.connection_id} (session {session_id})"
             )
 
         self._task_manager.ensure_token_consumer(turn_id)
@@ -141,7 +139,7 @@ class MessageProcessor:
 
         turn = self.turns.get(turn_id)
         if not turn:
-            logger.warning("Turn %s not found for status update", turn_id)
+            logger.warning(f"Turn {turn_id} not found for status update")
             return False
 
         turn.update_status(status, error_message)
@@ -156,15 +154,13 @@ class MessageProcessor:
 
         turn = self.turns.get(turn_id)
         if not turn:
-            logger.warning("Turn %s not found for task addition", turn_id)
+            logger.warning(f"Turn {turn_id} not found for task addition")
             return False
 
         self._task_manager.track_task(turn_id, task)
 
         logger.debug(
-            "Added task to turn %s, total tracked tasks: %d",
-            turn_id,
-            len(turn.tasks),
+            f"Added task to turn {turn_id}, total tracked tasks: {len(turn.tasks)}"
         )
         return True
 
@@ -179,23 +175,18 @@ class MessageProcessor:
             TurnStatus.INTERRUPTED,
             TurnStatus.FAILED,
         }:
-            logger.debug("Turn %s not found or already finished", turn_id)
+            logger.debug(f"Turn {turn_id} not found or already finished")
             return False
 
         interrupted_id = await self.handle_interrupt(reason=reason, turn_id=turn_id)
         if not interrupted_id:
             logger.debug(
-                "Failed to interrupt turn %s for connection %s",
-                turn_id,
-                self.connection_id,
+                f"Failed to interrupt turn {turn_id} for connection {self.connection_id}"
             )
             return False
 
         logger.info(
-            "Interrupted turn %s for connection %s. Reason: %s",
-            turn_id,
-            self.connection_id,
-            reason,
+            f"Interrupted turn {turn_id} for connection {self.connection_id}. Reason: {reason}"
         )
         return True
 
@@ -226,7 +217,7 @@ class MessageProcessor:
 
         turn = self.turns.get(turn_id)
         if not turn:
-            logger.warning("Turn %s not found for completion", turn_id)
+            logger.warning(f"Turn {turn_id} not found for completion")
             return False
 
         turn.response_content = response_content
@@ -234,7 +225,7 @@ class MessageProcessor:
             turn.metadata.update(metadata)
 
         await self.update_turn_status(turn_id, TurnStatus.COMPLETED)
-        logger.info("Completed turn %s for connection %s", turn_id, self.connection_id)
+        logger.info(f"Completed turn {turn_id} for connection {self.connection_id}")
         return True
 
     async def fail_turn(
@@ -247,14 +238,14 @@ class MessageProcessor:
 
         turn = self.turns.get(turn_id)
         if not turn:
-            logger.warning("Turn %s not found for failure marking", turn_id)
+            logger.warning(f"Turn {turn_id} not found for failure marking")
             return False
 
         if metadata:
             turn.metadata.update(metadata)
 
         await self.update_turn_status(turn_id, TurnStatus.FAILED, error_message)
-        logger.error("Failed turn %s: %s", turn_id, error_message)
+        logger.error(f"Failed turn {turn_id}: {error_message}")
         return True
 
     async def handle_interrupt(
@@ -267,8 +258,7 @@ class MessageProcessor:
         target_turn_id = turn_id or self._current_turn_id
         if not target_turn_id:
             logger.debug(
-                "handle_interrupt called with no active turn for connection %s",
-                self.connection_id,
+                f"handle_interrupt called with no active turn for connection {self.connection_id}"
             )
             return None
 
@@ -279,9 +269,7 @@ class MessageProcessor:
             TurnStatus.FAILED,
         }:
             logger.debug(
-                "handle_interrupt skipping turn %s (status=%s)",
-                target_turn_id,
-                turn.status if turn else "missing",
+                f"handle_interrupt skipping turn {target_turn_id} (status={turn.status if turn else 'missing'})"
             )
             return None
 
@@ -299,9 +287,7 @@ class MessageProcessor:
             drained = self._task_manager.drain_event_queue(target_turn_id)
             if drained:
                 logger.debug(
-                    "Drained %d queued events before interrupting turn %s",
-                    drained,
-                    target_turn_id,
+                    f"Drained {drained} queued events before interrupting turn {target_turn_id}"
                 )
 
             interrupt_event = self._normalize_event(
@@ -322,8 +308,7 @@ class MessageProcessor:
                 await asyncio.wait_for(queue.join(), timeout=INTERRUPT_WAIT_TIMEOUT)
             except asyncio.TimeoutError:
                 logger.debug(
-                    "Timed out waiting for interrupt event delivery for turn %s",
-                    target_turn_id,
+                    f"Timed out waiting for interrupt event delivery for turn {target_turn_id}"
                 )
 
         await self.cleanup(target_turn_id)
@@ -406,9 +391,7 @@ class MessageProcessor:
 
             self._cleaned_turns.add(turn_id)
             logger.info(
-                "Cleaned up turn %s for connection %s",
-                turn_id,
-                self.connection_id,
+                f"Cleaned up turn {turn_id} for connection {self.connection_id}"
             )
 
     async def attach_agent_stream(
@@ -477,7 +460,7 @@ class MessageProcessor:
             self._cleaned_turns.discard(turn_id)
 
         if turns_to_remove:
-            logger.info("Cleaned up %d old turns", len(turns_to_remove))
+            logger.info(f"Cleaned up {len(turns_to_remove)} old turns")
 
         return len(turns_to_remove)
 
@@ -503,8 +486,7 @@ class MessageProcessor:
         """Shutdown the MessageProcessor and cleanup resources."""
 
         logger.info(
-            "Shutting down MessageProcessor for connection %s",
-            self.connection_id,
+            f"Shutting down MessageProcessor for connection {self.connection_id}"
         )
 
         self._shutdown_event.set()
@@ -550,16 +532,13 @@ class MessageProcessor:
         queue = self.get_event_queue(turn_id)
         if not queue:
             logger.debug(
-                "Dropping event for turn %s because queue is unavailable", turn_id
+                f"Dropping event for turn {turn_id} because queue is unavailable"
             )
             return
 
         await queue.put(event)
         logger.debug(
-            "Queued event %s for turn %s (queue size=%d)",
-            event.get("type"),
-            turn_id,
-            queue.qsize(),
+            f"Queued event {event.get('type', 'unknown')} for turn {turn_id} (queue size={queue.qsize()})"
         )
 
     async def _delayed_cleanup(self, delay: float):
@@ -569,16 +548,13 @@ class MessageProcessor:
             await asyncio.sleep(delay)
             await self.cleanup_completed_turns(0)
             logger.info(
-                "Completed delayed cleanup for connection %s",
-                self.connection_id,
+                f"Completed delayed cleanup for connection {self.connection_id}"
             )
         except asyncio.CancelledError:  # pragma: no cover - defensive
-            logger.debug("Cleanup task cancelled for connection %s", self.connection_id)
+            logger.debug(f"Cleanup task cancelled for connection {self.connection_id}")
         except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
             logger.error(
-                "Error during delayed cleanup for connection %s: %s",
-                self.connection_id,
-                exc,
+                f"Error during delayed cleanup for connection {self.connection_id}: {exc}"
             )
 
     def _normalize_event(self, turn_id: str, event: Dict[str, Any]) -> Dict[str, Any]:

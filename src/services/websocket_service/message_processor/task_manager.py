@@ -83,9 +83,7 @@ class TaskManager:
 
         if pending:
             logger.debug(
-                "Timed out waiting for %d tasks to cancel for turn %s",
-                len(pending),
-                turn_id,
+                f"Timed out waiting for {len(pending)} tasks to cancel for turn {turn_id}"
             )
 
     def drain_event_queue(self, turn_id: str) -> int:

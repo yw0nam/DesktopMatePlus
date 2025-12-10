@@ -6,8 +6,8 @@ Welcome to the DesktopMatePlus backend! This guide provides frontend developers 
 
 To begin, you should familiarize yourself with the two main ways to interact with the backend:
 
-1. **[REST API](./api/REST_API_GUIDE.md)**: For stateless operations like managing chat history (STM), synthesizing speech (TTS), and analyzing images (VLM).
-2. **[WebSocket API](./websocket/WEBSOCKET_API_GUIDE.md)**: For real-time, stateful, and interactive chat sessions with the agent.
+1. **[REST API](../api/REST_API_GUIDE.md)**: For stateless operations like managing chat history (STM), synthesizing speech (TTS), and analyzing images (VLM).
+2. **[WebSocket API](../websocket/WEBSOCKET_API_GUIDE.md)**: For real-time, stateful, and interactive chat sessions with the agent.
 
 ## Authentication
 

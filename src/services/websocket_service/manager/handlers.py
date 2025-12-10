@@ -270,9 +270,7 @@ class MessageHandler:
             )
             if not added:
                 logger.debug(
-                    "Failed to register forward task for turn %s on connection %s",
-                    turn_id,
-                    connection_id,
+                    f"Failed to register forward task for turn {turn_id} on connection {connection_id}"
                 )
 
         except Exception as e:
@@ -520,17 +518,14 @@ async def forward_turn_events(
     connection_state = get_connection_fn(connection_id)
     if not connection_state:
         logger.debug(
-            "Connection %s gone before forwarding events for turn %s",
-            connection_id,
-            turn_id,
+            f"Connection {connection_id} gone before forwarding events for turn {turn_id}"
         )
         return
 
     message_processor = connection_state.message_processor
     if not message_processor:
         logger.debug(
-            "No message processor available when forwarding events for turn %s",
-            turn_id,
+            f"No message processor available when forwarding events for turn {turn_id}"
         )
         return
 
@@ -540,33 +535,20 @@ async def forward_turn_events(
         async for event in message_processor.stream_events(turn_id):
             event_type = event.get("type")
             logger.debug(
-                "Forwarding event %s for turn %s to connection %s",
-                event_type,
-                turn_id,
-                connection_id,
+                f"Forwarding event {event_type} for turn {turn_id} to connection {connection_id}"
             )
             try:
                 event_json = json.dumps(event, default=str)
                 await websocket.send_text(event_json)
                 logger.info(
-                    "Sent %s event to connection %s (turn %s)",
-                    event_type,
-                    connection_id,
-                    turn_id,
+                    f"Sent {event_type} event to connection {connection_id} (turn {turn_id})"
                 )
             except Exception as send_error:  # noqa: BLE001
                 logger.error(
-                    "Failed to send event %s for turn %s on connection %s: %s",
-                    event_type,
-                    turn_id,
-                    connection_id,
-                    send_error,
+                    f"Failed to send event {event_type} for turn {turn_id} on connection {connection_id}: {send_error}"
                 )
                 break
     except Exception as exc:  # noqa: BLE001
         logger.error(
-            "Error forwarding events for turn %s on connection %s: %s",
-            turn_id,
-            connection_id,
-            exc,
+            f"Error forwarding events for turn {turn_id} on connection {connection_id}: {exc}"
         )

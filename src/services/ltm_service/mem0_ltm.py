@@ -1,18 +1,15 @@
-import logging
 from typing import Optional, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import convert_to_openai_messages
 from langchain_openai import OpenAIEmbeddings
+from loguru import logger
 from mem0 import Memory
 from pydantic import BaseModel, Field
 
 from src.configs.ltm import Mem0LongTermMemoryConfig
 from src.services.agent_service.utils.message_util import strip_images_from_messages
 from src.services.ltm_service.service import LTMService
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class Mem0Relation(BaseModel):
@@ -94,8 +91,7 @@ class Mem0LTM(LTMService[Memory]):
         self.memory_config = memory_config
         super().__init__()
         logger.info(
-            "Long Term Memory Service is initialized. Memory client initialized: %s",
-            self.memory_client,
+            f"Long Term Memory Service is initialized. Memory client initialized: {self.memory_client is not None}"
         )
 
     def initialize_memory(self) -> Memory:

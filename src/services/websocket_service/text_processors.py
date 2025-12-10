@@ -48,9 +48,9 @@ class TextChunkProcessor:
         sentences = self._delegate.finalize()
         if not sentences:
             return None
-        if len(sentences) > 1:
-            logger.debug("Multiple flush sentences found; returning first only.")
-        return sentences[0]
+
+        # Join multiple sentences if present to ensure no data is lost
+        return " ".join(sentences)
 
     def reset(self) -> None:
         """Reset underlying processor state."""
@@ -97,13 +97,13 @@ class TTSTextProcessor:
                     with path.open("r", encoding="utf-8") as stream:
                         data = json.load(stream)
                 else:
-                    logger.warning("Unsupported rules file extension: %s", path)
+                    logger.warning(f"Unsupported rules file extension: {path}")
             except (
                 yaml.YAMLError,
                 json.JSONDecodeError,
                 OSError,
             ) as exc:  # pragma: no cover - defensive
-                logger.error("Failed to load TTS rules from %s: %s", path, exc)
+                logger.error(f"Failed to load TTS rules from {path}: {exc}")
 
         rules: Iterable[dict]
         if isinstance(data, dict):
@@ -122,7 +122,7 @@ class TTSTextProcessor:
             try:
                 compiled.append((re.compile(pattern), replacement))
             except re.error as exc:  # pragma: no cover - defensive
-                logger.warning("Skipping invalid regex pattern %s: %s", pattern, exc)
+                logger.warning(f"Skipping invalid regex pattern {pattern}: {exc}")
 
         if not compiled:
             compiled = [(re.compile(r"\s{2,}"), " ")]

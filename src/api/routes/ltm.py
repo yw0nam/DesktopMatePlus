@@ -103,9 +103,7 @@ async def add_memory(request: AddMemoryRequest) -> AddMemoryResponse:
                 detail=f"Error adding memory: {result['error']}",
             )
 
-        logger.info(
-            f"Memory added successfully for user={request.user_id}, agent={request.agent_id}"
-        )
+        logger.info(f"Memory added: user={request.user_id}, agent={request.agent_id}")
 
         return AddMemoryResponse(
             success=True,
@@ -194,7 +192,7 @@ async def search_memory(request: SearchMemoryRequest) -> SearchMemoryResponse:
             )
 
         logger.info(
-            f"Search completed for query='{request.query}', user={request.user_id}, agent={request.agent_id}"
+            f"Memory search: query='{request.query}', user={request.user_id}, limit={request.limit}"
         )
 
         return SearchMemoryResponse(
@@ -283,9 +281,7 @@ async def delete_memory(request: DeleteMemoryRequest) -> DeleteMemoryResponse:
                 detail=f"Error deleting memory: {result['error']}",
             )
 
-        logger.info(
-            f"Memory {request.memory_id} deleted for user={request.user_id}, agent={request.agent_id}"
-        )
+        logger.info(f"Memory deleted: id={request.memory_id}, user={request.user_id}")
 
         return DeleteMemoryResponse(
             success=True,
