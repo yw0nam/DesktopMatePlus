@@ -33,12 +33,12 @@ async def websocket_chat_stream(websocket: WebSocket):
     connection_id = None
     request_id = f"ws_{uuid.uuid4().hex[:8]}"
 
+    # Bind request ID to logger for this WebSocket connection
+    ws_logger = logger.bind(request_id=request_id)
+
     try:
         # Accept connection and get unique ID
         connection_id = await websocket_manager.connect(websocket)
-
-        # Bind request ID to logger for this WebSocket connection
-        ws_logger = logger.bind(request_id=request_id)
         ws_logger.info(f"🔌 WebSocket connected: {connection_id}")
 
         # Configuration for error tolerance and inactivity (loaded from YAML via settings)

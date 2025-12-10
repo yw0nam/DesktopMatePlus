@@ -1,5 +1,6 @@
 """FastAPI middleware for Request ID tracking."""
 
+import time
 import uuid
 from contextvars import ContextVar
 
@@ -35,15 +36,19 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
         # Bind request ID to logger context for this request
         with logger.contextualize(request_id=request_id):
+            start_time = time.time()
+
             # Log incoming request
             logger.info(f"➡️ {request.method} {request.url.path}")
 
             # Process request
             response = await call_next(request)
 
+            process_time = (time.time() - start_time) * 1000
+
             # Log outgoing response
             logger.info(
-                f"⬅️ {request.method} {request.url.path} ({response.status_code})"
+                f"⬅️ {request.method} {request.url.path} ({response.status_code}) - {process_time:.2f}ms"
             )
 
         return response
