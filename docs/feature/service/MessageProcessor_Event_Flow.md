@@ -1,247 +1,95 @@
 # MessageProcessor Event Flow
 
-Updated: 2024-12-08
+Updated: 2025-12-10
 
 ## 1. Synopsis
 
-- **Purpose**: Stream agent responses through WebSocket with real-time TTS chunk generation
-- **I/O**: Agent stream events → TTS-ready text chunks → WebSocket client
+- **Purpose**: Orchestrate concurrent agent streaming and TTS generation while preventing data loss and memory leaks.
+- **I/O**: `AgentService Stream` → `Token Queue` → `TTS Processing` → `Event Queue` → `WebSocket Client`
 
 ## 2. Core Logic
 
 ### 2.1 Architecture Overview
 
-```
-Agent Stream → Producer → Token Queue → Consumer → Event Queue → WebSocket
-                  ↓                         ↓           ↓
-            [stream_start]           [TTS chunks]  [stream_end]
-            [stream_token]           [emotion tags]
-            [stream_end]
-```
+Complexity arises from the need to process text (CPU-bound) without blocking the network stream (IO-bound).
 
-### 2.2 Key Components
+```mermaid
+graph TD
+    A[Agent Stream] -->|Produce| B(Token Queue)
+    B -->|Consume| C{Text Processor}
+    C -->|Split/Merge| D[TTS Chunk]
+    D -->|Put| E(Event Queue)
+    E -->|Send| F[WebSocket Client]
 
-**MessageProcessor** (`processor.py`)
-- Orchestrates conversation turn lifecycle
-- Manages event_queue (output to WebSocket)
-- Manages token_queue (internal processing)
-
-**EventHandler** (`event_handlers.py`)
-- `produce_agent_events()`: Consumes agent stream, routes events
-- `consume_token_events()`: Processes tokens into TTS chunks
-
-**Text Processors**
-- `TextChunkProcessor`: Splits text on sentence boundaries (`.!?。！？`)
-- `TTSTextProcessor`: Filters/normalizes text, extracts emotion tags
-
-### 2.3 Event Flow Phases
-
-#### Phase 1: Producer (Agent Stream → Token Queue)
-
-```python
-async def produce_agent_events(turn_id, agent_stream):
-    async for event in agent_stream:
-        event_type = event.get("type")
-
-        if event_type == "stream_token":
-            # Put in token_queue for TTS processing
-            await token_queue.put(event)
-
-        elif event_type == "stream_start":
-            # Forward directly to event_queue
-            await event_queue.put(event)
-
-        elif event_type == "stream_end":
-            # Signal closure + wait for consumer
-            await token_queue.put(SENTINEL)
-            await queue.join()  # Wait for queue drain
-            await consumer_task  # Wait for flush complete
-            await event_queue.put(event)
+    subgraph Synchronization
+    G[Stream End Event] -.->|Wait| B
+    G -.->|Wait| C
+    end
 ```
 
-**Critical Rule**: Producer MUST wait for consumer task completion before emitting `stream_end`.
+### 2.2 Critical Components
 
-#### Phase 2: Consumer (Token Queue → Event Queue)
+1.  **Dual Queues**
+    - `token_queue`: Buffers raw tokens from LLM. Decouples fast network generation from slower text processing.
+    - `event_queue`: Buffers final messages for the client. Ensures strict ordering.
 
-```python
-async def consume_token_events(turn_id):
-    while True:
-        token_event = await token_queue.get()
+2.  **Two-Phase Shutdown (The "Complicated" Part)**
+    To prevent the `stream_end` event from arriving before the final TTS audio chunks:
+    - **Step 1**: Producer sends `SENTINEL` to `token_queue` and waits.
+    - **Step 2**: Consumer sees `SENTINEL`, flushes pending text buffers, and exits.
+    - **Step 3**: Producer observes consumer exit, *then* emits `stream_end`.
 
-        if token_event is SENTINEL:
-            # Flush remaining buffer
-            await _flush_tts_buffer(turn_id)
-            queue.task_done()
-            break
+3.  **Automatic Resource Management**
+    - **Memory**: `start_turn()` automatically triggers `cleanup_completed_turns()` to remove old turn data.
+    - **Tasks**: Background tasks are tracked and cancelled automatically on interruption or timeout.
 
-        # Process token into sentences
-        chunk = token_event.get("chunk")
-        for sentence in chunk_processor.process(chunk):
-            # Generate TTS event
-            tts_event = {
-                "type": "tts_ready_chunk",
-                "chunk": sentence,
-                "emotion": tts_processor.process(sentence).emotion_tag
-            }
-            await event_queue.put(tts_event)
+### 2.3 Text Processing Pipeline
 
-        queue.task_done()
-```
+The consumer task transforms raw tokens into speakable audio chunks:
 
-**Critical Rule**: Consumer MUST call `task_done()` for every item removed from queue.
-
-#### Phase 3: Forwarder (Event Queue → WebSocket)
-
-```python
-async def forward_turn_events(turn_id, connection_id):
-    async for event in message_processor.stream_events(turn_id):
-        event_json = json.dumps(event)
-        await websocket.send_text(event_json)
-```
-
-### 2.4 Synchronization Guarantees
-
-**Problem**: Race condition where `stream_end` overtakes TTS chunks
-
-**Solution**: Two-phase wait in `_wait_for_token_queue()`:
-
-```python
-async def _wait_for_token_queue(turn_id):
-    # Phase 1: Wait for queue items to be removed
-    await queue.join()
-
-    # Phase 2: Wait for consumer task to finish (includes flush)
-    consumer_task = turn.token_consumer_task
-    if consumer_task and not consumer_task.done():
-        await asyncio.wait_for(consumer_task, timeout=1.0)
-```
-
-This ensures:
-1. All tokens processed
-2. Buffer flushed
-3. All TTS chunks emitted
-4. THEN stream_end emitted
-
-### 2.5 Text Processing Pipeline
-
-**Sentence Boundary Detection** (TextChunkProcessor)
-
-```python
-# Supports multi-language punctuation
-SENTENCE_PATTERN = r"(?<=[。！？])|(?<=\n)|(?<=[.!?])(?=\s)"
-
-# Minimum chunk length (prevents poor TTS quality)
-MIN_CHUNK_LENGTH = 10
-
-# Short sentences are buffered and merged
-"Hi!" + " How are you?" → "Hi! How are you?" (len=15)
-```
-
-**TTS Text Processing** (TTSTextProcessor)
-
-```python
-# Extract emotion tags: [happy], [sad], [angry], etc.
-# Filter out URLs, special chars
-# Normalize whitespace
-```
+1.  **Chunking**: Accumulates tokens until a sentence boundary (`.!?。！？`) is found.
+    - *Optimization*: Merges short sentences (<10 chars) to avoid robotic audio.
+2.  **Filtering**: Removes markdown, emojis, and thinking tags (`<think>...</think>`).
+3.  **Flushing**: On stream end, forces processing of any remaining text (handles multiple buffered sentences).
 
 ## 3. Usage
 
-### Start a Turn
+### Standard Flow
 
 ```python
-from src.services.websocket_service.message_processor import MessageProcessor
+# 1. Initialize (Connection-scope)
+processor = MessageProcessor(connection_id, user_id)
 
-processor = MessageProcessor(
-    connection_id=uuid.uuid4(),
-    user_id="user123",
-    queue_maxsize=100
-)
-
-# Start turn with agent stream
+# 2. Start Turn (Auto-cleans old turns)
 turn_id = await processor.start_turn(
-    user_message="Hello!",
-    session_id="conv-001",
-    agent_stream=agent_service.stream_response(...)
+    session_id="session_1",
+    user_input="Hello",
+    agent_stream=agent_service.stream(...)
 )
 
-# Stream events to client
+# 3. Stream to Client
 async for event in processor.stream_events(turn_id):
+    # event is one of: stream_start, tts_ready_chunk, stream_end
     await websocket.send_json(event)
 ```
 
-### Event Types Received
+### Handling Interruption
 
 ```python
-# 1. Stream start
-{"type": "stream_start", "turn_id": "...", "timestamp": 1234567890}
-
-# 2. TTS chunks (multiple)
-{"type": "tts_ready_chunk", "chunk": "私の名前は...", "emotion": "neutral"}
-{"type": "tts_ready_chunk", "chunk": "もちろん、誰が...", "emotion": "happy"}
-
-# 3. Stream end
-{"type": "stream_end", "turn_id": "...", "timestamp": 1234567900}
-```
-
-### Interrupt Active Turn
-
-```python
-# Gracefully cancel ongoing turn
-await processor.handle_interrupt(turn_id)
-
-# Events will include:
-{"type": "interrupted", "turn_id": "...", "timestamp": 1234567895}
+# Gracefully stops producer, flushes queues, and cancels tasks
+await processor.interrupt_turn(turn_id, reason="User Cancelled")
 ```
 
 ---
 
-## Appendix
+## Appendix (Reference)
 
-### A. Troubleshooting
+### A. Configuration (`constants.py`)
 
-**Issue**: TTS chunks not reaching client
+- `INTERRUPT_WAIT_TIMEOUT = 1.0`: Max seconds to wait for graceful shutdown before forced cancellation.
+- `queue_maxsize = 100`: limits backpressure.
 
-**Cause**: Race condition where stream_end sent before chunks emitted
+### B. Related Documents
 
-**Solution**: Ensure `_wait_for_token_queue()` waits for consumer task completion (fixed in v2024-12-08)
-
----
-
-**Issue**: Short sentences causing poor TTS quality
-
-**Cause**: TextChunkProcessor yielding <10 char chunks like "Hi!"
-
-**Solution**: MIN_CHUNK_LENGTH=10 merges short sentences until threshold met
-
----
-
-**Issue**: Japanese text not splitting on sentence boundaries
-
-**Cause**: Regex only matched English punctuation (`.!?`)
-
-**Solution**: Enhanced regex with `。！？` support
-
-### B. Configuration
-
-**Queue Sizes**
-```python
-queue_maxsize=100  # Default event queue size per turn
-```
-
-**Timeouts**
-```python
-INTERRUPT_WAIT_TIMEOUT=1.0  # Max wait for task cancellation
-```
-
-**Text Processing**
-```python
-MIN_CHUNK_LENGTH=10  # Minimum TTS chunk length (chars)
-```
-
-### C. Related Documents
-
-- `message_processor/README.md` - Module architecture
-- `TextChunkProcessor.md` - Sentence splitting details
-- `TTSTextProcessor.md` - Text filtering/emotion extraction
-- `WebSocket_API_GUIDE.md` - Client-side event handling
+- `src/services/websocket_service/message_processor/README.md`: Technical implementation details.
+- `docs/guidelines/LOGGING_GUIDE.md`: How to debug trace ids.

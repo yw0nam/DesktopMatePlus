@@ -1,7 +1,7 @@
 import asyncio
-import logging
 import os
 import traceback
+from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
@@ -15,13 +15,12 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
+from loguru import logger
 
 from src.services.agent_service.service import AgentService
 from src.services.ltm_service import LTMService
 from src.services.stm_service import STMService
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 load_dotenv()
 
 __doc__ = """
@@ -69,11 +68,7 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_base = openai_api_base
         self.model_name = model_name
         super().__init__(**kwargs)
-        logger.info(
-            "AgentFactory initialized with model: %s, checkpoint: %s",
-            self.llm,
-            self.checkpoint,
-        )
+        logger.info(f"Agent initialized: model={self.model_name}")
 
     def initialize_model(self) -> tuple[BaseChatModel, MemorySaver]:
         llm = ChatOpenAI(
@@ -100,7 +95,7 @@ class OpenAIChatAgent(AgentService):
 
             return True, "Agent is healthy."
         except Exception as e:
-            logger.error("Health check failed: %s", e)
+            logger.error(f"Health check failed: {e}")
             return False, f"Health check failed: {e}"
 
     async def stream(
@@ -127,23 +122,16 @@ class OpenAIChatAgent(AgentService):
         """
         if tools is None:
             tools = []
-        logger.info(f"Starting LLM stream for messages: {messages}")
-        logger.info(f"MCP Config: {self.mcp_config}")
+        logger.debug(f"Starting LLM stream: {len(messages)} messages")
         try:
             # Handle case where mcp_config is None (no MCP configuration)
             mcp_tools = []
             if self.mcp_config:
                 mcp_client = MultiServerMCPClient(self.mcp_config)
                 mcp_tools = await mcp_client.get_tools()
-                logger.info(
-                    "Fetched %d tools from MCP client: %s",
-                    len(mcp_tools),
-                    [tool.name for tool in mcp_tools],
-                )
+                logger.info(f"Fetched {len(mcp_tools)} MCP tools")
             else:
-                logger.info(
-                    "No MCP configuration provided, proceeding without MCP tools"
-                )
+                logger.debug("No MCP configuration")
 
             logger.debug("Creating react agent.")
             # Only pass prompt parameter if persona is provided and not empty
@@ -153,8 +141,9 @@ class OpenAIChatAgent(AgentService):
                 "checkpointer": self.checkpoint,
             }
             if persona and persona.strip():
-                agent_kwargs["prompt"] = persona
-                logger.debug(f"Using persona: {persona[:100]}...")
+                agent_kwargs["prompt"] = (
+                    persona + f"Current time: {datetime.now().strftime("%H:%M:%S")}"
+                )
 
             agent = create_react_agent(**agent_kwargs)
             run_id = str(uuid4())
@@ -221,7 +210,7 @@ class OpenAIChatAgent(AgentService):
         config: RunnableConfig,
     ):
         """메시지를 처리하고 스트리밍 응답을 생성합니다."""
-        logger.debug("Processing message with agent for %d messages", len(messages))
+        logger.debug(f"Processing {len(messages)} messages with agent")
 
         node = None
         tool_called = False
@@ -360,7 +349,7 @@ class OpenAIChatAgent(AgentService):
                 "type": "final_response",
                 "data": new_chats,
             }
-            logger.info(f"Message processing completed. Total chunks: {chunk_count}")
+            logger.info(f"Processing completed: {chunk_count} chunks")
 
         except Exception as e:
             logger.error(f"Error in process_message: {e}")

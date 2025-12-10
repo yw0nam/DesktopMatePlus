@@ -52,8 +52,7 @@ class EventHandler:
                     await self._signal_token_stream_closed(turn_id)
                     await self._wait_for_token_queue(turn_id)
                     logger.info(
-                        "Emitting stream_end for turn %s (all TTS chunks processed)",
-                        turn_id,
+                        f"Emitting stream_end for turn {turn_id} (all TTS chunks processed)"
                     )
                     await self.processor._put_event(turn_id, event)
                     await self.processor.complete_turn(turn_id)
@@ -78,13 +77,11 @@ class EventHandler:
                     continue
 
                 logger.debug(
-                    "Dropping agent event %s from client stream for turn %s",
-                    event_type,
-                    turn_id,
+                    f"Dropping agent event {event.get('type', 'unknown')} from client stream for turn {turn_id}"
                 )
 
         except asyncio.CancelledError:
-            logger.debug("Producer cancelled for turn %s", turn_id)
+            logger.debug(f"Producer cancelled for turn {turn_id}")
             raise
         except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
             await self.processor.fail_turn(turn_id, str(exc))
@@ -100,7 +97,7 @@ class EventHandler:
             )
         finally:
             await self._signal_token_stream_closed(turn_id)
-            logger.debug("Producer finished for turn %s", turn_id)
+            logger.debug(f"Producer finished for turn {turn_id}")
 
     async def consume_token_events(self, turn_id: str) -> None:
         """Consume token events and emit TTS ready chunks."""
@@ -124,13 +121,11 @@ class EventHandler:
                 finally:
                     queue.task_done()
         except asyncio.CancelledError:
-            logger.debug("Token consumer cancelled for turn %s", turn_id)
+            logger.debug(f"Token consumer cancelled for turn {turn_id}")
             raise
         except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
             logger.error(
-                "Error consuming token events for turn %s: %s",
-                turn_id,
-                exc,
+                f"Error consuming token events for turn {turn_id}: {exc}",
                 exc_info=True,
             )
         finally:
@@ -146,7 +141,7 @@ class EventHandler:
         """Transform a single token event into zero or more TTS events."""
         turn = self.processor.turns.get(turn_id)
         if not turn:
-            logger.debug("Token event received for unknown turn %s", turn_id)
+            logger.debug(f"Token event received for unknown turn {turn_id}")
             return
 
         if not turn.chunk_processor:
@@ -156,33 +151,25 @@ class EventHandler:
 
         chunk = token_event.get("chunk")
         if not chunk:
-            logger.debug("Token event missing chunk data: %s", token_event)
+            logger.debug(f"Token event missing chunk data: {token_event}")
             return
 
         logger.debug(
-            "Processing token chunk for turn %s: %s (len=%d)",
-            turn_id,
-            repr(chunk[:50]) if len(chunk) > 50 else repr(chunk),
-            len(chunk),
+            f"Processing token chunk for turn {turn_id}: {repr(chunk[:50]) if len(chunk) > 50 else repr(chunk)} (len={len(chunk)})"
         )
 
         sentence_count = 0
         for sentence in turn.chunk_processor.process(chunk):
             sentence_count += 1
             logger.debug(
-                "Chunk processor yielded sentence %d for turn %s: %s (len=%d)",
-                sentence_count,
-                turn_id,
-                repr(sentence[:50]) if len(sentence) > 50 else repr(sentence),
-                len(sentence),
+                f"Chunk processor yielded sentence {sentence_count} for turn {turn_id}: {repr(sentence[:50]) if len(sentence) > 50 else repr(sentence)} (len={len(sentence)})"
             )
 
             processed = turn.tts_processor.process(sentence)
             text = processed.filtered_text
             if not text or not any(char.isalnum() for char in text):
                 logger.debug(
-                    "Filtered text is empty or has no alnum chars for turn %s",
-                    turn_id,
+                    f"Filtered text is empty or has no alnum chars for turn {turn_id}"
                 )
                 continue
 
@@ -193,18 +180,13 @@ class EventHandler:
                 processed.emotion_tag,
             )
             logger.info(
-                "Emitting tts_ready_chunk for turn %s: %s (len=%d, emotion=%s)",
-                turn_id,
-                repr(text[:50]) if len(text) > 50 else repr(text),
-                len(text),
-                processed.emotion_tag,
+                f"Emitting tts_ready_chunk for turn {turn_id}: {repr(text[:50]) if len(text) > 50 else repr(text)} (len={len(text)}, emotion={processed.emotion_tag})"
             )
             await self.processor._put_event(turn_id, tts_event)
 
         if sentence_count == 0:
             logger.debug(
-                "No sentences yielded from chunk for turn %s (chunk buffered)",
-                turn_id,
+                f"No sentences yielded from chunk for turn {turn_id} (chunk buffered)"
             )
 
     async def _flush_tts_buffer(self, turn_id: str) -> None:
@@ -212,27 +194,24 @@ class EventHandler:
         turn = self.processor.turns.get(turn_id)
         if not turn or not turn.chunk_processor or not turn.tts_processor:
             logger.debug(
-                "Cannot flush TTS buffer for turn %s (missing turn/processors)", turn_id
+                f"Cannot flush TTS buffer for turn {turn_id} (missing turn/processors)"
             )
             return
 
         remainder = turn.chunk_processor.flush()
         if not remainder:
-            logger.debug("No remainder to flush for turn %s", turn_id)
+            logger.debug(f"No remainder to flush for turn {turn_id}")
             return
 
-        logger.debug(
-            "Flushing TTS buffer for turn %s: %s (len=%d)",
-            turn_id,
-            repr(remainder[:50]) if len(remainder) > 50 else repr(remainder),
-            len(remainder),
+        logger.info(
+            f"Flushing TTS buffer for turn {turn_id}: {repr(remainder[:50]) if len(remainder) > 50 else repr(remainder)} (len={len(remainder)})"
         )
 
         processed = turn.tts_processor.process(remainder)
         text = processed.filtered_text
         if not text or not any(char.isalnum() for char in text):
             logger.debug(
-                "Flushed text is empty or has no alnum chars for turn %s", turn_id
+                f"Flushed text is empty or has no alnum chars for turn {turn_id}"
             )
             return
 
@@ -243,11 +222,7 @@ class EventHandler:
             processed.emotion_tag,
         )
         logger.info(
-            "Emitting flushed tts_ready_chunk for turn %s: %s (len=%d, emotion=%s)",
-            turn_id,
-            repr(text[:50]) if len(text) > 50 else repr(text),
-            len(text),
-            processed.emotion_tag,
+            f"Emitting flushed tts_ready_chunk for turn {turn_id}: {repr(text[:50]) if len(text) > 50 else repr(text)} (len={len(text)}, emotion={processed.emotion_tag})"
         )
         await self.processor._put_event(turn_id, tts_event)
 
@@ -275,15 +250,13 @@ class EventHandler:
         queue = turn.token_queue if turn else None
         if not queue:
             logger.debug(
-                "Dropping token event for turn %s due to missing queue", turn_id
+                f"Dropping token event for turn {turn_id} due to missing queue"
             )
             return
 
         await queue.put(event)
         logger.debug(
-            "Queued token event for turn %s (queue size=%d)",
-            turn_id,
-            queue.qsize(),
+            f"Queued token event for turn {turn_id} (queue size={queue.qsize()})"
         )
 
     async def _signal_token_stream_closed(self, turn_id: str) -> None:
@@ -310,39 +283,27 @@ class EventHandler:
         # First, wait for all items to be removed from queue
         try:
             await asyncio.wait_for(queue.join(), timeout=INTERRUPT_WAIT_TIMEOUT)
-            logger.debug("Token queue drained for turn %s", turn_id)
+            logger.debug(f"Token queue drained for turn {turn_id}")
         except asyncio.TimeoutError:
-            logger.debug(
-                "Timed out waiting for token queue join for turn %s",
-                turn_id,
-            )
+            logger.debug(f"Timed out waiting for token queue join for turn {turn_id}")
         except asyncio.CancelledError:  # pragma: no cover - defensive
             raise
         except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
-            logger.debug(
-                "Error waiting for token queue for turn %s: %s",
-                turn_id,
-                exc,
-            )
+            logger.debug(f"Error waiting for token queue for turn {turn_id}: {exc}")
 
         # Then, wait for consumer task to finish (flush buffer, emit final chunks)
         consumer_task = turn.token_consumer_task if turn else None
         if consumer_task and not consumer_task.done():
             try:
                 await asyncio.wait_for(consumer_task, timeout=INTERRUPT_WAIT_TIMEOUT)
-                logger.debug("Token consumer finished for turn %s", turn_id)
+                logger.debug(f"Token consumer finished for turn {turn_id}")
             except asyncio.TimeoutError:
-                logger.debug(
-                    "Timed out waiting for token consumer for turn %s",
-                    turn_id,
-                )
+                logger.debug(f"Timed out waiting for token consumer for turn {turn_id}")
             except asyncio.CancelledError:  # pragma: no cover - defensive
                 raise
             except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
                 logger.debug(
-                    "Error waiting for token consumer for turn %s: %s",
-                    turn_id,
-                    exc,
+                    f"Error waiting for token consumer for turn {turn_id}: {exc}"
                 )
 
     async def _log_tool_call(self, turn_id: str, event: Dict[str, Any]) -> None:

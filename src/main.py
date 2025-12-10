@@ -14,7 +14,8 @@ from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import router as api_router
 from src.configs.settings import get_settings, initialize_settings
-from src.core.logger import setup_json_logging
+from src.core.logger import setup_logging
+from src.core.middleware import RequestIDMiddleware
 
 load_dotenv()
 # Store config paths globally for lifespan to access
@@ -68,9 +69,9 @@ def load_main_config(yaml_file: str | Path) -> dict:
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
     # Setup logging first
-    json_logging = os.getenv("JSON_LOGGING", "true").lower() == "true"
     log_level = os.getenv("LOG_LEVEL", "INFO")
-    setup_json_logging(level=log_level, json_output=json_logging)
+    log_retention = os.getenv("LOG_RETENTION", "30 days")
+    setup_logging(level=log_level, retention=log_retention)
 
     # Get settings instance
     settings = get_settings()
@@ -79,7 +80,7 @@ async def lifespan(app: FastAPI):
     print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
     print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
     print(f"🔧 Debug mode: {settings.debug}")
-    print(f"📊 JSON logging: {json_logging}")
+    print(f"📊 Log level: {log_level} | Retention: {log_retention}")
 
     # Initialize all services using the centralized service manager
     try:
@@ -164,7 +165,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Configure CORS middleware
+    # Configure middlewares
+    # Add Request ID middleware first (executes last in the chain)
+    app.add_middleware(RequestIDMiddleware)
+
+    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

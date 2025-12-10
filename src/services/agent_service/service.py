@@ -1,4 +1,3 @@
-import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -6,12 +5,10 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import BaseCheckpointSaver
+from loguru import logger
 
 from src.services.ltm_service import LTMService
 from src.services.stm_service import STMService
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class AgentService(ABC):
@@ -152,7 +149,7 @@ class AgentService(ABC):
                     session_id=session_id,
                     messages=new_chats,
                 )
-                logger.info("Chat history saved to STM: %s", session_id)
+                logger.info(f"Chat history saved to STM: {session_id}")
             # if new_chats != [] and ltm_service:
             #     # Run blocking LTM operation in thread pool
             #     # TODO: Need to be optimized this part.
@@ -162,13 +159,11 @@ class AgentService(ABC):
             #         user_id=user_id,
             #         agent_id=agent_id,
             #     )
-            #     logger.info("Memory added to LTM: %s", ltm_result)
-            logger.info("Memory save completed for session %s", session_id)
+            #     logger.info(f"Memory added to LTM: {ltm_result}")
+            logger.info(f"Memory save completed for session {session_id}")
             return session_id
         except Exception as e:
-            logger.error(
-                "Background memory save failed for session %s: %s", session_id, e
-            )
+            logger.error(f"Background memory save failed for session {session_id}: {e}")
 
     async def async_save_memory(
         self,
@@ -205,7 +200,7 @@ class AgentService(ABC):
                     session_id=session_id,
                     messages=new_chats,
                 )
-                logger.info("Chat history saved to STM: %s", stm_result)
+                logger.info(f"Chat history saved to STM: {stm_result}")
             # if new_chats != [] and ltm_service:
             #     # Run blocking LTM operation in thread pool
             #     # TODO: Need to be optimized this part.
@@ -216,9 +211,7 @@ class AgentService(ABC):
             #         user_id=user_id,
             #         agent_id=agent_id,
             #     )
-            #     logger.info("Memory added to LTM: %s", ltm_result)
-            logger.info("Memory save completed for session %s", session_id)
+            #     logger.info(f"Memory added to LTM: {ltm_result}")
+            logger.info(f"Memory save completed for session {session_id}")
         except Exception as e:
-            logger.error(
-                "Background memory save failed for session %s: %s", session_id, e
-            )
+            logger.error(f"Background memory save failed for session {session_id}: {e}")
