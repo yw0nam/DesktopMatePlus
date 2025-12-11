@@ -138,5 +138,5 @@ src/services/
 ### C. Related Documents
 
 - [Configuration System](../config/README.md)
-- [API Guide](../../API_GUIDE.md)
+- [API Guide](../../api/REST_API_GUIDE.md)
 - [WebSocket API Guide](../../websocket/WEBSOCKET_API_GUIDE.md)
