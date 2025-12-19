@@ -50,7 +50,7 @@ def demo_tts_basic():
                 print(f"✓ Success! Generated {len(audio_bytes)} bytes of audio")
 
                 # Save to file for verification
-                output_file = Path(f"demo_output_{i}.wav")
+                output_file = Path(f"demo_output_{i}.mp3")
                 with open(output_file, "wb") as f:
                     f.write(audio_bytes)
                 print(f"✓ Saved to {output_file}")
@@ -87,13 +87,13 @@ def demo_different_formats():
     # Test file format
     print("\n3. Testing file format...")
     file_result = tts_engine.generate_speech(
-        text, output_format="file", output_filename="format_demo.wav"
+        text, output_format="file", output_filename="format_demo.mp3"
     )
     if file_result:
-        print("✓ File format: Saved to format_demo.wav")
+        print("✓ File format: Saved to format_demo.mp3")
 
         # Check file size
-        file_path = Path("format_demo.wav")
+        file_path = Path("format_demo.mp3")
         if file_path.exists():
             print(f"File size: {file_path.stat().st_size} bytes")
 
@@ -116,7 +116,7 @@ def demo_with_reference():
 
     if result:
         print(f"✓ Success! Generated {len(result)} bytes with reference voice")
-        output_file = Path("reference_voice_demo.wav")
+        output_file = Path("reference_voice_demo.mp3")
         with open(output_file, "wb") as f:
             f.write(result)
         print(f"✓ Saved to {output_file}")

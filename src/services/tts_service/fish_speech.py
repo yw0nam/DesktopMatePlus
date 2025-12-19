@@ -32,7 +32,7 @@ class ServeTTSRequest(BaseModel):
     text: str
     chunk_length: Annotated[int, conint(ge=100, le=300, strict=True)] = 200
     # Audio format
-    format: Literal["wav", "pcm", "mp3"] = "wav"
+    format: Literal["wav", "pcm", "mp3"] = "mp3"
     # References audios for in-context learning
     references: list[ServeReferenceAudio] = []
     # Reference id
@@ -142,6 +142,7 @@ class FishSpeechTTS(TTSService):
         reference_id: Optional[str] = None,
         output_format: Literal["bytes", "base64", "file"] = "bytes",
         output_filename: Optional[str] = "output.wav",
+        audio_format: Literal["wav", "mp3"] = "mp3",
     ) -> Optional[bytes | str | bool]:
         """
         [메인 메서드] 원본 텍스트를 받아 음성을 생성하고 지정된 포맷으로 반환합니다.
@@ -151,6 +152,7 @@ class FishSpeechTTS(TTSService):
             reference_id: 사용할 음성 레퍼런스 ID
             output_format: 반환할 오디오 데이터 형식 ('bytes', 'base64', 'file')
             output_filename: 'file' 포맷일 경우 저장할 파일명
+            audio_format: 오디오 코덱 형식 ('wav' 또는 'mp3')
 
         Returns:
             - "bytes": 오디오 데이터 (bytes)
@@ -166,7 +168,9 @@ class FishSpeechTTS(TTSService):
             return None
 
         # 3. API 요청 페이로드 생성
-        request_payload = ServeTTSRequest(text=tts_text, reference_id=reference_id)
+        request_payload = ServeTTSRequest(
+            text=tts_text, reference_id=reference_id, format=audio_format
+        )
 
         # 4. API 호출하여 오디오 데이터 획득
         audio_bytes = self._request_tts_stream(request_payload)

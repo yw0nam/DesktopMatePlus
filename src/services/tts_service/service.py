@@ -18,6 +18,7 @@ class TTSService(ABC):
         reference_id: Optional[str] = None,
         output_format: Literal["bytes", "base64", "file"] = "bytes",
         output_filename: Optional[str] = None,
+        audio_format: Literal["wav", "mp3"] = "mp3",
     ) -> Optional[bytes | str | bool]:
         """
         Generate speech from text.
@@ -27,6 +28,7 @@ class TTSService(ABC):
             reference_id: Reference voice ID (provider-specific)
             output_format: Output format ('bytes', 'base64', 'file')
             output_filename: Filename when output_format is 'file'
+            audio_format: Audio codec format ('wav' or 'mp3')
 
         Returns:
             Audio data in requested format or None on failure

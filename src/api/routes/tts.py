@@ -1,6 +1,7 @@
 """TTS API routes."""
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import Response
 
 from src.models.tts import TTSRequest, TTSResponse
 from src.services import get_tts_service
@@ -10,13 +11,16 @@ router = APIRouter(prefix="/v1/tts", tags=["TTS"])
 
 @router.post(
     "/synthesize",
-    response_model=TTSResponse,
     summary="Synthesize speech from text",
     status_code=status.HTTP_200_OK,
     responses={
         200: {
             "description": "Speech synthesized successfully",
-            "model": TTSResponse,
+            "content": {
+                "application/json": {"model": TTSResponse},
+                "audio/wav": {"schema": {"type": "string", "format": "binary"}},
+                "audio/mpeg": {"schema": {"type": "string", "format": "binary"}},
+            },
         },
         400: {
             "description": "Invalid input or empty text",
@@ -42,7 +46,7 @@ router = APIRouter(prefix="/v1/tts", tags=["TTS"])
         },
     },
 )
-async def synthesize_speech(request: TTSRequest) -> TTSResponse:
+async def synthesize_speech(request: TTSRequest) -> TTSResponse | Response:
     """Synthesize speech from text using the TTS service.
 
     This endpoint accepts text and optional voice reference, sends it to the
@@ -78,6 +82,7 @@ async def synthesize_speech(request: TTSRequest) -> TTSResponse:
             text=request.text,
             reference_id=request.reference_id,
             output_format=request.output_format,
+            audio_format=request.audio_format,
         )
 
         if audio_data is None:
@@ -86,15 +91,13 @@ async def synthesize_speech(request: TTSRequest) -> TTSResponse:
                 detail="TTS service returned no audio data",
             )
 
-        # Convert bytes to string representation if needed
+        # Return binary response for bytes format
         if request.output_format == "bytes" and isinstance(audio_data, bytes):
-            # For bytes format, we still encode to base64 for JSON transport
-            import base64
+            media_type = "audio/mpeg" if request.audio_format == "mp3" else "audio/wav"
+            return Response(content=audio_data, media_type=media_type)
 
-            audio_str = base64.b64encode(audio_data).decode("utf-8")
-        else:
-            audio_str = str(audio_data)
-
+        # Return JSON response for base64 format
+        audio_str = str(audio_data)
         return TTSResponse(
             audio_data=audio_str,
             format=request.output_format,

@@ -21,6 +21,10 @@ class TTSRequest(BaseModel):
         default="base64",
         description="Output format for audio data",
     )
+    audio_format: Literal["wav", "mp3"] = Field(
+        default="mp3",
+        description="Audio codec format (wav or mp3)",
+    )
 
 
 class TTSResponse(BaseModel):
