@@ -189,9 +189,7 @@ async def search_memory(request: SearchMemoryRequest) -> SearchMemoryResponse:
                 detail=f"Error searching memories: {result['error']}",
             )
 
-        logger.info(
-            f"Memory search: query='{request.query}', user={request.user_id}, limit={request.limit}"
-        )
+        logger.info(f"Memory search: query='{request.query}', user={request.user_id}")
 
         return SearchMemoryResponse(
             success=True,
