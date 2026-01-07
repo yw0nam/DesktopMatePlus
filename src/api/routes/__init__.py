@@ -49,11 +49,9 @@ async def read_root():
     responses={
         200: {
             "description": "All services are healthy",
-            "model": HealthResponse,
         },
         503: {
             "description": "One or more services are unhealthy",
-            "model": HealthResponse,
         },
     },
 )

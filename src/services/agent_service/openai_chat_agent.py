@@ -18,6 +18,10 @@ from langgraph.prebuilt import create_react_agent
 from loguru import logger
 
 from src.services.agent_service.service import AgentService
+from src.services.agent_service.utils.text_processor import (
+    load_emotion_keywords,
+    load_emotion_prompt_template,
+)
 from src.services.ltm_service import LTMService
 from src.services.stm_service import STMService
 
@@ -98,6 +102,9 @@ class OpenAIChatAgent(AgentService):
             logger.error(f"Health check failed: {e}")
             return False, f"Health check failed: {e}"
 
+    # TODO: Make these methods reusable in base class AgentService, And this method handle only streaming
+    # For example: load persona, load tools, mcp tools, save memory etc. These are common for all agents.
+    # So these should be in base class so that other agent classes can reuse them.
     async def stream(
         self,
         messages: list[BaseMessage],
@@ -141,8 +148,13 @@ class OpenAIChatAgent(AgentService):
                 "checkpointer": self.checkpoint,
             }
             if persona and persona.strip():
+                keywords = load_emotion_keywords()
+                template = load_emotion_prompt_template()
+                emotion_instructions = template.format(keywords=", ".join(keywords))
                 agent_kwargs["prompt"] = (
-                    persona + f"Current time: {datetime.now().strftime("%H:%M:%S")}"
+                    persona
+                    + emotion_instructions
+                    + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
                 )
 
             agent = create_react_agent(**agent_kwargs)

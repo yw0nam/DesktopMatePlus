@@ -16,7 +16,6 @@ router = APIRouter(prefix="/v1/vlm", tags=["VLM"])
     responses={
         200: {
             "description": "Image analyzed successfully",
-            "model": VLMResponse,
         },
         500: {
             "description": "VLM service error",

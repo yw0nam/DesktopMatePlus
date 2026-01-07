@@ -30,8 +30,9 @@ _DEFAULT_RULES: List[dict] = [
 class TextChunkProcessor:
     """Wrapper exposing the agent chunker with a generator-style API."""
 
-    def __init__(self) -> None:
-        self._delegate = AgentTextChunkProcessor()
+    def __init__(self, min_chunk_length: int = 0) -> None:
+        # Use min_chunk_length=0 to disable sentence merging for immediate processing
+        self._delegate = AgentTextChunkProcessor(min_chunk_length=min_chunk_length)
 
     def process(self, token: str) -> Iterator[str]:
         """Yield completed sentences after ingesting a token fragment."""

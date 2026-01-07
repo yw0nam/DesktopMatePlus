@@ -41,7 +41,7 @@ class TextChunkProcessor:
         self._sentence_boundaries = re.compile(
             r"(?<=[。！？])"  # Japanese punctuation - split right after
             r"|(?<=\n)"  # Newline - split right after
-            r"|(?<=[.!?])(?=\s)"  # English .!? followed by whitespace
+            r"|(?<=[.!?])(?=\s|$)"  # English .!? followed by whitespace or end of string
         )
 
         self._tool_call_pattern = re.compile(

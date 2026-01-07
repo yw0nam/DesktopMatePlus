@@ -13,11 +13,12 @@ router = APIRouter(prefix="/v1/tts", tags=["TTS"])
     "/synthesize",
     summary="Synthesize speech from text",
     status_code=status.HTTP_200_OK,
+    response_model=None,
     responses={
         200: {
             "description": "Speech synthesized successfully",
             "content": {
-                "application/json": {"model": TTSResponse},
+                "application/json": {},
                 "audio/wav": {"schema": {"type": "string", "format": "binary"}},
                 "audio/mpeg": {"schema": {"type": "string", "format": "binary"}},
             },

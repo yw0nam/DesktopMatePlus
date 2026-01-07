@@ -156,6 +156,13 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             str: The session_id (newly created or existing)
         """
         try:
+            # Generate a new session_id if None is provided
+            if session_id is None:
+                from uuid import uuid4
+
+                session_id = str(uuid4())
+                logger.info(f"Generated new session_id: {session_id}")
+
             self._sessions_collection.update_one(
                 {
                     "session_id": session_id,

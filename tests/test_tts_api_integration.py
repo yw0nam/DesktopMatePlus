@@ -44,6 +44,7 @@ class TestTTSAPIIntegration:
             text="Hello, world!",
             reference_id=None,
             output_format="base64",
+            audio_format="mp3",
         )
 
     @patch("src.api.routes.tts.get_tts_service")
@@ -74,6 +75,7 @@ class TestTTSAPIIntegration:
             text="This is a test with voice cloning",
             reference_id="ナツメ",
             output_format="base64",
+            audio_format="mp3",
         )
 
     @patch("src.api.routes.tts.get_tts_service")
@@ -95,15 +97,9 @@ class TestTTSAPIIntegration:
 
         # Assert response
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert "audio_data" in data
-        assert data["format"] == "bytes"
-
-        # Verify bytes were base64 encoded for JSON transport
-        import base64
-
-        expected = base64.b64encode(b"raw audio bytes data").decode("utf-8")
-        assert data["audio_data"] == expected
+        # For bytes format, the response should be raw bytes with audio media type
+        assert response.content == b"raw audio bytes data"
+        assert response.headers["content-type"] == "audio/mpeg"
 
     @patch("src.api.routes.tts.get_tts_service")
     def test_synthesize_speech_service_not_initialized(self, mock_get_tts, client):
@@ -237,6 +233,7 @@ class TestTTSAPIIntegration:
             text="Test with default format",
             reference_id=None,
             output_format="base64",
+            audio_format="mp3",
         )
 
     @patch("src.api.routes.tts.get_tts_service")
@@ -268,4 +265,5 @@ class TestTTSAPIIntegration:
             text=long_text,
             reference_id=None,
             output_format="base64",
+            audio_format="mp3",
         )

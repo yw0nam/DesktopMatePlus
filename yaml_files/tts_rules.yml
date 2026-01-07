@@ -5,3 +5,28 @@ rules:
     replacement: ''
   - pattern: '\s{2,}'
     replacement: ' '
+
+emotion_keywords:
+  - joyful
+  - sad
+  - angry
+  - surprised
+  - scared
+  - disgusted
+  - confused
+  - curious
+  - worried
+  - satisfied
+  - sarcastic
+  - laughing
+  - crying loudly
+  - sighing
+  - whispering
+  - hesitating
+
+emotion_prompt_template: |
+
+  [EMOTION INSTRUCTIONS]
+  You MUST express your emotion using one of the following keywords in parentheses at the start of your response or when your emotion changes.
+  Available Keywords: {keywords}
+  Example: (joyful) I am so happy to see you!

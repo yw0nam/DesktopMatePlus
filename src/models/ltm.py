@@ -77,6 +77,11 @@ class SearchMemoryRequest(BaseModel):
         description="Search query string",
         min_length=1,
     )
+    limit: int = Field(
+        default=10,
+        description="Maximum number of search results to return",
+        ge=1,
+    )
 
 
 class SearchMemoryResponse(BaseModel):

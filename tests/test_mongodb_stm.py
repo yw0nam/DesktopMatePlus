@@ -320,14 +320,18 @@ def test_add_chat_history_creates_new_session():
         assert session_id is not None
         assert isinstance(session_id, str)
 
-        # Verify insert_one was called for the session
-        mock_sessions_collection.insert_one.assert_called_once()
-        session_doc = mock_sessions_collection.insert_one.call_args[0][0]
-        assert session_doc["session_id"] == session_id
-        assert session_doc["user_id"] == "user1"
-        assert session_doc["agent_id"] == "agent1"
-        assert "created_at" in session_doc
-        assert "updated_at" in session_doc
+        # Verify update_one was called with upsert for the session
+        mock_sessions_collection.update_one.assert_called_once()
+        call_args = mock_sessions_collection.update_one.call_args
+
+        # Check the query filter (first argument)
+        query_filter = call_args[0][0]
+        assert query_filter["session_id"] == session_id
+        assert query_filter["user_id"] == "user1"
+        assert query_filter["agent_id"] == "agent1"
+
+        # Check upsert flag (keyword argument)
+        assert call_args[1]["upsert"] is True
 
         # Verify messages were inserted
         mock_messages_collection.insert_many.assert_called_once()
@@ -418,7 +422,7 @@ def test_add_chat_history_with_empty_messages():
 
         # Verify a session was still created
         assert session_id is not None
-        mock_sessions_collection.insert_one.assert_called_once()
+        mock_sessions_collection.update_one.assert_called_once()
 
         # Verify no messages were inserted
         mock_messages_collection.insert_many.assert_not_called()

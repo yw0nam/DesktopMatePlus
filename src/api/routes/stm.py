@@ -29,7 +29,6 @@ router = APIRouter(prefix="/v1/stm", tags=["STM"])
     responses={
         201: {
             "description": "Chat history added successfully",
-            "model": AddChatHistoryResponse,
         },
         400: {
             "description": "Invalid input",
@@ -115,7 +114,6 @@ async def add_chat_history(request: AddChatHistoryRequest) -> AddChatHistoryResp
     responses={
         200: {
             "description": "Chat history retrieved successfully",
-            "model": GetChatHistoryResponse,
         },
         400: {
             "description": "Invalid input",
@@ -211,7 +209,6 @@ async def get_chat_history(
     responses={
         200: {
             "description": "Sessions retrieved successfully",
-            "model": ListSessionsResponse,
         },
         400: {
             "description": "Invalid input",
@@ -300,7 +297,6 @@ async def list_sessions(
     responses={
         200: {
             "description": "Session deleted successfully",
-            "model": DeleteSessionResponse,
         },
         400: {
             "description": "Invalid input",
@@ -396,7 +392,6 @@ async def delete_session(
     responses={
         200: {
             "description": "Session metadata updated successfully",
-            "model": UpdateSessionMetadataResponse,
         },
         400: {
             "description": "Invalid input",

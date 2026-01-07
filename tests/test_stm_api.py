@@ -20,7 +20,7 @@ def test_add_chat_history_success(mock_stm_service, client):
     mock_stm_service.add_chat_history.return_value = "test_session_123"
 
     response = client.post(
-        "/v1/stm/chat-history",
+        "/v1/stm/add-chat-history",
         json={
             "user_id": "user123",
             "agent_id": "agent456",
@@ -41,7 +41,7 @@ def test_add_chat_history_success(mock_stm_service, client):
 def test_add_chat_history_invalid_message_type(mock_stm_service, client):
     """Test adding chat history with invalid message type."""
     response = client.post(
-        "/v1/stm/chat-history",
+        "/v1/stm/add-chat-history",
         json={
             "user_id": "user123",
             "agent_id": "agent456",
@@ -61,7 +61,7 @@ def test_add_chat_history_invalid_message_type(mock_stm_service, client):
 def test_add_chat_history_empty_content(mock_stm_service, client):
     """Test adding chat history with empty content."""
     response = client.post(
-        "/v1/stm/chat-history",
+        "/v1/stm/add-chat-history",
         json={
             "user_id": "user123",
             "agent_id": "agent456",
@@ -77,7 +77,7 @@ def test_add_chat_history_service_not_initialized(client):
     """Test adding chat history when service is not initialized."""
     with patch("src.api.routes.stm.get_stm_service", return_value=None):
         response = client.post(
-            "/v1/stm/chat-history",
+            "/v1/stm/add-chat-history",
             json={
                 "user_id": "user123",
                 "agent_id": "agent456",
@@ -115,7 +115,7 @@ def test_get_chat_history_success(mock_stm_service, client):
     ]
 
     response = client.get(
-        "/v1/stm/chat-history",
+        "/v1/stm/get-chat-history",
         params={
             "user_id": "user123",
             "agent_id": "agent456",
@@ -150,7 +150,7 @@ def test_get_chat_history_with_limit(mock_stm_service, client):
     ]
 
     response = client.get(
-        "/v1/stm/chat-history",
+        "/v1/stm/get-chat-history",
         params={
             "user_id": "user123",
             "agent_id": "agent456",
@@ -271,7 +271,7 @@ def test_message_parsing_all_types(mock_stm_service, client):
     mock_stm_service.add_chat_history.return_value = "session_xyz"
 
     response = client.post(
-        "/v1/stm/chat-history",
+        "/v1/stm/add-chat-history",
         json={
             "user_id": "user123",
             "agent_id": "agent456",

@@ -25,7 +25,6 @@ router = APIRouter(prefix="/v1/ltm", tags=["LTM"])
     responses={
         200: {
             "description": "Memory added successfully",
-            "model": AddMemoryResponse,
         },
         400: {
             "description": "Invalid input",
@@ -134,7 +133,6 @@ async def add_memory(request: AddMemoryRequest) -> AddMemoryResponse:
     responses={
         200: {
             "description": "Search completed successfully",
-            "model": SearchMemoryResponse,
         },
         500: {
             "description": "LTM service error",
@@ -218,7 +216,6 @@ async def search_memory(request: SearchMemoryRequest) -> SearchMemoryResponse:
     responses={
         200: {
             "description": "Memory deleted successfully",
-            "model": DeleteMemoryResponse,
         },
         404: {
             "description": "Memory not found",
