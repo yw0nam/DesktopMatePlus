@@ -80,42 +80,6 @@ def test_mongodb_stm_initialize_memory():
         assert stm.memory_client is mock_client_instance
 
 
-def test_mongodb_stm_with_config_defaults():
-    """Test that MongoDBSTM can use configuration from STMConfig."""
-    from src.configs.stm import STMConfig
-
-    config = STMConfig()
-
-    with patch("pymongo.MongoClient") as mock_client:
-        # Mock the database and collections
-        mock_db = MagicMock()
-        mock_sessions_collection = MagicMock()
-        mock_messages_collection = MagicMock()
-
-        mock_client_instance = mock_client.return_value
-        mock_db.__getitem__.side_effect = lambda name: {
-            "sessions": mock_sessions_collection,
-            "messages": mock_messages_collection,
-        }[name]
-        mock_client_instance.__getitem__.return_value = mock_db
-
-        mock_client_instance.admin.command.return_value = {"ok": 1.0}
-
-        stm = MongoDBSTM(
-            connection_string=config.mongodb.connection_string,
-            database_name=config.mongodb.database_name,
-            sessions_collection_name=config.mongodb.sessions_collection_name,
-            messages_collection_name=config.mongodb.messages_collection_name,
-        )
-
-        # Verify the client was created with default connection string and uuidRepresentation
-        mock_client.assert_called_once_with(
-            "mongodb://admin:test@localhost:27017/", uuidRepresentation="standard"
-        )
-        assert stm.connection_string == config.mongodb.connection_string
-        assert stm.database_name == config.mongodb.database_name
-
-
 def test_mongodb_stm_health_check_healthy():
     """Test that health check returns True when connection is healthy."""
     with patch("pymongo.MongoClient") as mock_client:

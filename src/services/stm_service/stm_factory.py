@@ -19,6 +19,9 @@ class STMFactory:
         Raises:
             ValueError: If service_type is unknown
         """
+
+        # TODO: Validate config using STMConfig
+
         if service_type == "mongodb":
             from src.configs.stm import MongoDBShortTermMemoryConfig
             from src.services.stm_service.mongodb import MongoDBSTM
