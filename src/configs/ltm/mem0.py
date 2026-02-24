@@ -1,3 +1,5 @@
+"""Mem0 Long-Term Memory configuration."""
+
 import os
 from typing import Literal, Optional
 
@@ -83,13 +85,3 @@ class Mem0LongTermMemoryConfig(BaseModel):
 
     # 참고: Python 3.10 이상에서는 순방향 참조를 위한 문자열("")을 사용할 필요가 없습니다.
     # llm: "Mem0LongTermMemoryConfig.Mem0LLMConfig" 대신 llm: Mem0LLMConfig 사용 가능
-
-
-class MemoryConfig(BaseModel):
-    """최종 메모리 설정"""
-
-    memory_type: Literal["mem0"] = Field("mem0", description="사용할 메모리 유형")
-    mem0: Optional[Mem0LongTermMemoryConfig] = Field(
-        default_factory=Mem0LongTermMemoryConfig,
-        description="Mem0 Long-Term Memory 설정",
-    )
