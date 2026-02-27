@@ -30,9 +30,6 @@ Updated: 2025-11-28
 | `pong` | Heartbeat response | [Pong](./WebSocket_Pong.md) |
 | `chat_message` | User message | [ChatMessage](./WebSocket_ChatMessage.md) |
 | `interrupt_stream` | Cancel streaming | [InterruptStream](./WebSocket_InterruptStream.md) |
-<!-- | `fetch_backgrounds` | Get backgrounds | [FetchBackgrounds](./WebSocket_FetchBackgrounds.md) |
-| `fetch_avatar_configs` | Get avatars | [FetchAvatarConfigs](./WebSocket_FetchAvatarConfigs.md) |
-| `switch_avatar_config` | Switch avatar | [SwitchAvatarConfig](./WebSocket_SwitchAvatarConfig.md) | -->
 
 ### Server → Client Messages
 
@@ -48,10 +45,6 @@ Updated: 2025-11-28
 | `tool_call` | Tool invocation | [ToolCall](./WebSocket_ToolCall.md) |
 | `tool_result` | Tool response | [ToolResult](./WebSocket_ToolResult.md) |
 | `error` | Error occurred | [ErrorMessage](./WebSocket_ErrorMessage.md) |
-<!-- | `background_files` | Background list | [BackgroundFiles](./WebSocket_BackgroundFiles.md) |
-| `avatar_config_files` | Avatar list | [AvatarConfigFiles](./WebSocket_AvatarConfigFiles.md) |
-| `avatar_config_switched` | Avatar changed | [AvatarConfigSwitched](./WebSocket_AvatarConfigSwitched.md) |
-| `set_model_and_conf` | Model config | [SetModelAndConf](./WebSocket_SetModelAndConf.md) | -->
 
 - Note: There is a commented-out section above for background and avatar config messages, which is not using for Unity integration currently.
 
