@@ -63,7 +63,7 @@ def main():
     print("-" * 60)
     try:
         base64_str = service.capture_to_base64(max_size=(1024, 768))
-        print(f"  ✓ Encoded to Base64")
+        print("  ✓ Encoded to Base64")
         print(f"  ✓ Base64 length: {len(base64_str)} characters")
         print(f"  ✓ Preview (first 100 chars): {base64_str[:100]}...")
         print()

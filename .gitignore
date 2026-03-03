@@ -87,9 +87,13 @@ node_modules/
 .DS_Store
 
 # Task Master (keep configs but ignore reports)
-.taskmaster
+.taskmaster/
 # Qwen code
 .qwen/
 # Audio files
 *.wav
 static
+
+# AI-related files
+.github/skills
+resources

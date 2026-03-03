@@ -24,7 +24,7 @@ dependencies = [
     # Database & Storage
     "psycopg[binary]>=3.2.1",
     "psycopg2-binary>=2.9.11",
-    "qdrant-client>=1.15.1",
+    "qdrant-client>=1.17.0",
     "pymongo>=4.15.3",
     "rank-bm25>=0.2.2",
     # Screen Capture
@@ -42,6 +42,10 @@ dependencies = [
     "pyyaml>=6.0.0",
     "langchain-mcp-adapters>=0.1.11",
     "langchain>=0.3.27",
+    "jupyter>=1.1.1",
+    "notebook>=7.5.4",
+    "ruff>=0.15.4",
+    "pre-commit>=4.5.1",
 ]
 
 [project.optional-dependencies]

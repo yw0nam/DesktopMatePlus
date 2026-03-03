@@ -238,6 +238,7 @@ class Mem0LTM(LTMService[Memory]):
             model=mem0_config.embedder.config.model_name,
             openai_api_base=mem0_config.embedder.config.openai_base_url,
             openai_api_key=mem0_config.embedder.config.openai_api_key,
+            # dimensions=mem0_config.embedder.config.embedding_dims,
         )
         embedding_dict = {
             "provider": "langchain",

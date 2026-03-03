@@ -32,18 +32,18 @@ sequenceDiagram
     Note over FE, BE: Data Flow
     FE->>BE: Send Websocket message 'chat_message'
     Note right of FE: params: { session_id (null for new chat),<br/>agent_id, user_id, content, images... }
-    
+
     activate BE
-    
+
     alt New Chat (session_id is null)
         BE->>BE: Generate new UUID for session_id
     else Existing Chat
         BE->>BE: Use provided session_id
     end
-    
+
     loop Streaming Response
         BE-->>FE: stream_start (session_id)
-        
+
         par Parallel Processing
             rect rgb(240, 248, 255)
                 note right of FE: Text Stream
@@ -51,23 +51,23 @@ sequenceDiagram
                 FE->>FE: Append text chunk to AI message
                 FE-->>User: Update AI response in real-time
             end
-        and 
+        and
             rect rgb(255, 245, 238)
                 note right of FE: Audio & VRM Motion Synthesis
                 BE-->>FE: tts_ready_chunk (text, emotion, )
-                
+
                 par Async Preparation
                     FE->>API: POST /v1/tts/synthesize
                     API-->>FE: Return Audio Data (Base64)
                 and Motion Selection Logic
                     FE->>FE: Check Emotion
                 end
-                
+
                 FE->>FE: Queue Task (Audio + Motion + Expression)
                 FE-->>User: Play audio with Lip Sync
                 FE-->>User: Play VRM Motion & Expression
             end
-        and 
+        and
             rect rgb(240, 255, 240)
                 note right of FE: Tool Execution
                 BE-->>FE: tool_call (name, args)
@@ -79,7 +79,7 @@ sequenceDiagram
         API-->>BE: Success
         BE-->>FE: stream_end (session_id)
         deactivate BE
-        
+
         alt New Chat Session Capture
             Note over FE: If currentSessionId was null
             FE->>FE: Capture session_id from stream_end

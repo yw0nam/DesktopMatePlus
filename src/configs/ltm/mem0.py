@@ -31,13 +31,12 @@ class Mem0EmbedderConfigValues(BaseModel):
     )
     embedding_dims: int = 2560
 
-
 class Mem0VectorStoreConfigValues(BaseModel):
     """Mem0 Vector Store config 내부 값 정의"""
 
     url: str = "http://localhost:6333"
-    embedding_model_dims: int = 2560
     collection_name: str = "mem0_collection"
+    embedding_model_dims: int = 2560
 
 
 class Mem0GraphStoreConfigValues(BaseModel):
