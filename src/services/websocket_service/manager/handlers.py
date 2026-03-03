@@ -24,17 +24,17 @@ from src.services.websocket_service.message_processor import MessageProcessor
 class MessageHandler:
     """Handles different types of WebSocket messages."""
 
-    def __init__(self, get_connection_fn, send_message_fn, disconnect_fn=None):
+    def __init__(self, get_connection_fn, send_message_fn, close_connection_fn):
         """Initialize message handler.
 
         Args:
             get_connection_fn: Function to get connection state by ID.
             send_message_fn: Function to send messages to connections.
-            disconnect_fn: Function to disconnect connections.
+            close_connection_fn: Function to close connections with code and reason.
         """
         self.get_connection = get_connection_fn
         self.send_message = send_message_fn
-        self.disconnect = disconnect_fn
+        self.close_connection = close_connection_fn
 
     @staticmethod
     def validate_token(token: str) -> Optional[str]:
@@ -79,16 +79,13 @@ class MessageHandler:
             await self.send_message(connection_id, response)
             logger.warning(f"Authentication failed for connection {connection_id}")
 
-            # Close connection after sending error
-            try:
-                await connection_state.websocket.close(
-                    code=4001, reason="Authentication failed"
-                )
-            except Exception as e:
-                logger.error(f"Error closing websocket after auth failure: {e}")
-            finally:
-                if self.disconnect:
-                    self.disconnect(connection_id)
+            # Close connection after sending error using standardized method
+            await self.close_connection(
+                connection_id=connection_id,
+                code=4001,
+                reason="Authentication failed",
+                notify_client=True,
+            )
 
     async def handle_pong(self, connection_id: UUID, message: PongMessage):
         """Handle client pong response.
@@ -262,6 +259,29 @@ class MessageHandler:
             if not added:
                 logger.debug(
                     f"Failed to register forward task for turn {turn_id} on connection {connection_id}"
+                )
+
+        except RuntimeError as e:
+            # Handle concurrent turn constraint violation
+            error_msg = str(e)
+            if "Another turn is already active" in error_msg:
+                logger.warning(
+                    f"Concurrent turn rejected for {connection_id}: {error_msg}"
+                )
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(
+                        error=error_msg,
+                        code=4002,  # Custom code for concurrent turn rejection
+                    ),
+                )
+            else:
+                logger.error(
+                    f"Runtime error processing chat message from {connection_id}: {e}"
+                )
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(error=f"Failed to process message: {str(e)}"),
                 )
 
         except Exception as e:

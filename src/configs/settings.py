@@ -10,6 +10,16 @@ from pydantic import BaseModel, Field
 class WebSocketConfig(BaseModel):
     """WebSocket connection configuration."""
 
+    ping_interval_seconds: int = Field(
+        default=30,
+        ge=1,
+        description="Interval between ping messages in seconds",
+    )
+    pong_timeout_seconds: int = Field(
+        default=10,
+        ge=1,
+        description="Timeout for pong response in seconds",
+    )
     max_error_tolerance: int = Field(
         default=5,
         ge=1,
@@ -22,6 +32,11 @@ class WebSocketConfig(BaseModel):
         default=300,
         ge=0,
         description="Seconds of inactivity before closing connection",
+    )
+    disconnect_timeout_seconds: float = Field(
+        default=5.0,
+        ge=0,
+        description="Timeout for graceful disconnect in seconds",
     )
 
 

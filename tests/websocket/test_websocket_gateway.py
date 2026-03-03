@@ -127,7 +127,7 @@ class TestWebSocketGateway:
         assert connection_id in websocket_manager.connections
 
         # Disconnect
-        websocket_manager.disconnect(connection_id)
+        await websocket_manager.disconnect(connection_id)
 
         # Verify cleanup
         assert connection_id not in websocket_manager.connections
@@ -355,4 +355,4 @@ class TestWebSocketGateway:
         assert should_timeout, "Should detect timeout condition"
 
         # Cleanup
-        websocket_manager.disconnect(connection_id)
+        await websocket_manager.disconnect(connection_id)

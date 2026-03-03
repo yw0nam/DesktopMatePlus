@@ -83,7 +83,13 @@ class MessageProcessor:
 
         async with self._turn_lock:
             if self._current_turn_id is not None:
-                raise RuntimeError("Another turn is already active")
+                current_turn = self.turns.get(self._current_turn_id)
+                turn_status = current_turn.status if current_turn else "unknown"
+                raise RuntimeError(
+                    f"Another turn is already active (turn_id: {self._current_turn_id}, "
+                    f"status: {turn_status}). Please wait for the current turn to complete "
+                    f"or interrupt it before starting a new turn."
+                )
 
             # Prune old completed turns to prevent memory leaks
             await self.cleanup_completed_turns()

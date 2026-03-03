@@ -8,6 +8,10 @@ from loguru import logger
 
 from src.configs.settings import get_settings
 from src.services.websocket_service import websocket_manager
+from src.services.websocket_service.error_classifier import (
+    ErrorClassifier,
+    ErrorSeverity,
+)
 
 router = APIRouter(prefix="/v1/chat", tags=["WebSocket"])
 
@@ -75,21 +79,43 @@ async def websocket_chat_stream(websocket: WebSocket):
                 break
 
             except Exception as e:
-                # Log and apply a small backoff to avoid busy-looping on transient errors
-                ws_logger.error(f"Error handling message: {e}")
+                # Classify error to determine handling strategy
+                severity = ErrorClassifier.classify(e)
+                ws_logger.error(
+                    f"Error handling message ({severity}): {e}", exc_info=True
+                )
+
                 error_count += 1
-                if error_count >= max_error_tolerance:
-                    ws_logger.error(
-                        f"Exceeded error tolerance ({max_error_tolerance}): {connection_id}"
+
+                # Check if we should retry based on error classification
+                if not ErrorClassifier.should_retry(
+                    e, error_count, max_error_tolerance
+                ):
+                    if severity == ErrorSeverity.FATAL:
+                        ws_logger.error(
+                            f"Fatal error, closing connection: {connection_id}"
+                        )
+                    else:
+                        ws_logger.error(
+                            f"Exceeded error tolerance ({error_count}/{max_error_tolerance}): {connection_id}"
+                        )
+                    break
+
+                # Apply appropriate backoff delay
+                backoff_delay = ErrorClassifier.get_backoff_delay(
+                    e, error_sleep_seconds
+                )
+                if backoff_delay > 0:
+                    ws_logger.debug(
+                        f"Applying backoff delay: {backoff_delay}s (error {error_count}/{max_error_tolerance})"
                     )
-                    break
-                # short sleep to tolerate transient issues (use asyncio in async context)
-                try:
-                    await asyncio.sleep(error_sleep_seconds)
-                except asyncio.CancelledError:
-                    # If cancellation is requested, break the loop to allow cleanup
-                    break
-                # continue listening after brief backoff
+                    try:
+                        await asyncio.sleep(backoff_delay)
+                    except asyncio.CancelledError:
+                        # If cancellation is requested, break the loop to allow cleanup
+                        break
+
+                # Continue listening after handling error
                 continue
 
     except WebSocketDisconnect:
@@ -101,5 +127,5 @@ async def websocket_chat_stream(websocket: WebSocket):
     finally:
         # Cleanup connection
         if connection_id:
-            websocket_manager.disconnect(connection_id)
+            await websocket_manager.disconnect(connection_id)
             ws_logger.info(f"🧹 WebSocket cleaned up: {connection_id}")

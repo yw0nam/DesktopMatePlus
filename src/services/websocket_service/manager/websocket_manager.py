@@ -10,6 +10,7 @@ from fastapi import WebSocket
 from loguru import logger
 from pydantic import ValidationError
 
+from src.configs.settings import get_settings
 from src.models.websocket import (
     AuthorizeMessage,
     ErrorMessage,
@@ -27,30 +28,58 @@ from .heartbeat import HeartbeatMonitor
 class WebSocketManager:
     """Manages WebSocket connections, authentication, and message routing."""
 
-    def __init__(self, ping_interval: int = 30, pong_timeout: int = 10):
+    def __init__(
+        self,
+        ping_interval: Optional[int] = None,
+        pong_timeout: Optional[int] = None,
+        disconnect_timeout: Optional[float] = None,
+    ):
         """Initialize WebSocket manager.
+
+        Configuration is loaded from application settings if available,
+        otherwise uses provided parameters or defaults.
 
         Args:
             ping_interval: Interval between ping messages in seconds.
             pong_timeout: Timeout for pong response in seconds.
+            disconnect_timeout: Timeout for graceful disconnect in seconds.
         """
         self.connections: Dict[UUID, ConnectionState] = {}
-        self.ping_interval = ping_interval
-        self.pong_timeout = pong_timeout
         self._heartbeat_tasks: WeakSet = WeakSet()
+
+        # Load settings from config if available, otherwise use parameters or defaults
+        try:
+            settings = get_settings()
+            self.ping_interval = (
+                ping_interval or settings.websocket.ping_interval_seconds
+            )
+            self.pong_timeout = pong_timeout or settings.websocket.pong_timeout_seconds
+            self.disconnect_timeout = (
+                disconnect_timeout or settings.websocket.disconnect_timeout_seconds
+            )
+        except RuntimeError:
+            # Settings not initialized (e.g., in tests), use defaults
+            from src.configs.settings import WebSocketConfig
+
+            defaults = WebSocketConfig()
+            self.ping_interval = ping_interval or defaults.ping_interval_seconds
+            self.pong_timeout = pong_timeout or defaults.pong_timeout_seconds
+            self.disconnect_timeout = (
+                disconnect_timeout or defaults.disconnect_timeout_seconds
+            )
 
         # Initialize components
         self._message_handler = MessageHandler(
             get_connection_fn=self._get_connection,
             send_message_fn=self.send_message,
-            disconnect_fn=self.disconnect,
+            close_connection_fn=self._close_connection,
         )
         self._heartbeat_monitor = HeartbeatMonitor(
-            ping_interval=ping_interval,
-            pong_timeout=pong_timeout,
+            ping_interval=self.ping_interval,
+            pong_timeout=self.pong_timeout,
             get_connection_fn=self._get_connection,
             send_message_fn=self.send_message,
-            disconnect_fn=self.disconnect,
+            close_connection_fn=self._close_connection,
         )
 
     def _get_connection(self, connection_id: UUID) -> Optional[ConnectionState]:
@@ -88,22 +117,83 @@ class WebSocketManager:
 
         return connection_id
 
-    def disconnect(self, connection_id: UUID):
-        """Disconnect and cleanup a WebSocket connection.
+    async def _close_connection(
+        self,
+        connection_id: UUID,
+        code: int,
+        reason: str,
+        notify_client: bool = True,
+    ) -> None:
+        """Standardized connection closing with proper cleanup.
+
+        This method ensures consistent cleanup order:
+        1. Set closing flag to prevent new messages
+        2. Notify client (optional)
+        3. Shutdown MessageProcessor gracefully
+        4. Close WebSocket
+        5. Remove from connections dict
+
+        Args:
+            connection_id: Connection identifier to close.
+            code: WebSocket close code.
+            reason: Human-readable close reason.
+            notify_client: Whether to send close frame to client.
+        """
+        connection_state = self._get_connection(connection_id)
+        if not connection_state:
+            logger.debug(f"Connection {connection_id} already closed")
+            return
+
+        # Step 1: Set closing flag
+        connection_state.is_closing = True
+        logger.info(
+            f"Closing WebSocket connection {connection_id}: {reason} (code={code})"
+        )
+
+        # Step 2: Shutdown MessageProcessor gracefully
+        if connection_state.message_processor:
+            try:
+                await asyncio.wait_for(
+                    connection_state.message_processor.shutdown(),
+                    timeout=self.disconnect_timeout,
+                )
+                logger.debug(f"MessageProcessor shutdown complete: {connection_id}")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"MessageProcessor shutdown timeout ({self.disconnect_timeout}s): {connection_id}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error during MessageProcessor shutdown for {connection_id}: {e}"
+                )
+
+        # Step 3: Close WebSocket connection
+        if notify_client:
+            try:
+                await connection_state.websocket.close(code=code, reason=reason)
+                logger.debug(f"WebSocket closed with code {code}: {connection_id}")
+            except Exception as e:
+                logger.error(f"Error closing websocket for {connection_id}: {e}")
+
+        # Step 4: Remove from connections dict
+        if connection_id in self.connections:
+            del self.connections[connection_id]
+            logger.info(f"WebSocket connection cleanup complete: {connection_id}")
+
+    async def disconnect(self, connection_id: UUID) -> None:
+        """Gracefully disconnect a WebSocket connection.
+
+        This is a convenience method that calls _close_connection with default parameters.
 
         Args:
             connection_id: The connection identifier to disconnect.
         """
-        if connection_id in self.connections:
-            connection_state = self.connections[connection_id]
-
-            # Shutdown MessageProcessor if it exists
-            if connection_state.message_processor:
-                # Create a task to shutdown the message processor
-                asyncio.create_task(connection_state.message_processor.shutdown())
-
-            logger.info(f"WebSocket connection disconnected: {connection_id}")
-            del self.connections[connection_id]
+        await self._close_connection(
+            connection_id=connection_id,
+            code=1000,
+            reason="Normal closure",
+            notify_client=False,  # Assume client already disconnected
+        )
 
     async def send_message(self, connection_id: UUID, message: ServerMessage):
         """Send a message to a specific connection.
@@ -127,7 +217,12 @@ class WebSocketManager:
             logger.debug(f"Sent message to {connection_id}: {message.type}")
         except Exception as e:
             logger.error(f"Failed to send message to {connection_id}: {e}")
-            self.disconnect(connection_id)
+            await self._close_connection(
+                connection_id=connection_id,
+                code=1011,
+                reason="Failed to send message",
+                notify_client=False,
+            )
 
     async def broadcast_message(
         self, message: ServerMessage, authenticated_only: bool = True

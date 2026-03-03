@@ -22,6 +22,7 @@ class ConnectionState:
         self.websocket = websocket
         self.connection_id = connection_id
         self.is_authenticated = False
+        self.is_closing = False
         self.last_ping_time: Optional[float] = None
         self.last_pong_time: Optional[float] = None
         self.user_id: Optional[str] = None

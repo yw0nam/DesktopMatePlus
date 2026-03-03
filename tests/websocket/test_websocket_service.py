@@ -70,7 +70,7 @@ class TestWebSocketManager:
         manager.connections[connection_id] = connection_state
 
         # Disconnect
-        manager.disconnect(connection_id)
+        await manager.disconnect(connection_id)
 
         # Check that connection was removed
         assert connection_id not in manager.connections
