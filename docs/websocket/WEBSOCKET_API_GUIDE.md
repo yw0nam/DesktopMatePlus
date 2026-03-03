@@ -1,6 +1,6 @@
 # WebSocket API Guide
 
-Updated: 2025-11-28
+Updated: 2026-03-03
 
 ## 1. Synopsis
 
@@ -48,6 +48,47 @@ Updated: 2025-11-28
 
 - Note: There is a commented-out section above for background and avatar config messages, which is not using for Unity integration currently.
 
+### Configuration
+
+WebSocket behavior is configured in `yaml_files/main.yml`:
+
+```yaml
+websocket:
+  ping_interval_seconds: 30      # Heartbeat interval
+  pong_timeout_seconds: 10       # Pong response timeout
+  max_error_tolerance: 5         # Max consecutive errors
+  error_backoff_seconds: 0.5     # Delay after recoverable errors
+  inactivity_timeout_seconds: 300 # Idle connection timeout
+  disconnect_timeout_seconds: 5.0 # Graceful disconnect timeout
+```
+
+### Connection Lifecycle
+
+Connections are closed in these cases:
+
+| Condition | Code | Reason | Docs |
+|-----------|------|---------|------|
+| Ping Timeout | 4000 | No pong response | See heartbeat behavior below |
+| Auth Failed | 4001 | Invalid token | [AuthorizeError](./WebSocket_AuthorizeError.md) |
+| Concurrent Turn | 4002 | Multiple simultaneous messages | Handled with error response |
+| Inactivity | 1000 | No messages for 5+ min | Normal closure |
+| Max Errors | 1011 | Too many errors | [ErrorHandling](./WebSocket_ErrorHandling.md) |
+
+**Heartbeat Behavior:**
+
+- Server sends `ping` every 30s (configurable)
+- Client must respond with `pong` within 10s (configurable)
+- First ping is not checked (grace period)
+- Connection closes if pong not received within timeout
+
+**Concurrent Message Protection:**
+
+- Only one chat turn allowed per connection at a time
+- New message while processing returns error code 4002
+- Client should wait for `stream_end` or use `interrupt_stream`
+
+For detailed connection management, see [Connection Lifecycle Guide](./WebSocket_ConnectionLifecycle.md).
+
 ## 3. Usage
 
 ```javascript
@@ -88,5 +129,19 @@ All messages share a base structure:
 
 ### B. Related Documents
 
+- [Connection Lifecycle](./WebSocket_ConnectionLifecycle.md) - Detailed connection management
+- [Error Handling](./WebSocket_ErrorHandling.md) - Error classification and recovery
 - [REST API Guide](../api/REST_API_GUIDE.md)
 - [WebSocket Service](../feature/service/WebSocket_Service.md)
+
+### C. Error Codes
+
+| Code | Category | Retry | Description |
+|------|----------|-------|-------------|
+| 1000 | Normal | No | Normal closure |
+| 1011 | Fatal | No | Internal error |
+| 4000 | Timeout | No | Ping timeout |
+| 4001 | Auth | No | Authentication failed |
+| 4002 | Client | Yes | Concurrent turn rejected |
+| 4003 | Interrupt | N/A | Stream interrupted |
+| 4004 | NotFound | No | Turn not found |
