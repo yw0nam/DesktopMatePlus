@@ -96,4 +96,5 @@ static
 
 # AI-related files
 .github/skills
+.gemini
 resources

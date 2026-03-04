@@ -209,7 +209,7 @@ class FishSpeechTTS(TTSService):
 # --- 사용 예제 ---
 if __name__ == "__main__":
     # TTS 서비스 URL (실제 URL로 변경 필요)
-    TTS_API_URL = "http://localhost:8080/v1/tts"
+    TTS_API_URL = "http://192.168.41:8080/v1/tts"
 
     # 1. 서비스 인스턴스 생성
     tts_service = FishSpeechTTS(base_url=TTS_API_URL)

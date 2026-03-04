@@ -3,6 +3,14 @@
 This document outlines the fundamental rules, architectural patterns, and conventions for the **DesktopMate+ Backend** repository.
 You must adhere to these guidelines for all code generation and refactoring tasks.
 
+## Core Philosophy
+
+- Question every requirement. Is it really necessary? Is there a simpler way?
+- Eliminate as much as possible.
+- Simplify and optimize.
+- Speed ​​up and shorten cycle times.
+- Automate.
+
 ## 1. Project Overview
 
 - **Purpose:** AI-powered desktop companion backend with vision, speech, and memory capabilities.
@@ -27,12 +35,12 @@ You must adhere to these guidelines for all code generation and refactoring task
 - `src/core`: Core infrastructure (Logging, Exceptions, Middleware).
 - `src/models`: Pydantic data models and schemas.
 - `src/services`: Business logic and Service implementations.
-    - `agent/`: LLM Agent logic (LangGraph).
-    - `stm/`: Short-Term Memory services.
-    - `ltm/`: Long-Term Memory services.
-    - `tts/`: Text-to-Speech services.
-    - `vlm/`: Vision-Language Model services.
-    - `websocket/`: WebSocket communication services.
+  - `agent/`: LLM Agent logic (LangGraph).
+  - `stm/`: Short-Term Memory services.
+  - `ltm/`: Long-Term Memory services.
+  - `tts/`: Text-to-Speech services.
+  - `vlm/`: Vision-Language Model services.
+  - `websocket/`: WebSocket communication services.
 - `src/main.py`: Application entry point and lifespan management.
 - `yaml_files/`: Service configuration files.
 - `tests/`: Unit and integration tests.
