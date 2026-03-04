@@ -31,6 +31,7 @@ class Mem0EmbedderConfigValues(BaseModel):
     )
     embedding_dims: int = 2560
 
+
 class Mem0VectorStoreConfigValues(BaseModel):
     """Mem0 Vector Store config 내부 값 정의"""
 

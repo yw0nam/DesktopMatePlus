@@ -24,6 +24,10 @@ settings:
   health_check_timeout: 5
 
   # WebSocket configuration
-  max_error_tolerance: 5
-  error_backoff_seconds: 0.5
-  inactivity_timeout_seconds: 300
+  websocket:
+    ping_interval_seconds: 30
+    pong_timeout_seconds: 10
+    max_error_tolerance: 5
+    error_backoff_seconds: 0.5
+    inactivity_timeout_seconds: 300
+    disconnect_timeout_seconds: 5.0

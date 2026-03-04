@@ -12,9 +12,12 @@ class VLLMOmniTTSConfig(BaseModel):
     base_url: str = Field(..., description="Base URL for local VLLM Omni TTS server")
     api_key: Optional[str] = Field(default_factory=lambda: os.getenv("TTS_API_KEY"))
     model: str = Field("chat_model", description="Model name to use for synthesis")
-    task_type: str = Field("Base", description="Task type for the TTS request (e.g. 'Base')")
+    task_type: str = Field(
+        "Base", description="Task type for the TTS request (e.g. 'Base')"
+    )
     response_format: Literal["mp3", "wav"] = Field(
-        "mp3", description="Audio output format ('mp3' or 'wav')",
+        "mp3",
+        description="Audio output format ('mp3' or 'wav')",
     )
     ref_audio_dir: str = Field(
         "./resources/references_voices",
