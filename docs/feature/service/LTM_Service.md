@@ -1,6 +1,6 @@
 # LTM Service (Long-Term Memory)
 
-Updated: 2025-11-28
+Updated: 2026-03-07
 
 ## 1. Synopsis
 
@@ -64,7 +64,34 @@ ltm_config:
         url: "bolt://localhost:7687"
 ```
 
-## 3. Usage
+## 3. Consolidation Policy
+
+`add_memory`는 매 턴 호출하지 않습니다. 단편적 메시지로 Mem0를 호출하면 쓸모없는 정보가 Graph/Vector에 누적됩니다.
+
+### Turn-based Batch Consolidation
+
+- **트리거**: STM 저장 후 전체 history 길이가 `LTM_CONSOLIDATION_TURN_INTERVAL * 2`의 배수일 때 (기본: 20 messages = 10 turns).
+- **배치**: 최근 `INTERVAL * 2`개 메시지를 한 번에 전달 → Mem0의 추출 품질 향상.
+- **구현**: `AgentService.save_memory()` / `async_save_memory()` 내부에서 처리.
+
+```python
+# AgentService (service.py)
+LTM_CONSOLIDATION_TURN_INTERVAL = 10  # 변경 시 이 값만 수정
+
+batch_size = LTM_CONSOLIDATION_TURN_INTERVAL * 2
+if len(history) > 0 and len(history) % batch_size == 0:
+    ltm_service.add_memory(messages=history[-batch_size:], ...)
+```
+
+### TODO: 업그레이드 경로 (STM metadata 기반)
+
+현재 방식은 매 턴 `get_chat_history` I/O가 추가 발생합니다. 충분히 커지면 아래 방식으로 교체:
+
+- STM `session.metadata`에 `ltm_last_consolidated_turn`, `ltm_token_count_since_last` 저장.
+- 트리거 조건: 턴 수 OR 토큰 임계값(예: 3000) 중 먼저 도달한 조건으로 consolidation.
+- 재시작/멀티프로세스 안전, 추가 STM read 불필요.
+
+## 4. Usage
 
 ```python
 from src.services import get_ltm_service
@@ -97,7 +124,7 @@ ltm.delete_memory(
 )
 ```
 
-## 4. Output Examples
+## 5. Output Examples
 
 ### Memory Add Output (`add_memory`)
 
@@ -156,7 +183,7 @@ ltm.delete_memory(
 
 ---
 
-## Appendix
+## 6. Appendix
 
 ### A. Related Documents
 

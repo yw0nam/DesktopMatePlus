@@ -116,6 +116,18 @@ class AgentService(ABC):
             dict: The model's response stream.
         """
 
+    # LTM consolidation interval (in turns). One turn = 1 human + 1 AI message (2 messages).
+    # Every N turns, the last N turns are batched and sent to LTM for memory extraction.
+    #
+    # TODO: Upgrade path — replace with STM metadata-based threshold:
+    #   Store `ltm_last_consolidated_turn` and `ltm_token_count_since_last` in
+    #   session.metadata (MongoDB). Trigger consolidation when EITHER condition is met:
+    #     (a) current_turn - ltm_last_consolidated_turn >= TURN_INTERVAL
+    #     (b) ltm_token_count_since_last >= TOKEN_THRESHOLD (e.g. 3000)
+    #   This approach is durable across restarts, multi-process safe, and allows
+    #   token-based triggering for higher-quality memory consolidation.
+    LTM_CONSOLIDATION_TURN_INTERVAL = 10
+
     def save_memory(
         self,
         new_chats: list[BaseMessage],
@@ -150,16 +162,22 @@ class AgentService(ABC):
                     messages=new_chats,
                 )
                 logger.info(f"Chat history saved to STM: {session_id}")
-            # if new_chats != [] and ltm_service:
-            #     # Run blocking LTM operation in thread pool
-            #     # TODO: Need to be optimized this part.
-            #     # Add persona information to memory?...
-            #     ltm_result = ltm_service.add_memory(
-            #         messages=new_chats,
-            #         user_id=user_id,
-            #         agent_id=agent_id,
-            #     )
-            #     logger.info(f"Memory added to LTM: {ltm_result}")
+
+            if ltm_service and stm_service:
+                history = stm_service.get_chat_history(
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                )
+                batch_size = self.LTM_CONSOLIDATION_TURN_INTERVAL * 2
+                if len(history) > 0 and len(history) % batch_size == 0:
+                    ltm_result = ltm_service.add_memory(
+                        messages=history[-batch_size:],
+                        user_id=user_id,
+                        agent_id=agent_id,
+                    )
+                    logger.info(f"LTM consolidation triggered at turn {len(history) // 2}: {ltm_result}")
+
             logger.info(f"Memory save completed for session {session_id}")
             return session_id
         except Exception as e:
@@ -201,17 +219,24 @@ class AgentService(ABC):
                     messages=new_chats,
                 )
                 logger.info(f"Chat history saved to STM: {stm_result}")
-            # if new_chats != [] and ltm_service:
-            #     # Run blocking LTM operation in thread pool
-            #     # TODO: Need to be optimized this part.
-            #     # Add persona information to memory?...
-            #     ltm_result = await asyncio.to_thread(
-            #         ltm_service.add_memory,
-            #         messages=new_chats,
-            #         user_id=user_id,
-            #         agent_id=agent_id,
-            #     )
-            #     logger.info(f"Memory added to LTM: {ltm_result}")
+
+            if ltm_service and stm_service:
+                history = await asyncio.to_thread(
+                    stm_service.get_chat_history,
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                )
+                batch_size = self.LTM_CONSOLIDATION_TURN_INTERVAL * 2
+                if len(history) > 0 and len(history) % batch_size == 0:
+                    ltm_result = await asyncio.to_thread(
+                        ltm_service.add_memory,
+                        messages=history[-batch_size:],
+                        user_id=user_id,
+                        agent_id=agent_id,
+                    )
+                    logger.info(f"LTM consolidation triggered at turn {len(history) // 2}: {ltm_result}")
+
             logger.info(f"Memory save completed for session {session_id}")
         except Exception as e:
             logger.error(f"Background memory save failed for session {session_id}: {e}")
