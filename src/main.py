@@ -17,14 +17,6 @@ from src.core.logger import setup_logging
 from src.core.middleware import RequestIDMiddleware
 
 load_dotenv()
-# Store config paths globally for lifespan to access
-_config_paths = {
-    "tts_config_path": None,
-    "vlm_config_path": None,
-    "agent_config_path": None,
-    "stm_config_path": None,
-    "ltm_config_path": None,
-}
 
 
 def load_main_config(yaml_file: str | Path) -> dict:
@@ -64,94 +56,92 @@ def load_main_config(yaml_file: str | Path) -> dict:
     return resolved_paths
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage application lifespan events."""
-    # Setup logging first
-    log_level = os.getenv("LOG_LEVEL", "INFO")
-    log_retention = os.getenv("LOG_RETENTION", "30 days")
-    setup_logging(level=log_level, retention=log_retention)
-
-    # Get settings instance
-    settings = get_settings()
-
-    # Startup
-    print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
-    print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
-    print(f"🔧 Debug mode: {settings.debug}")
-    print(f"📊 Log level: {log_level} | Retention: {log_retention}")
-
-    # Initialize all services using the centralized service manager
-    try:
-        from src.services import (
-            initialize_agent_service,
-            initialize_ltm_service,
-            initialize_stm_service,
-            initialize_tts_service,
-            initialize_vlm_service,
-        )
-
-        # Initialize services from YAML configurations
-        # API keys are loaded from environment variables (.env file)
-        print("\n📋 Loading service configurations...")
-
-        # Initialize TTS service
-        if _config_paths.get("tts_config_path"):
-            print(f"  - TTS config: {_config_paths['tts_config_path']}")
-            initialize_tts_service(config_path=_config_paths["tts_config_path"])
-        else:
-            print("  - TTS config: Using default")
-            initialize_tts_service()
-
-        # Initialize VLM service
-        if _config_paths.get("vlm_config_path"):
-            print(f"  - VLM config: {_config_paths['vlm_config_path']}")
-            initialize_vlm_service(config_path=_config_paths["vlm_config_path"])
-        else:
-            print("  - VLM config: Using default")
-            initialize_vlm_service()
-
-        # Initialize Agent service
-        if _config_paths.get("agent_config_path"):
-            print(f"  - Agent config: {_config_paths['agent_config_path']}")
-            initialize_agent_service(config_path=_config_paths["agent_config_path"])
-        else:
-            print("  - Agent config: Using default")
-            initialize_agent_service()
-
-        if _config_paths.get("stm_config_path"):
-            print(f"  - STM config: {_config_paths['stm_config_path']}")
-            initialize_stm_service(config_path=_config_paths["stm_config_path"])
-        else:
-            print("  - STM config: Using default from settings")
-            initialize_stm_service()
-
-        # Initialize LTM service (no client API exposure needed)
-        if _config_paths.get("ltm_config_path"):
-            print(f"  - LTM config: {_config_paths['ltm_config_path']}")
-            initialize_ltm_service(config_path=_config_paths["ltm_config_path"])
-        else:
-            print("  - LTM config: Using default")
-            initialize_ltm_service()
-
-    except Exception as e:
-        print(f"⚠️  Failed to initialize services: {e}")
-        import traceback
-
-        traceback.print_exc()
-
-    yield
-
-    # Shutdown
-    print(f"👋 Shutting down {settings.app_name}")
-
-
-def create_app() -> FastAPI:
+def create_app(config_paths: dict | None = None) -> FastAPI:
     """Create and configure FastAPI application.
 
-    This function must be called after settings are initialized.
+    Args:
+        config_paths: Dictionary of service config paths. Captured by lifespan closure.
     """
+    if config_paths is None:
+        config_paths = {}
+
     settings = get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Manage application lifespan events."""
+        # Setup logging first
+        log_level = os.getenv("LOG_LEVEL", "INFO")
+        log_retention = os.getenv("LOG_RETENTION", "30 days")
+        setup_logging(level=log_level, retention=log_retention)
+
+        # Startup
+        print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
+        print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
+        print(f"🔧 Debug mode: {settings.debug}")
+        print(f"📊 Log level: {log_level} | Retention: {log_retention}")
+
+        # Initialize all services using the centralized service manager
+        try:
+            from src.services import (
+                initialize_agent_service,
+                initialize_ltm_service,
+                initialize_stm_service,
+                initialize_tts_service,
+                initialize_vlm_service,
+            )
+
+            print("\n📋 Loading service configurations...")
+
+            # Initialize TTS service
+            if config_paths.get("tts_config_path"):
+                print(f"  - TTS config: {config_paths['tts_config_path']}")
+                initialize_tts_service(config_path=config_paths["tts_config_path"])
+            else:
+                print("  - TTS config: Using default")
+                initialize_tts_service()
+
+            # Initialize VLM service
+            if config_paths.get("vlm_config_path"):
+                print(f"  - VLM config: {config_paths['vlm_config_path']}")
+                initialize_vlm_service(config_path=config_paths["vlm_config_path"])
+            else:
+                print("  - VLM config: Using default")
+                initialize_vlm_service()
+
+            # Initialize Agent service
+            if config_paths.get("agent_config_path"):
+                print(f"  - Agent config: {config_paths['agent_config_path']}")
+                initialize_agent_service(config_path=config_paths["agent_config_path"])
+            else:
+                print("  - Agent config: Using default")
+                initialize_agent_service()
+
+            if config_paths.get("stm_config_path"):
+                print(f"  - STM config: {config_paths['stm_config_path']}")
+                initialize_stm_service(config_path=config_paths["stm_config_path"])
+            else:
+                print("  - STM config: Using default from settings")
+                initialize_stm_service()
+
+            # Initialize LTM service (no client API exposure needed)
+            if config_paths.get("ltm_config_path"):
+                print(f"  - LTM config: {config_paths['ltm_config_path']}")
+                initialize_ltm_service(config_path=config_paths["ltm_config_path"])
+            else:
+                print("  - LTM config: Using default")
+                initialize_ltm_service()
+
+        except Exception as e:
+            print(f"⚠️  Failed to initialize services: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+        yield
+
+        # Shutdown
+        print(f"👋 Shutting down {settings.app_name}")
 
     # Create FastAPI application instance
     app = FastAPI(
@@ -165,10 +155,7 @@ def create_app() -> FastAPI:
     )
 
     # Configure middlewares
-    # Add Request ID middleware first (executes last in the chain)
     app.add_middleware(RequestIDMiddleware)
-
-    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -195,12 +182,9 @@ def get_app():
     global app
     if app is None:
         try:
-            # Try to get settings (will raise if not initialized)
             get_settings()
             app = create_app()
         except RuntimeError:
-            # Settings not initialized yet, return None
-            # This will be properly initialized when main() runs
             pass
     return app
 
@@ -252,7 +236,6 @@ Example usage:
     # Load main configuration
     try:
         config_paths = load_main_config(args.yaml_file)
-        _config_paths.update(config_paths)
         print(f"✅ Loaded configuration from: {args.yaml_file}")
     except Exception as e:
         print(f"⚠️  Failed to load configuration from {args.yaml_file}: {e}")
@@ -264,8 +247,8 @@ Example usage:
     # Get settings after initialization
     settings = get_settings()
 
-    # Create app after settings are initialized
-    app = create_app()
+    # Create app with config paths captured by closure
+    app = create_app(config_paths)
 
     # Determine server settings
     host = args.host or settings.host
@@ -273,7 +256,6 @@ Example usage:
     reload = args.reload or settings.debug
 
     # Run the server
-    # Note: We pass the app instance directly to avoid reload issues
     uvicorn.run(
         app,
         host=host,

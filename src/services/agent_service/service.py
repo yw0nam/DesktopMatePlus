@@ -116,19 +116,9 @@ class AgentService(ABC):
             dict: The model's response stream.
         """
 
-    # LTM consolidation interval (in turns). One turn = 1 human + 1 AI message (2 messages).
-    # Every N turns, the last N turns are batched and sent to LTM for memory extraction.
-    #
-    # TODO: Upgrade path — replace with STM metadata-based threshold:
-    #   Store `ltm_last_consolidated_turn` and `ltm_token_count_since_last` in
-    #   session.metadata (MongoDB). Trigger consolidation when EITHER condition is met:
-    #     (a) current_turn - ltm_last_consolidated_turn >= TURN_INTERVAL
-    #     (b) ltm_token_count_since_last >= TOKEN_THRESHOLD (e.g. 3000)
-    #   This approach is durable across restarts, multi-process safe, and allows
-    #   token-based triggering for higher-quality memory consolidation.
     LTM_CONSOLIDATION_TURN_INTERVAL = 10
 
-    def save_memory(
+    async def save_memory(
         self,
         new_chats: list[BaseMessage],
         stm_service: STMService,
@@ -137,25 +127,18 @@ class AgentService(ABC):
         agent_id: str,
         session_id: str,
     ):
-        """Save new chats to memory asynchronously.
+        """Save new chats to STM and conditionally consolidate to LTM.
 
-        This method runs in the background and does not block the response stream.
-        Uses asyncio.to_thread() to run blocking I/O operations in a thread pool.
+        Runs as a fire-and-forget background task via asyncio.create_task().
+        Uses asyncio.to_thread() for blocking MongoDB I/O.
         Errors are logged but do not affect the client response.
-
-        Args:
-            new_chats (list[BaseMessage]): New chat messages to save.
-            stm_service (STMService): Short-Term memory service instance.
-            ltm_service (LTMService): Long-Term memory service instance.
-            user_id (str): Persistent user identifier for memory tool.
-            agent_id (str): Persistent agent identifier for memory tool.
-            session_id (str): Session identifier for the current conversation.
         """
+        import asyncio
 
         try:
-            if new_chats != [] and stm_service:
-                # Run blocking STM operation in thread pool
-                session_id = stm_service.add_chat_history(
+            if new_chats and stm_service:
+                await asyncio.to_thread(
+                    stm_service.add_chat_history,
                     user_id=user_id,
                     agent_id=agent_id,
                     session_id=session_id,
@@ -164,78 +147,38 @@ class AgentService(ABC):
                 logger.info(f"Chat history saved to STM: {session_id}")
 
             if ltm_service and stm_service:
-                history = stm_service.get_chat_history(
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    session_id=session_id,
+                metadata = await asyncio.to_thread(
+                    stm_service.get_session_metadata, session_id
                 )
-                batch_size = self.LTM_CONSOLIDATION_TURN_INTERVAL * 2
-                if len(history) > 0 and len(history) % batch_size == 0:
-                    ltm_result = ltm_service.add_memory(
-                        messages=history[-batch_size:],
-                        user_id=user_id,
-                        agent_id=agent_id,
-                    )
-                    logger.info(f"LTM consolidation triggered at turn {len(history) // 2}: {ltm_result}")
+                last_consolidated = metadata.get("ltm_last_consolidated_at_turn", 0)
 
-            logger.info(f"Memory save completed for session {session_id}")
-            return session_id
-        except Exception as e:
-            logger.error(f"Background memory save failed for session {session_id}: {e}")
-
-    async def async_save_memory(
-        self,
-        new_chats: list[BaseMessage],
-        stm_service: STMService,
-        ltm_service: LTMService,
-        user_id: str,
-        agent_id: str,
-        session_id: str,
-    ):
-        """Save new chats to memory asynchronously.
-
-        This method runs in the background and does not block the response stream.
-        Uses asyncio.to_thread() to run blocking I/O operations in a thread pool.
-        Errors are logged but do not affect the client response.
-
-        Args:
-            new_chats (list[BaseMessage]): New chat messages to save.
-            stm_service (STMService): Short-Term memory service instance.
-            ltm_service (LTMService): Long-Term memory service instance.
-            user_id (str): Persistent user identifier for memory tool.
-            agent_id (str): Persistent agent identifier for memory tool.
-            session_id (str): Session identifier for the current conversation.
-        """
-        import asyncio
-
-        try:
-            if new_chats != [] and stm_service:
-                # Run blocking STM operation in thread pool
-                stm_result = await asyncio.to_thread(
-                    stm_service.add_chat_history,
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    session_id=session_id,
-                    messages=new_chats,
-                )
-                logger.info(f"Chat history saved to STM: {stm_result}")
-
-            if ltm_service and stm_service:
                 history = await asyncio.to_thread(
                     stm_service.get_chat_history,
                     user_id=user_id,
                     agent_id=agent_id,
                     session_id=session_id,
                 )
-                batch_size = self.LTM_CONSOLIDATION_TURN_INTERVAL * 2
-                if len(history) > 0 and len(history) % batch_size == 0:
+                current_turn = len(history) // 2
+
+                if (
+                    current_turn - last_consolidated
+                    >= self.LTM_CONSOLIDATION_TURN_INTERVAL
+                ):
+                    messages_since_last = history[last_consolidated * 2 :]
                     ltm_result = await asyncio.to_thread(
                         ltm_service.add_memory,
-                        messages=history[-batch_size:],
+                        messages=messages_since_last,
                         user_id=user_id,
                         agent_id=agent_id,
                     )
-                    logger.info(f"LTM consolidation triggered at turn {len(history) // 2}: {ltm_result}")
+                    await asyncio.to_thread(
+                        stm_service.update_session_metadata,
+                        session_id,
+                        {"ltm_last_consolidated_at_turn": current_turn},
+                    )
+                    logger.info(
+                        f"LTM consolidation triggered at turn {current_turn}: {ltm_result}"
+                    )
 
             logger.info(f"Memory save completed for session {session_id}")
         except Exception as e:
