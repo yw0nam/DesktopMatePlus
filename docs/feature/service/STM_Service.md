@@ -1,6 +1,6 @@
 # STM Service (Short-Term Memory)
 
-Updated: 2025-12-04
+Updated: 2026-03-07
 
 ## 1. Synopsis
 
@@ -19,9 +19,10 @@ Updated: 2025-12-04
 | `is_healthy()` | - | `(bool, str)` |
 | `add_chat_history()` | user_id, agent_id, session_id, messages | `str` (session_id) |
 | `get_chat_history()` | user_id, agent_id, session_id, limit | `list[BaseMessage]` |
+| `get_session_metadata()` | session_id | `dict` (metadata, `{}` if not found) |
+| `update_session_metadata()` | session_id, metadata | `bool` |
 | `list_sessions()` | user_id, agent_id | `list[dict]` |
 | `delete_session()` | user_id, agent_id, session_id | `bool` |
-| `update_session_metadata()` | user_id, agent_id, session_id, metadata | `bool` |
 
 ### Data Model
 
@@ -33,7 +34,10 @@ Updated: 2025-12-04
     "agent_id": "agent_001",
     "created_at": datetime,
     "updated_at": datetime,
-    "metadata": {}
+    "metadata": {
+        # LTM consolidation tracking
+        "ltm_last_consolidated_at_turn": 0  # int, default 0
+    }
 }
 
 # Message (OpenAI-compatible format, text only)
