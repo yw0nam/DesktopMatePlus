@@ -158,13 +158,13 @@ class OpenAIChatAgent(AgentService):
                 )
 
             agent = create_react_agent(**agent_kwargs)
-            run_id = str(uuid4())
-            config = {"configurable": {"thread_id": run_id}}
+            turn_id = str(uuid4())
+            thread_id = str(uuid4())
+            config = {"configurable": {"thread_id": thread_id}}
 
-            # stream 메서드는 process_message 라는 비동기 제너레이터를 반환합니다.
             yield {
                 "type": "stream_start",
-                "turn_id": run_id,
+                "turn_id": turn_id,
                 "session_id": session_id,
             }
             new_chats: list[BaseMessage] = []  # Initialize to empty list
@@ -177,35 +177,24 @@ class OpenAIChatAgent(AgentService):
                     new_chats = item["data"]
                     # 최종 응답은 채팅 기록 저장에만 사용됩니다.
 
-            # Async version, Currently LTM is not used, so this is commented out. because STM is fast enough.
-            # Save new chats to STM and LTM in background (fire-and-forget)
-            # if stm_service or ltm_service:
-            #     asyncio.create_task(
-            #         self.async_save_memory(
-            #             new_chats=new_chats,
-            #             stm_service=stm_service,
-            #             ltm_service=ltm_service,
-            #             user_id=user_id,
-            #             agent_id=agent_id,
-            #             session_id=session_id,
-            #         ),
-            #         name=f"save-memory-{session_id}",
-            #     )
             if stm_service or ltm_service:
-                session_id = self.save_memory(
-                    new_chats=new_chats,
-                    stm_service=stm_service,
-                    ltm_service=ltm_service,
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    session_id=session_id,
+                asyncio.create_task(
+                    self.save_memory(
+                        new_chats=new_chats,
+                        stm_service=stm_service,
+                        ltm_service=ltm_service,
+                        user_id=user_id,
+                        agent_id=agent_id,
+                        session_id=session_id,
+                    ),
+                    name=f"save-memory-{session_id}",
                 )
             # Get final content safely
             content = new_chats[-1].content if new_chats else ""
 
             yield {
                 "type": "stream_end",
-                "turn_id": run_id,
+                "turn_id": turn_id,
                 "session_id": session_id,
                 "content": content,
             }
@@ -214,6 +203,13 @@ class OpenAIChatAgent(AgentService):
 
             traceback.print_exc()
             raise
+
+    @staticmethod
+    def _flush_buffer(node: str, buffer: str) -> dict:
+        """Create a flush message from the content buffer."""
+        if node == "tools":
+            return {"type": "tool_result", "result": buffer.strip(), "node": node}
+        return {"type": "stream_token", "chunk": buffer.strip(), "node": node}
 
     async def _process_message(
         self,
@@ -261,18 +257,7 @@ class OpenAIChatAgent(AgentService):
                     # 메모리 보호: 최대 크기 초과 시 강제 전송
                     if len(content_buffer) > MAX_BUFFER_SIZE:
                         if content_buffer.strip():
-                            if node == "tools":
-                                yield {
-                                    "type": "tool_result",
-                                    "result": content_buffer.strip(),
-                                    "node": node,
-                                }
-                            elif node == "agent":
-                                yield {
-                                    "type": "stream_token",
-                                    "chunk": content_buffer.strip(),
-                                    "node": node,
-                                }
+                            yield self._flush_buffer(node, content_buffer)
                             chunk_count += 1
                         content_buffer = ""
                         continue
@@ -294,18 +279,7 @@ class OpenAIChatAgent(AgentService):
                         should_send = True
 
                     if should_send and content_buffer.strip():
-                        if node == "tools":
-                            yield {
-                                "type": "tool_result",
-                                "result": content_buffer.strip(),
-                                "node": node,
-                            }
-                        elif node == "agent":
-                            yield {
-                                "type": "stream_token",
-                                "chunk": content_buffer.strip(),
-                                "node": node,
-                            }
+                        yield self._flush_buffer(node, content_buffer)
                         chunk_count += 1
                         content_buffer = ""
 
@@ -338,18 +312,7 @@ class OpenAIChatAgent(AgentService):
 
             # 마지막 버퍼 처리
             if content_buffer.strip():
-                if node == "tools":
-                    yield {
-                        "type": "tool_result",
-                        "result": content_buffer.strip(),
-                        "node": node,
-                    }
-                elif node == "agent":
-                    yield {
-                        "type": "stream_token",
-                        "chunk": content_buffer.strip(),
-                        "node": node,
-                    }
+                yield self._flush_buffer(node, content_buffer)
                 chunk_count += 1
 
             state = agent.get_state(config=config)
@@ -367,18 +330,7 @@ class OpenAIChatAgent(AgentService):
             logger.error(f"Error in process_message: {e}")
             # 버퍼에 남은 내용이 있으면 먼저 전송
             if content_buffer.strip():
-                if node == "tools":
-                    yield {
-                        "type": "tool_result",
-                        "result": content_buffer.strip(),
-                        "node": node,
-                    }
-                elif node == "agent":
-                    yield {
-                        "type": "stream_token",
-                        "chunk": content_buffer.strip(),
-                        "node": node,
-                    }
+                yield self._flush_buffer(node, content_buffer)
             yield {
                 "type": "error",
                 "error": "메시지 처리 중 오류가 발생했습니다.",

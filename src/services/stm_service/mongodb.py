@@ -351,6 +351,26 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             logger.error(f"Error deleting session: {e}")
             raise
 
+    def get_session_metadata(self, session_id: str) -> dict:
+        """Get session metadata from MongoDB.
+
+        Args:
+            session_id (str): Session identifier
+
+        Returns:
+            dict: Session metadata. Empty dict if session not found.
+        """
+        try:
+            session = self._sessions_collection.find_one(
+                {"session_id": session_id}, {"metadata": 1, "_id": 0}
+            )
+            if session:
+                return session.get("metadata", {})
+            return {}
+        except Exception as e:
+            logger.error(f"Error getting session metadata: {e}")
+            return {}
+
     def update_session_metadata(self, session_id: str, metadata: dict) -> bool:
         """Update session metadata in MongoDB.
 

@@ -4,7 +4,6 @@ import asyncio
 import json
 from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
-from weakref import WeakSet
 
 from fastapi import WebSocket
 from loguru import logger
@@ -45,7 +44,7 @@ class WebSocketManager:
             disconnect_timeout: Timeout for graceful disconnect in seconds.
         """
         self.connections: Dict[UUID, ConnectionState] = {}
-        self._heartbeat_tasks: WeakSet = WeakSet()
+        self._heartbeat_tasks: set[asyncio.Task] = set()
 
         # Load settings from config if available, otherwise use parameters or defaults
         try:
@@ -114,6 +113,7 @@ class WebSocketManager:
             self._heartbeat_monitor.heartbeat_loop(connection_state)
         )
         self._heartbeat_tasks.add(heartbeat_task)
+        heartbeat_task.add_done_callback(self._heartbeat_tasks.discard)
 
         return connection_id
 

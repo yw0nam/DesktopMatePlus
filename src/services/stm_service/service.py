@@ -113,6 +113,17 @@ class STMService(ABC, Generic[MemoryClientType]):
         """
 
     @abstractmethod
+    def get_session_metadata(self, session_id: str) -> dict:
+        """
+        Get the metadata of a specific session.
+
+        Args:
+            session_id (str): Session identifier.
+        Returns:
+            dict: Session metadata. Empty dict if session not found.
+        """
+
+    @abstractmethod
     def update_session_metadata(self, session_id: str, metadata: dict) -> bool:
         """
         Update the metadata of a specific session (e.g., title, summary).
