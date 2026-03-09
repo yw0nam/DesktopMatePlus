@@ -1,12 +1,12 @@
 """Tests for LTM consolidation in AgentService.save_memory.
 
 Verifies:
-- Turn counter is computed as len(history) // 2 (total messages divided by 2)
+- Turn counter is computed as count of HumanMessage only (user turns)
+- AIMessage, SystemMessage (synthetic) are NOT counted as turns
 - LTM consolidation triggers when (current_turn - last_consolidated) >= INTERVAL
-- Synthetic messages (SystemMessage injected via NanoClaw callback) are included
-  in history and therefore in the messages passed to LTM on consolidation
+- Synthetic messages in history are included in the slice passed to LTM
+- History slice starts at the last_consolidated-th HumanMessage (not last_consolidated*2)
 - No LTM consolidation when interval threshold is not reached
-- Correct history slice is passed to LTM (from last_consolidated * 2 onward)
 """
 
 from unittest.mock import MagicMock
@@ -52,14 +52,14 @@ def _make_ltm():
 
 
 # ---------------------------------------------------------------------------
-# Turn counter: len(history) // 2
+# Turn counter: HumanMessage-only count
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_turn_counter_counts_message_pairs(agent):
-    """Turn counter = len(full history) // 2, flooring odd counts."""
-    # 8 messages = 4 human+AI pairs → current_turn = 4
+async def test_turn_counter_counts_human_messages_only(agent):
+    """Turn counter = number of HumanMessages in history."""
+    # 8 HumanMessages → current_turn = 8
     history = [HumanMessage(content=f"msg {i}") for i in range(8)]
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
@@ -78,8 +78,8 @@ async def test_turn_counter_counts_message_pairs(agent):
 
 
 @pytest.mark.asyncio
-async def test_turn_counter_floors_odd_message_count(agent):
-    """Odd number of messages: floor(9/2) = 4, below threshold."""
+async def test_turn_counter_exact_human_count(agent):
+    """Turn counter counts all 9 HumanMessages exactly, below threshold."""
     history = [HumanMessage(content=f"msg {i}") for i in range(9)]
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
@@ -340,10 +340,10 @@ async def test_synthetic_messages_included_in_consolidation(agent):
 
 @pytest.mark.asyncio
 async def test_synthetic_only_session_does_not_miscount(agent):
-    """Pure synthetic messages do not create extra 'user turns'.
+    """Pure synthetic messages do not create user turns.
 
-    If a session has only synthetic SystemMessages (no human+AI pairs),
-    len(history)//2 floors to 0 and consolidation is never triggered.
+    If a session has only synthetic SystemMessages (no HumanMessages),
+    turn counter = 0 and consolidation is never triggered.
     """
     history = [
         SystemMessage(content="[TaskResult:task-1] Done."),
@@ -362,6 +362,89 @@ async def test_synthetic_only_session_does_not_miscount(agent):
     )
 
     ltm.add_memory.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Bug regression: synthetic messages must NOT inflate turn counter
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_synthetic_messages_do_not_inflate_turn_counter(agent):
+    """Synthetic (non-HumanMessage) messages must NOT count as turns.
+
+    5 H/A pairs + 10 SystemMessages = 20 total messages.
+    Old len//2 = 10 would wrongly trigger consolidation.
+    HumanMessage-only count = 5 must NOT trigger (< 10 interval).
+    """
+    history = []
+    for i in range(5):
+        history.append(HumanMessage(content=f"user {i}"))
+        history.append(AIMessage(content=f"assistant {i}"))
+    for i in range(10):
+        history.append(SystemMessage(content=f"[TaskResult:task-{i}] Done."))
+
+    stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
+    ltm = _make_ltm()
+
+    await agent.save_memory(
+        new_chats=[],
+        stm_service=stm,
+        ltm_service=ltm,
+        user_id="u1",
+        agent_id="a1",
+        session_id="s1",
+    )
+
+    ltm.add_memory.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_slice_excludes_pre_boundary_synthetic_messages(agent):
+    """Slice must start at the last_consolidated-th HumanMessage, not last_consolidated*2.
+
+    Layout: 3 H/A pairs + 5 SystemMessages + 10 H/A pairs, last_consolidated=3.
+    13 HumanMessages total, gap = 13 - 3 = 10 >= interval → triggers consolidation.
+    Old history[6:] starts at the first SystemMessage (wrong).
+    New slice must start exactly at H("user 3") (the 4th HumanMessage, index 11).
+    """
+    history = []
+    # 3 H/A pairs → indices 0..5
+    for i in range(3):
+        history.append(HumanMessage(content=f"user {i}"))
+        history.append(AIMessage(content=f"assistant {i}"))
+    # 5 synthetic messages → indices 6..10
+    for i in range(5):
+        history.append(SystemMessage(content=f"[TaskResult:task-{i}] Done."))
+    # 10 H/A pairs → indices 11..30  (13 HumanMessages total)
+    for i in range(3, 13):
+        history.append(HumanMessage(content=f"user {i}"))
+        history.append(AIMessage(content=f"assistant {i}"))
+
+    last_consolidated = 3
+    stm = _make_stm(
+        history, metadata={"ltm_last_consolidated_at_turn": last_consolidated}
+    )
+    ltm = _make_ltm()
+
+    await agent.save_memory(
+        new_chats=[],
+        stm_service=stm,
+        ltm_service=ltm,
+        user_id="u1",
+        agent_id="a1",
+        session_id="s1",
+    )
+
+    ltm.add_memory.assert_called_once()
+    call_kwargs = ltm.add_memory.call_args
+    messages_arg = call_kwargs.kwargs.get("messages") or call_kwargs.args[0]
+
+    # Slice must start at H("user 3"), NOT at a SystemMessage
+    assert isinstance(
+        messages_arg[0], HumanMessage
+    ), f"Slice must start at HumanMessage, got {type(messages_arg[0])}"
+    assert messages_arg[0].content == "user 3"
 
 
 # ---------------------------------------------------------------------------

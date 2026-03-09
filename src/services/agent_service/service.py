@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import BaseCheckpointSaver
 from loguru import logger
@@ -158,13 +158,23 @@ class AgentService(ABC):
                     agent_id=agent_id,
                     session_id=session_id,
                 )
-                current_turn = len(history) // 2
+                current_turn = sum(1 for m in history if isinstance(m, HumanMessage))
 
                 if (
                     current_turn - last_consolidated
                     >= self.LTM_CONSOLIDATION_TURN_INTERVAL
                 ):
-                    messages_since_last = history[last_consolidated * 2 :]
+                    slice_start = 0
+                    human_count = 0
+                    for idx, msg in enumerate(history):
+                        if isinstance(msg, HumanMessage):
+                            if human_count == last_consolidated:
+                                slice_start = idx
+                                break
+                            human_count += 1
+                    else:
+                        slice_start = len(history)
+                    messages_since_last = history[slice_start:]
                     ltm_result = await asyncio.to_thread(
                         ltm_service.add_memory,
                         messages=messages_since_last,
