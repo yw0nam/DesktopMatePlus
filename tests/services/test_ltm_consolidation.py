@@ -64,7 +64,7 @@ async def test_turn_counter_counts_human_messages_only(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    # 4 turns < 10 (INTERVAL), so LTM should NOT be called
+    # 8 turns < 10 (INTERVAL), so LTM should NOT be called
     await agent.save_memory(
         new_chats=[HumanMessage(content="new")],
         stm_service=stm,
@@ -204,7 +204,11 @@ async def test_consolidation_triggers_with_correct_offset(agent):
 
 @pytest.mark.asyncio
 async def test_consolidation_passes_correct_history_slice(agent):
-    """LTM receives history[last_consolidated*2:], not the full history."""
+    """LTM receives history starting from the last_consolidated-th HumanMessage.
+
+    With last_consolidated=0 and a pure H/A history, the slice starts at index 0
+    (the first HumanMessage), which equals the full history.
+    """
     history = []
     for i in range(10):
         history.append(HumanMessage(content=f"user {i}"))
@@ -227,13 +231,17 @@ async def test_consolidation_passes_correct_history_slice(agent):
 
     call_kwargs = ltm.add_memory.call_args
     messages_arg = call_kwargs.kwargs.get("messages") or call_kwargs.args[0]
-    expected_slice = history[last_consolidated * 2 :]
-    assert messages_arg == expected_slice
+    # last_consolidated=0 means no turns consolidated yet → full history
+    assert messages_arg == history
 
 
 @pytest.mark.asyncio
 async def test_consolidation_slice_starts_from_offset(agent):
-    """When last_consolidated > 0, slice starts at last_consolidated*2."""
+    """When last_consolidated > 0, slice starts at the last_consolidated-th HumanMessage.
+
+    With last_consolidated=3 and a pure H/A history, the 3rd HumanMessage (0-indexed)
+    is at index 6, so the slice is history[6:].
+    """
     history = []
     for i in range(13):
         history.append(HumanMessage(content=f"user {i}"))
@@ -256,8 +264,9 @@ async def test_consolidation_slice_starts_from_offset(agent):
 
     call_kwargs = ltm.add_memory.call_args
     messages_arg = call_kwargs.kwargs.get("messages") or call_kwargs.args[0]
-    expected_slice = history[last_consolidated * 2 :]
-    assert messages_arg == expected_slice
+    # In a pure H/A history, the 3rd HumanMessage is at index 6
+    assert messages_arg[0] == HumanMessage(content="user 3")
+    assert messages_arg == history[6:]
 
 
 @pytest.mark.asyncio
