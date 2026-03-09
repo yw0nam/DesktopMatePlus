@@ -100,6 +100,17 @@ class STMService(ABC, Generic[MemoryClientType]):
         """
 
     @abstractmethod
+    def list_all_sessions(self) -> list[dict]:
+        """
+        Get all sessions across all users and agents.
+
+        Used by background sweep to scan for expired tasks.
+
+        Returns:
+            list[dict]: List of session metadata (session_id, user_id, agent_id, ...).
+        """
+
+    @abstractmethod
     def delete_session(self, session_id: str, user_id: str, agent_id: str) -> bool:
         """
         Delete a specific chat session and all its messages.

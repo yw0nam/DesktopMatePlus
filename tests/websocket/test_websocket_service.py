@@ -239,6 +239,9 @@ class TestWebSocketManager:
             def update_session_metadata(self, session_id, metadata):
                 return True
 
+            def list_all_sessions(self):
+                return []
+
         class FakeLTMService:
             def search_memory(self, query, user_id, agent_id):
                 return {"results": []}  # Return empty search results for test
@@ -473,6 +476,94 @@ def test_websocket_service_imports():
 
     assert websocket_manager is not None
     assert MessageProcessor is not None
+
+
+class TestForwardTurnEvents:
+    """Test forward_turn_events — the Unity WebSocket push path."""
+
+    @pytest.mark.asyncio
+    async def test_forwards_all_events_to_websocket(self):
+        """All events from MessageProcessor.stream_events are sent via websocket."""
+        from src.services.websocket_service.manager.handlers import forward_turn_events
+
+        mock_ws = AsyncMock()
+        mock_ws.send_text = AsyncMock()
+
+        turn_id = "turn-forward-test"
+        events = [
+            {"type": "stream_start", "turn_id": turn_id},
+            {"type": "tts_ready_chunk", "chunk": "Hello world!", "turn_id": turn_id},
+            {"type": "stream_end", "turn_id": turn_id},
+        ]
+
+        async def fake_stream_events(_turn_id):
+            for event in events:
+                yield event
+
+        mock_mp = Mock(spec=MessageProcessor)
+        mock_mp.stream_events = fake_stream_events
+
+        connection_id = uuid4()
+        mock_state = Mock()
+        mock_state.websocket = mock_ws
+        mock_state.message_processor = mock_mp
+
+        await forward_turn_events(
+            connection_id, turn_id, get_connection_fn=lambda _: mock_state
+        )
+
+        assert mock_ws.send_text.call_count == 3
+        sent_payloads = [
+            json.loads(call.args[0]) for call in mock_ws.send_text.call_args_list
+        ]
+        assert sent_payloads[0]["type"] == "stream_start"
+        assert sent_payloads[1]["type"] == "tts_ready_chunk"
+        assert sent_payloads[1]["chunk"] == "Hello world!"
+        assert sent_payloads[2]["type"] == "stream_end"
+
+    @pytest.mark.asyncio
+    async def test_no_connection_state_exits_silently(self):
+        """forward_turn_events does nothing if connection state is missing."""
+        from src.services.websocket_service.manager.handlers import forward_turn_events
+
+        # Should not raise
+        await forward_turn_events(
+            uuid4(), "turn-gone", get_connection_fn=lambda _: None
+        )
+
+    @pytest.mark.asyncio
+    async def test_websocket_send_error_stops_forwarding(self):
+        """If send_text raises, forwarding stops without propagating."""
+        from src.services.websocket_service.manager.handlers import forward_turn_events
+
+        mock_ws = AsyncMock()
+        mock_ws.send_text = AsyncMock(side_effect=Exception("send failed"))
+
+        turn_id = "turn-send-error"
+        events = [
+            {"type": "tts_ready_chunk", "chunk": "Hi", "turn_id": turn_id},
+            {"type": "stream_end", "turn_id": turn_id},
+        ]
+
+        async def fake_stream_events(_turn_id):
+            for event in events:
+                yield event
+
+        mock_mp = Mock(spec=MessageProcessor)
+        mock_mp.stream_events = fake_stream_events
+
+        connection_id = uuid4()
+        mock_state = Mock()
+        mock_state.websocket = mock_ws
+        mock_state.message_processor = mock_mp
+
+        # Should not raise despite send_text failing
+        await forward_turn_events(
+            connection_id, turn_id, get_connection_fn=lambda _: mock_state
+        )
+
+        # Only the first call was attempted (then loop breaks)
+        assert mock_ws.send_text.call_count == 1
 
 
 if __name__ == "__main__":

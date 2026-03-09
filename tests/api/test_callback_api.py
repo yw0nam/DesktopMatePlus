@@ -34,7 +34,9 @@ class TestNanoClawCallback:
         """Should return 404 when task_id is not found in session metadata."""
         mock_stm_service.get_session_metadata.return_value = {"pending_tasks": []}
 
-        with patch("src.api.routes.callback.get_stm_service", return_value=mock_stm_service):
+        with patch(
+            "src.api.routes.callback.get_stm_service", return_value=mock_stm_service
+        ):
             response = client.post(
                 "/v1/callback/nanoclaw/session-123",
                 json={
@@ -62,7 +64,9 @@ class TestNanoClawCallback:
         mock_stm_service.update_session_metadata.return_value = True
         mock_stm_service.add_chat_history.return_value = session_id
 
-        with patch("src.api.routes.callback.get_stm_service", return_value=mock_stm_service):
+        with patch(
+            "src.api.routes.callback.get_stm_service", return_value=mock_stm_service
+        ):
             response = client.post(
                 f"/v1/callback/nanoclaw/{session_id}",
                 json={
@@ -109,7 +113,9 @@ class TestNanoClawCallback:
         mock_stm_service.update_session_metadata.return_value = True
         mock_stm_service.add_chat_history.return_value = session_id
 
-        with patch("src.api.routes.callback.get_stm_service", return_value=mock_stm_service):
+        with patch(
+            "src.api.routes.callback.get_stm_service", return_value=mock_stm_service
+        ):
             response = client.post(
                 f"/v1/callback/nanoclaw/{session_id}",
                 json={

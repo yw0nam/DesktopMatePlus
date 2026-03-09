@@ -95,7 +95,7 @@ class VLLMOmniTTSService(TTSService):
             ref_text = f.read().strip().replace("\n", "")
 
         self._ref_cache[reference_id] = (ref_audio_data, ref_text)
-        return ref_audio_data, ref_text
+        return self._ref_cache[reference_id]
 
     def _request_tts(
         self,

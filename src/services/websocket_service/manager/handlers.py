@@ -234,9 +234,7 @@ class MessageHandler:
             tools = []
             if stm_service:
                 tools.append(
-                    DelegateTaskTool(
-                        stm_service=stm_service, session_id=session_id
-                    )
+                    DelegateTaskTool(stm_service=stm_service, session_id=session_id)
                 )
 
             agent_stream = agent_service.stream(

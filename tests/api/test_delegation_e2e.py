@@ -71,9 +71,7 @@ def mock_stm():
 class TestDelegationFlowE2E:
     """End-to-end test: DelegateTaskTool → NanoClaw → Callback → STM."""
 
-    def test_full_delegation_round_trip(
-        self, client, mock_stm, mock_nanoclaw_server
-    ):
+    def test_full_delegation_round_trip(self, client, mock_stm, mock_nanoclaw_server):
         """Complete delegation flow: tool fires task, callback updates STM."""
         session_id = "session-e2e-001"
         nanoclaw_url = f"http://127.0.0.1:{mock_nanoclaw_server}"
@@ -83,9 +81,7 @@ class TestDelegationFlowE2E:
             "src.services.agent_service.tools.delegate.delegate_task.NANOCLAW_URL",
             nanoclaw_url,
         ):
-            tool = DelegateTaskTool(
-                stm_service=mock_stm, session_id=session_id
-            )
+            tool = DelegateTaskTool(stm_service=mock_stm, session_id=session_id)
             result = tool._run("Review the authentication module for security issues")
 
         assert "팀에 작업을 지시했습니다" in result
@@ -93,7 +89,9 @@ class TestDelegationFlowE2E:
         # 2. Verify NanoClaw received the payload
         assert len(MockNanoClawHandler.received_payloads) == 1
         nc_payload = MockNanoClawHandler.received_payloads[0]
-        assert nc_payload["task"] == "Review the authentication module for security issues"
+        assert (
+            nc_payload["task"] == "Review the authentication module for security issues"
+        )
         assert nc_payload["session_id"] == session_id
         assert "task_id" in nc_payload
         assert "callback_url" in nc_payload
@@ -106,9 +104,7 @@ class TestDelegationFlowE2E:
         assert metadata["pending_tasks"][0]["task_id"] == task_id
 
         # 4. Simulate NanoClaw callback (POST to callback endpoint)
-        with patch(
-            "src.api.routes.callback.get_stm_service", return_value=mock_stm
-        ):
+        with patch("src.api.routes.callback.get_stm_service", return_value=mock_stm):
             callback_response = client.post(
                 f"/v1/callback/nanoclaw/{session_id}",
                 json={
@@ -144,9 +140,7 @@ class TestDelegationFlowE2E:
             "src.services.agent_service.tools.delegate.delegate_task.NANOCLAW_URL",
             "http://127.0.0.1:1",
         ):
-            tool = DelegateTaskTool(
-                stm_service=mock_stm, session_id=session_id
-            )
+            tool = DelegateTaskTool(stm_service=mock_stm, session_id=session_id)
             result = tool._run("Generate API documentation")
 
         # Tool degrades gracefully
@@ -166,17 +160,13 @@ class TestDelegationFlowE2E:
             "src.services.agent_service.tools.delegate.delegate_task.NANOCLAW_URL",
             nanoclaw_url,
         ):
-            tool = DelegateTaskTool(
-                stm_service=mock_stm, session_id=session_id
-            )
+            tool = DelegateTaskTool(stm_service=mock_stm, session_id=session_id)
             tool._run("Build the payment module")
 
         task_id = MockNanoClawHandler.received_payloads[-1]["task_id"]
 
         # Simulate NanoClaw reporting failure
-        with patch(
-            "src.api.routes.callback.get_stm_service", return_value=mock_stm
-        ):
+        with patch("src.api.routes.callback.get_stm_service", return_value=mock_stm):
             response = client.post(
                 f"/v1/callback/nanoclaw/{session_id}",
                 json={

@@ -9,9 +9,7 @@ class NanoClawCallbackRequest(BaseModel):
     """Payload received from NanoClaw when a task completes or fails."""
 
     task_id: str = Field(..., description="Unique task identifier")
-    status: Literal["done", "failed"] = Field(
-        ..., description="Task completion status"
-    )
+    status: Literal["done", "failed"] = Field(..., description="Task completion status")
     summary: str = Field(..., description="Result summary or failure reason")
 
 

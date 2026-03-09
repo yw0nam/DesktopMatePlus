@@ -65,9 +65,7 @@ class DelegateTaskTool(BaseTool):
                     json=payload,
                 )
         except httpx.HTTPError:
-            return_text = (
-                f"작업을 팀에 지시했지만, NanoClaw과의 통신에 실패했습니다. (task_id: {task_id})"
-            )
+            return_text = f"작업을 팀에 지시했지만, NanoClaw과의 통신에 실패했습니다. (task_id: {task_id})"
             pass
 
         return return_text

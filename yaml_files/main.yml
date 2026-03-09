@@ -4,6 +4,7 @@ services:
   agent_service: openai_chat_agent.yml
   stm_service: mongodb.yml
   ltm_service: mem0.yml
+  task_sweep_service: sweep.yml
 
 # Main application settings
 settings:

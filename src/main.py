@@ -10,6 +10,7 @@ import yaml
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 
 from src.api.routes import router as api_router
 from src.configs.settings import get_settings, initialize_settings
@@ -81,9 +82,12 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         print(f"🔧 Debug mode: {settings.debug}")
         print(f"📊 Log level: {log_level} | Retention: {log_retention}")
 
+        sweep_service: "BackgroundSweepService | None" = None  # noqa: F821
+
         # Initialize all services using the centralized service manager
         try:
             from src.services import (
+                get_stm_service,
                 initialize_agent_service,
                 initialize_ltm_service,
                 initialize_stm_service,
@@ -132,6 +136,39 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 print("  - LTM config: Using default")
                 initialize_ltm_service()
 
+            # Start background sweep service for expired delegated tasks
+            try:
+                import yaml as _yaml
+
+                from src.services.task_sweep_service import (
+                    BackgroundSweepService,
+                    SweepConfig,
+                )
+
+                sweep_config_path = config_paths.get("task_sweep_service_path")
+                sweep_cfg_dict: dict = {}
+                if sweep_config_path and Path(sweep_config_path).exists():
+                    with open(sweep_config_path, "r", encoding="utf-8") as _f:
+                        _raw = _yaml.safe_load(_f) or {}
+                    sweep_cfg_dict = _raw.get("sweep_config", {})
+                sweep_cfg = SweepConfig(**sweep_cfg_dict)
+
+                stm_svc = get_stm_service()
+                if stm_svc is not None:
+                    sweep_service = BackgroundSweepService(
+                        stm_service=stm_svc, config=sweep_cfg
+                    )
+                    await sweep_service.start()
+                    logger.info(
+                        f"Task sweep started "
+                        f"(interval={sweep_cfg.sweep_interval_seconds}s, "
+                        f"ttl={sweep_cfg.task_ttl_seconds}s)"
+                    )
+                else:
+                    logger.warning("Task sweep skipped: STM service not available")
+            except Exception:
+                logger.exception("Failed to start background sweep service")
+
         except Exception as e:
             print(f"⚠️  Failed to initialize services: {e}")
             import traceback
@@ -140,7 +177,10 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
         yield
 
-        # Shutdown
+        # Shutdown — stop sweep before other services
+        if sweep_service is not None:
+            await sweep_service.stop()
+
         print(f"👋 Shutting down {settings.app_name}")
 
     # Create FastAPI application instance
