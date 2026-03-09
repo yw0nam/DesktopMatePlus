@@ -1,0 +1,10 @@
+# Background Sweep Service Configuration
+# Periodically scans STM sessions and marks expired delegated tasks as failed.
+
+sweep_config:
+  # How often (seconds) the sweep loop wakes up to scan sessions
+  sweep_interval_seconds: 60
+
+  # Maximum age (seconds) a pending/running task may have before being
+  # automatically marked as failed.  Tasks younger than this are untouched.
+  task_ttl_seconds: 300

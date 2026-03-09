@@ -4,6 +4,7 @@ import argparse
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 import uvicorn
 import yaml
@@ -81,9 +82,12 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         print(f"🔧 Debug mode: {settings.debug}")
         print(f"📊 Log level: {log_level} | Retention: {log_retention}")
 
+        sweep_service: Optional["BackgroundSweepService"] = None  # noqa: F821
+
         # Initialize all services using the centralized service manager
         try:
             from src.services import (
+                get_stm_service,
                 initialize_agent_service,
                 initialize_ltm_service,
                 initialize_stm_service,
@@ -132,6 +136,42 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 print("  - LTM config: Using default")
                 initialize_ltm_service()
 
+            # Start background sweep service for expired delegated tasks
+            try:
+                import yaml as _yaml
+
+                from src.services.task_sweep_service import (
+                    BackgroundSweepService,
+                    SweepConfig,
+                )
+
+                sweep_config_path = config_paths.get("task_sweep_service_path")
+                sweep_cfg_dict: dict = {}
+                if sweep_config_path and Path(sweep_config_path).exists():
+                    with open(sweep_config_path, "r", encoding="utf-8") as _f:
+                        _raw = _yaml.safe_load(_f) or {}
+                    sweep_cfg_dict = _raw.get("sweep_config", {})
+                sweep_cfg = SweepConfig(**sweep_cfg_dict)
+
+                stm_svc = get_stm_service()
+                if stm_svc is not None:
+                    sweep_service = BackgroundSweepService(
+                        stm_service=stm_svc, config=sweep_cfg
+                    )
+                    await sweep_service.start()
+                    print(
+                        f"  - Task sweep: started "
+                        f"(interval={sweep_cfg.sweep_interval_seconds}s, "
+                        f"ttl={sweep_cfg.task_ttl_seconds}s)"
+                    )
+                else:
+                    print("  - Task sweep: skipped (STM service not available)")
+            except Exception as sweep_err:
+                print(f"⚠️  Failed to start background sweep service: {sweep_err}")
+                import traceback
+
+                traceback.print_exc()
+
         except Exception as e:
             print(f"⚠️  Failed to initialize services: {e}")
             import traceback
@@ -140,7 +180,10 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
         yield
 
-        # Shutdown
+        # Shutdown — stop sweep before other services
+        if sweep_service is not None:
+            await sweep_service.stop()
+
         print(f"👋 Shutting down {settings.app_name}")
 
     # Create FastAPI application instance
