@@ -211,7 +211,9 @@ async def test_consolidation_passes_correct_history_slice(agent):
         history.append(AIMessage(content=f"assistant {i}"))
 
     last_consolidated = 0
-    stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": last_consolidated})
+    stm = _make_stm(
+        history, metadata={"ltm_last_consolidated_at_turn": last_consolidated}
+    )
     ltm = _make_ltm()
 
     await agent.save_memory(
@@ -238,7 +240,9 @@ async def test_consolidation_slice_starts_from_offset(agent):
         history.append(AIMessage(content=f"assistant {i}"))
 
     last_consolidated = 3
-    stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": last_consolidated})
+    stm = _make_stm(
+        history, metadata={"ltm_last_consolidated_at_turn": last_consolidated}
+    )
     ltm = _make_ltm()
 
     await agent.save_memory(
@@ -278,7 +282,9 @@ async def test_session_metadata_updated_after_consolidation(agent):
 
     stm.update_session_metadata.assert_called_once()
     call_args = stm.update_session_metadata.call_args
-    updated_meta = call_args.args[1] if call_args.args else call_args.kwargs.get("metadata")
+    updated_meta = (
+        call_args.args[1] if call_args.args else call_args.kwargs.get("metadata")
+    )
     assert updated_meta == {"ltm_last_consolidated_at_turn": 10}
 
 
@@ -327,9 +333,9 @@ async def test_synthetic_messages_included_in_consolidation(agent):
     synthetic_contents = [
         m.content for m in messages_arg if isinstance(m, SystemMessage)
     ]
-    assert any("TaskResult" in c for c in synthetic_contents), (
-        "Synthetic SystemMessage was not included in messages passed to LTM"
-    )
+    assert any(
+        "TaskResult" in c for c in synthetic_contents
+    ), "Synthetic SystemMessage was not included in messages passed to LTM"
 
 
 @pytest.mark.asyncio
