@@ -4,13 +4,13 @@ import argparse
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 import uvicorn
 import yaml
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 
 from src.api.routes import router as api_router
 from src.configs.settings import get_settings, initialize_settings
@@ -82,7 +82,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         print(f"🔧 Debug mode: {settings.debug}")
         print(f"📊 Log level: {log_level} | Retention: {log_retention}")
 
-        sweep_service: Optional["BackgroundSweepService"] = None  # noqa: F821
+        sweep_service: "BackgroundSweepService | None" = None  # noqa: F821
 
         # Initialize all services using the centralized service manager
         try:
@@ -159,18 +159,15 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                         stm_service=stm_svc, config=sweep_cfg
                     )
                     await sweep_service.start()
-                    print(
-                        f"  - Task sweep: started "
+                    logger.info(
+                        f"Task sweep started "
                         f"(interval={sweep_cfg.sweep_interval_seconds}s, "
                         f"ttl={sweep_cfg.task_ttl_seconds}s)"
                     )
                 else:
-                    print("  - Task sweep: skipped (STM service not available)")
-            except Exception as sweep_err:
-                print(f"⚠️  Failed to start background sweep service: {sweep_err}")
-                import traceback
-
-                traceback.print_exc()
+                    logger.warning("Task sweep skipped: STM service not available")
+            except Exception:
+                logger.exception("Failed to start background sweep service")
 
         except Exception as e:
             print(f"⚠️  Failed to initialize services: {e}")

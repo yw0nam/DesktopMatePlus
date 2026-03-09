@@ -239,6 +239,9 @@ class TestWebSocketManager:
             def update_session_metadata(self, session_id, metadata):
                 return True
 
+            def list_all_sessions(self):
+                return []
+
         class FakeLTMService:
             def search_memory(self, query, user_id, agent_id):
                 return {"results": []}  # Return empty search results for test

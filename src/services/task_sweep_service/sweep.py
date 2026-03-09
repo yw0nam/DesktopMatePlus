@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Optional
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -19,13 +18,6 @@ from src.services.stm_service.service import STMService
 
 # Statuses that are considered "active" and therefore eligible for expiry.
 _EXPIRABLE_STATUSES = frozenset({"pending", "running"})
-
-# Sentinel user/agent IDs used when scanning all sessions.
-# list_sessions requires user_id + agent_id; we use wildcard-style blank strings
-# only if the STM implementation supports it, otherwise the sweep calls
-# list_sessions per-session via a known set of sessions.
-_SCAN_USER_ID = ""
-_SCAN_AGENT_ID = ""
 
 
 class SweepConfig(BaseModel):
@@ -57,7 +49,7 @@ class BackgroundSweepService:
     def __init__(self, stm_service: STMService, config: SweepConfig) -> None:
         self._stm = stm_service
         self.config = config
-        self._task: Optional[asyncio.Task] = None  # type: ignore[type-arg]
+        self._task: asyncio.Task | None = None  # type: ignore[type-arg]
 
     # ------------------------------------------------------------------
     # Public lifecycle API
@@ -115,7 +107,7 @@ class BackgroundSweepService:
         ttl_seconds = self.config.task_ttl_seconds
 
         try:
-            sessions = self._stm.list_sessions(_SCAN_USER_ID, _SCAN_AGENT_ID)
+            sessions = self._stm.list_all_sessions()
         except Exception:
             logger.exception("BackgroundSweepService: failed to list sessions")
             return

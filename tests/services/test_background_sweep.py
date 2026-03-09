@@ -34,7 +34,7 @@ def _mock_stm(sessions: list[dict]) -> MagicMock:
     service = MagicMock(spec=STMService)
 
     # list_sessions returns all sessions passed in
-    service.list_sessions.return_value = sessions
+    service.list_all_sessions.return_value = sessions
 
     # get_session_metadata: look up by session_id key in each session dict
     def _get_meta(session_id: str) -> dict:
@@ -67,7 +67,7 @@ def sweep_service(sweep_config):
     from src.services.task_sweep_service.sweep import BackgroundSweepService
 
     mock_stm = MagicMock(spec=STMService)
-    mock_stm.list_sessions.return_value = []
+    mock_stm.list_all_sessions.return_value = []
     return BackgroundSweepService(stm_service=mock_stm, config=sweep_config)
 
 
@@ -256,7 +256,7 @@ class TestSweepInterval:
 
         cfg = SweepConfig(sweep_interval_seconds=42, task_ttl_seconds=300)
         stm = MagicMock(spec=STMService)
-        stm.list_sessions.return_value = []
+        stm.list_all_sessions.return_value = []
         svc = BackgroundSweepService(stm_service=stm, config=cfg)
         assert svc.config.sweep_interval_seconds == 42
 
@@ -269,7 +269,7 @@ class TestSweepInterval:
 
         cfg = SweepConfig(sweep_interval_seconds=60, task_ttl_seconds=999)
         stm = MagicMock(spec=STMService)
-        stm.list_sessions.return_value = []
+        stm.list_all_sessions.return_value = []
         svc = BackgroundSweepService(stm_service=stm, config=cfg)
         assert svc.config.task_ttl_seconds == 999
 
@@ -290,7 +290,7 @@ class TestSweepLifecycle:
 
         cfg = SweepConfig(sweep_interval_seconds=60, task_ttl_seconds=300)
         stm = MagicMock(spec=STMService)
-        stm.list_sessions.return_value = []
+        stm.list_all_sessions.return_value = []
         svc = BackgroundSweepService(stm_service=stm, config=cfg)
 
         await svc.start()
@@ -307,7 +307,7 @@ class TestSweepLifecycle:
 
         cfg = SweepConfig(sweep_interval_seconds=60, task_ttl_seconds=300)
         stm = MagicMock(spec=STMService)
-        stm.list_sessions.return_value = []
+        stm.list_all_sessions.return_value = []
         svc = BackgroundSweepService(stm_service=stm, config=cfg)
 
         await svc.start()

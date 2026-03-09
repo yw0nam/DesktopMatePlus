@@ -303,6 +303,36 @@ class MongoDBSTM(STMService[MongoDBClientType]):
             logger.error(f"Error listing sessions: {e}")
             raise
 
+    def list_all_sessions(self) -> list[dict]:
+        """List all sessions across all users and agents.
+
+        Used by background sweep to scan for expired tasks.
+
+        Returns:
+            list[dict]: List of session metadata.
+        """
+        try:
+            cursor = self._sessions_collection.find({}).sort(
+                "updated_at", pymongo.DESCENDING
+            )
+            sessions = []
+            for doc in cursor:
+                sessions.append(
+                    {
+                        "session_id": doc["session_id"],
+                        "user_id": doc["user_id"],
+                        "agent_id": doc["agent_id"],
+                        "created_at": doc["created_at"],
+                        "updated_at": doc["updated_at"],
+                        "metadata": doc.get("metadata", {}),
+                    }
+                )
+            logger.debug(f"list_all_sessions: found {len(sessions)} sessions")
+            return sessions
+        except Exception as e:
+            logger.error(f"Error listing all sessions: {e}")
+            raise
+
     def delete_session(self, session_id: str, user_id: str, agent_id: str) -> bool:
         """Delete a specific chat session from MongoDB.
 
