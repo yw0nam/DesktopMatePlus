@@ -13,6 +13,7 @@ from src.models.websocket import (
     MessageType,
     PongMessage,
 )
+from src.services.stm_service.service import STMService
 from src.services.websocket_service.manager import ConnectionState, WebSocketManager
 from src.services.websocket_service.message_processor import (
     MessageProcessor,
@@ -213,9 +214,30 @@ class TestWebSocketManager:
                 yield {"type": "stream_token", "chunk": "Hello, world!"}
                 yield {"type": "stream_end"}
 
-        class FakeSTMService:
+        class FakeSTMService(STMService):
+            def initialize_memory(self):
+                return None
+
+            def is_healthy(self):
+                return True, "OK"
+
+            def add_chat_history(self, user_id, agent_id, session_id, messages):
+                return session_id or "test"
+
             def get_chat_history(self, user_id, agent_id, session_id, limit=None):
-                return []  # Return empty history for test
+                return []
+
+            def list_sessions(self, user_id, agent_id):
+                return []
+
+            def delete_session(self, session_id, user_id, agent_id):
+                return True
+
+            def get_session_metadata(self, session_id):
+                return {}
+
+            def update_session_metadata(self, session_id, metadata):
+                return True
 
         class FakeLTMService:
             def search_memory(self, query, user_id, agent_id):

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
-from src.api.routes import ltm, stm, tts, vlm, websocket
+from src.api.routes import callback, ltm, stm, tts, vlm, websocket
 from src.models.responses import HealthResponse
 from src.services.health import HealthService, health_service
 
@@ -16,6 +16,7 @@ router.include_router(vlm.router)
 router.include_router(websocket.router)
 router.include_router(stm.router)
 router.include_router(ltm.router)
+router.include_router(callback.router)
 
 
 def get_health_service() -> HealthService:

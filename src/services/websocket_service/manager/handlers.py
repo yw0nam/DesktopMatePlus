@@ -17,6 +17,7 @@ from src.models.websocket import (
     PongMessage,
 )
 from src.services import get_agent_service, get_ltm_service, get_stm_service
+from src.services.agent_service.tools.delegate import DelegateTaskTool
 from src.services.vlm_service.utils import prepare_image_for_vlm
 from src.services.websocket_service.message_processor import MessageProcessor
 
@@ -228,13 +229,20 @@ class MessageHandler:
                     content.extend(image_dicts)
 
             message_history.append(HumanMessage(content=content))
-            # TODO: Add Custom tools support here
-            # Use persistent user_id for client_id instead of connection-based ID
+
+            # Build tools list for this session
+            tools = []
+            if stm_service:
+                tools.append(
+                    DelegateTaskTool(
+                        stm_service=stm_service, session_id=session_id
+                    )
+                )
 
             agent_stream = agent_service.stream(
                 messages=message_history,
                 session_id=session_id,
-                tools=[],  # TODO: support tools per agent
+                tools=tools,
                 persona=persona,
                 user_id=user_id,
                 agent_id=agent_id,
