@@ -1,6 +1,6 @@
 # LTM Service (Long-Term Memory)
 
-Updated: 2026-03-07
+Updated: 2026-03-10
 
 ## 1. Synopsis
 
@@ -68,28 +68,34 @@ ltm_config:
 
 `add_memory`는 매 턴 호출하지 않습니다. 단편적 메시지로 Mem0를 호출하면 쓸모없는 정보가 Graph/Vector에 누적됩니다.
 
-### Turn-based Batch Consolidation
+### Turn-based Batch Consolidation (STM metadata 기반)
 
-- **트리거**: STM 저장 후 전체 history 길이가 `LTM_CONSOLIDATION_TURN_INTERVAL * 2`의 배수일 때 (기본: 20 messages = 10 turns).
-- **배치**: 최근 `INTERVAL * 2`개 메시지를 한 번에 전달 → Mem0의 추출 품질 향상.
-- **구현**: `AgentService.save_memory()` / `async_save_memory()` 내부에서 처리.
+- **턴 카운트**: `sum(1 for m in history if isinstance(m, HumanMessage))` — HumanMessage만 카운트.
+- **트리거**: STM `session.metadata.ltm_last_consolidated_at_turn`을 읽어 `current_turn - last_consolidated >= LTM_CONSOLIDATION_TURN_INTERVAL` 조건으로 트리거.
+- **슬라이스**: `last_consolidated` 번째 HumanMessage 위치를 순회하여 정확한 시작점부터 메시지 추출.
+- **배치**: 시작점 이후 메시지를 한 번에 `ltm_service.add_memory()`에 전달 → Mem0 추출 품질 향상.
+- **구현**: `AgentService.save_memory()` 내부에서 처리.
 
 ```python
 # AgentService (service.py)
-LTM_CONSOLIDATION_TURN_INTERVAL = 10  # 변경 시 이 값만 수정
+LTM_CONSOLIDATION_TURN_INTERVAL = 10
 
-batch_size = LTM_CONSOLIDATION_TURN_INTERVAL * 2
-if len(history) > 0 and len(history) % batch_size == 0:
-    ltm_service.add_memory(messages=history[-batch_size:], ...)
+current_turn = sum(1 for m in history if isinstance(m, HumanMessage))
+last_consolidated = metadata.get("ltm_last_consolidated_at_turn", 0)
+
+if current_turn - last_consolidated >= LTM_CONSOLIDATION_TURN_INTERVAL:
+    # Find slice start at last_consolidated-th HumanMessage
+    messages_since_last = history[slice_start:]
+    ltm_service.add_memory(messages=messages_since_last, ...)
+    stm_service.update_session_metadata(session_id, {
+        "ltm_last_consolidated_at_turn": current_turn
+    })
 ```
 
-### TODO: 업그레이드 경로 (STM metadata 기반)
-
-현재 방식은 매 턴 `get_chat_history` I/O가 추가 발생합니다. 충분히 커지면 아래 방식으로 교체:
-
-- STM `session.metadata`에 `ltm_last_consolidated_turn`, `ltm_token_count_since_last` 저장.
-- 트리거 조건: 턴 수 OR 토큰 임계값(예: 3000) 중 먼저 도달한 조건으로 consolidation.
-- 재시작/멀티프로세스 안전, 추가 STM read 불필요.
+**장점:**
+- 재시작/멀티프로세스 안전 (카운트가 DB에 영속됨)
+- TOCTOU 중복 트리거 없음
+- 추가 STM read 불필요 (metadata는 이미 조회)
 
 ## 4. Usage
 

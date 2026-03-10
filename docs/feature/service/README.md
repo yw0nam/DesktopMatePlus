@@ -20,13 +20,14 @@
 | Service | Purpose | Implementation |
 |---------|---------|----------------|
 | Agent | LLM with tools & streaming | `OpenAIChatAgent` |
-| TTS | Text-to-Speech synthesis | `FishSpeechTTS` |
-| VLM | Vision-Language Model | `OpenAICompatibleVLM` |
+| TTS | Text-to-Speech synthesis | `FishSpeechTTS`, `VLLMOmniTTS` |
+| ~~VLM~~ | ~~Vision-Language Model~~ | ~~`OpenAICompatibleVLM`~~ *(deprecated)* |
 | STM | Short-Term Memory (sessions) | `MongoDBSTM` |
 | LTM | Long-Term Memory (semantic) | `Mem0LTM` |
 | WebSocket | Real-time streaming | `WebSocketManager` |
 | ScreenCapture | Cross-platform capture | `ScreenCaptureService` |
 | Health | Service health checks | `HealthService` |
+| Task Sweep | Expired task cleanup | `BackgroundSweepService` |
 
 ### Service Initialization Flow
 
@@ -35,7 +36,6 @@
 from src.services import (
     initialize_agent_service,
     initialize_tts_service,
-    initialize_vlm_service,
     initialize_stm_service,
     initialize_ltm_service,
 )
@@ -43,7 +43,6 @@ from src.services import (
 # 2. Initialize (reads YAML config automatically)
 agent = initialize_agent_service()
 tts = initialize_tts_service()
-vlm = initialize_vlm_service()
 
 # 3. Get service anywhere (singleton)
 from src.services import get_agent_service, get_tts_service
@@ -58,7 +57,6 @@ Each service uses a factory for flexible instantiation:
 ```python
 # Factory creates correct implementation based on config type
 tts_engine = TTSFactory.get_tts_engine("fish_local_tts", **configs)
-vlm_engine = VLMFactory.get_vlm_service("openai_compatible", **configs)
 agent_engine = AgentFactory.get_agent_service("openai_chat_agent", **configs)
 ```
 
@@ -84,9 +82,10 @@ audio_bytes = tts.generate_speech(
 )
 ```
 
-### VLM Service
+### VLM Service *(deprecated)*
 
 ```python
+# DEPRECATED: Use Agent Service with support_image: true instead
 vlm = get_vlm_service()
 response = vlm.generate_response(
     image=image_bytes,
@@ -115,7 +114,7 @@ For detailed service specifications, refer to:
 
 - [Agent Service](./Agent_Service.md)
 - [TTS Service](./TTS_Service.md)
-- [VLM Service](./VLM_Service.md)
+- [VLM Service](./VLM_Service.md) *(deprecated)*
 - [STM Service](./STM_Service.md)
 - [LTM Service](./LTM_Service.md)
 - [WebSocket Service](./WebSocket_Service.md)
@@ -128,11 +127,12 @@ src/services/
 ├── health.py                # Health check service
 ├── agent_service/           # AI Agent
 ├── tts_service/             # Text-to-Speech
-├── vlm_service/             # Vision-Language Model
+├── vlm_service/             # Vision-Language Model (deprecated)
 ├── stm_service/             # Short-Term Memory
 ├── ltm_service/             # Long-Term Memory
 ├── websocket_service/       # Real-time streaming
-└── screen_capture_service/  # Screen capture
+├── screen_capture_service/  # Screen capture
+└── task_sweep_service/      # Expired task cleanup
 ```
 
 ### C. Related Documents

@@ -236,9 +236,9 @@ class TestBackendCallbackDirect:
         assert history.status_code == 200
         messages = history.json()["messages"]
         contents = [m["content"] for m in messages if isinstance(m["content"], str)]
-        assert any(f"[TaskResult:{task_id}]" in c for c in contents), (
-            f"TaskResult message not found. Messages: {messages}"
-        )
+        assert any(
+            f"[TaskResult:{task_id}]" in c for c in contents
+        ), f"TaskResult message not found. Messages: {messages}"
 
     def test_callback_failed_injects_task_failed_message(
         self, backend: httpx.Client, stm_session_with_task: dict
@@ -367,7 +367,7 @@ class TestFullDelegationRoundtrip:
                     ],
                     "user_id": USER_ID,
                     "agent_id": AGENT_ID,
-                }
+                },
             },
         )
 
@@ -399,6 +399,6 @@ class TestFullDelegationRoundtrip:
         content = result_msg["content"]
         assert task_id in content, f"task_id not found in synthetic message: {content}"
         # TaskResult or TaskFailed — either means the round-trip completed
-        assert "[TaskResult:" in content or "[TaskFailed:" in content, (
-            f"Unexpected message format: {content}"
-        )
+        assert (
+            "[TaskResult:" in content or "[TaskFailed:" in content
+        ), f"Unexpected message format: {content}"

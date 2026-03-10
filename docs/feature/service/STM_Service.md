@@ -1,6 +1,6 @@
 # STM Service (Short-Term Memory)
 
-Updated: 2026-03-07
+Updated: 2026-03-10
 
 ## 1. Synopsis
 
@@ -22,6 +22,7 @@ Updated: 2026-03-07
 | `get_session_metadata()` | session_id | `dict` (metadata, `{}` if not found) |
 | `update_session_metadata()` | session_id, metadata | `bool` |
 | `list_sessions()` | user_id, agent_id | `list[dict]` |
+| `list_all_sessions()` | - | `list[dict]` |
 | `delete_session()` | user_id, agent_id, session_id | `bool` |
 
 ### Data Model

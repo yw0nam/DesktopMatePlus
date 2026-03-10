@@ -39,8 +39,9 @@ You must adhere to these guidelines for all code generation and refactoring task
   - `stm/`: Short-Term Memory services.
   - `ltm/`: Long-Term Memory services.
   - `tts/`: Text-to-Speech services.
-  - `vlm/`: Vision-Language Model services.
+  - `vlm/`: Vision-Language Model services. *(deprecated)*
   - `websocket/`: WebSocket communication services.
+  - `task_sweep_service/`: Background expired task cleanup.
 - `src/main.py`: Application entry point and lifespan management.
 - `yaml_files/`: Service configuration files.
 - `tests/`: Unit and integration tests.

@@ -1,6 +1,6 @@
 # Configuration System
 
-Updated: 2025-11-28
+Updated: 2026-03-10
 
 ## 1. Synopsis
 
@@ -24,7 +24,7 @@ Updated: 2025-11-28
 | `settings.py` | Server, CORS, WebSocket settings |
 | `agent.py` | LLM/Agent configuration |
 | `tts.py` | Text-to-Speech settings |
-| `vlm.py` | Vision-Language Model settings |
+| `vlm.py` | Vision-Language Model settings *(deprecated)* |
 | `stm.py` | Short-Term Memory (MongoDB) |
 | `ltm.py` | Long-Term Memory (mem0) |
 
@@ -48,11 +48,12 @@ settings = get_settings()
 
 ```yaml
 services:
-  vlm_service: openai_compatible.yml
+  vlm_service: openai_compatible.yml  # deprecated
   tts_service: fish_speech.yml
   agent_service: openai_chat_agent.yml
   stm_service: mongodb.yml
   ltm_service: mem0.yml
+  task_sweep_service: sweep.yml
 
 settings:
   host: "127.0.0.1"
@@ -80,13 +81,11 @@ settings:
 ```python
 from src.services import (
     initialize_tts_service,
-    initialize_vlm_service,
     initialize_agent_service,
 )
 
 # Use default config paths
 tts = initialize_tts_service()
-vlm = initialize_vlm_service()
 agent = initialize_agent_service()
 
 # Or custom config path
@@ -116,7 +115,7 @@ For detailed field specifications, refer to:
 - [Settings Fields](./Settings_Fields.md)
 - [Agent Config Fields](./Agent_Config_Fields.md)
 - [TTS Config Fields](./TTS_Config_Fields.md)
-- [VLM Config Fields](./VLM_Config_Fields.md)
+- [VLM Config Fields](./VLM_Config_Fields.md) *(deprecated)*
 - [STM Config Fields](./STM_Config_Fields.md)
 - [LTM Config Fields](./LTM_Config_Fields.md)
 
@@ -127,7 +126,7 @@ src/configs/
 ├── settings.py      # Application settings
 ├── agent.py         # Agent/LLM configuration
 ├── tts.py           # Text-to-Speech configuration
-├── vlm.py           # Vision-Language Model configuration
+├── vlm.py           # Vision-Language Model configuration (deprecated)
 ├── stm.py           # Short-Term Memory configuration
 └── ltm.py           # Long-Term Memory configuration
 
@@ -136,9 +135,10 @@ yaml_files/
 └── services/
     ├── agent_service/openai_chat_agent.yml
     ├── tts_service/fish_speech.yml
-    ├── vlm_service/openai_compatible.yml
+    ├── vlm_service/openai_compatible.yml    # deprecated
     ├── stm_service/mongodb.yml
-    └── ltm_service/mem0.yml
+    ├── ltm_service/mem0.yml
+    └── task_sweep_service/sweep.yml
 ```
 
 ### C. Related Documents

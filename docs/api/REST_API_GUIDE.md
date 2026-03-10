@@ -1,6 +1,6 @@
 # REST API Guide
 
-Updated: 2025-12-01
+Updated: 2026-03-10
 
 ## 1. Synopsis
 
@@ -37,11 +37,13 @@ Updated: 2025-12-01
 |----------|--------|-------------|
 | `/tts/synthesize` | POST | [Synthesize Speech](./TTS_Synthesize.md) |
 
-### Vision-Language Model (VLM)
+### Vision-Language Model (VLM) — ⚠️ Deprecated
+
+> **Deprecated (2026-03-10)**: VLM endpoints are deprecated. Use Agent Service with image support instead.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/vlm/analyze` | POST | [Analyze Image](./VLM_Analyze.md) |
+| `/vlm/analyze` | POST | [Analyze Image](./VLM_Analyze.md) *(deprecated)* |
 
 ## 3. Usage
 

@@ -1,11 +1,14 @@
 # VLM: Analyze Image
 
-Updated: 2025-11-28
+Updated: 2026-03-10
+
+> **⚠️ DEPRECATED (2026-03-10)**: This endpoint is deprecated. AgentService now natively supports image+text input. Use the WebSocket chat interface with image content instead.
 
 ## 1. Synopsis
 
 - **Purpose**: Analyze images using Vision-Language Model (captioning, VQA)
 - **I/O**: `POST { image, prompt? }` → `{ description }`
+- **Status**: **Deprecated**
 
 ## 2. Core Logic
 

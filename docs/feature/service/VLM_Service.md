@@ -1,11 +1,14 @@
 # VLM Service
 
-Updated: 2025-11-28
+Updated: 2026-03-10
+
+> **⚠️ DEPRECATED (2026-03-10)**: VLM Service is deprecated and will be removed. AgentService now natively supports both image and text input. Use `AgentService.stream()` with image content instead.
 
 ## 1. Synopsis
 
 - **Purpose**: Vision-Language Model for image analysis and understanding
 - **I/O**: Image(s) + Prompt → Text response
+- **Status**: **Deprecated** — Use Agent Service with `support_image: true` instead
 
 ## 2. Core Logic
 

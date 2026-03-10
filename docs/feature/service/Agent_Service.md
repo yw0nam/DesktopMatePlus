@@ -1,6 +1,6 @@
 # Agent Service
 
-Updated: 2026-03-07 (improvements)
+Updated: 2026-03-10
 
 ## 1. Synopsis
 
@@ -54,8 +54,9 @@ Updated: 2026-03-07 (improvements)
 
 **LTM Consolidation 정책 (STM metadata 기반):**
 - 매 턴 저장은 단편적 정보가 누적되어 품질 저하 → **10턴마다 배치 consolidation** 방식 채택.
-- `AgentService.LTM_CONSOLIDATION_TURN_INTERVAL = 10` (1턴 = human + AI 메시지 2개).
+- `AgentService.LTM_CONSOLIDATION_TURN_INTERVAL = 10` (1턴 = HumanMessage 1개, `sum(1 for m in history if isinstance(m, HumanMessage))` 방식).
 - STM `session.metadata.ltm_last_consolidated_at_turn`을 읽어 `current_turn - last >= N` 조건으로 트리거.
+- 슬라이스 시작점은 `last_consolidated` 번째 HumanMessage 위치를 순회하여 정확히 결정.
 - 재시작/멀티프로세스 안전 (카운트가 DB에 영속됨). TOCTOU 중복 트리거 없음.
 
 ### Implementation: OpenAIChatAgent
