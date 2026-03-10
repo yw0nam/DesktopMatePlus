@@ -446,6 +446,7 @@ def initialize_services(
     )
 
     # Initialize VLM service
+    # Deprecated: Replace this using Agent service can handle text and image both.
     vlm_service = initialize_vlm_service(
         config_path=vlm_config_path, force_reinit=force_reinit
     )

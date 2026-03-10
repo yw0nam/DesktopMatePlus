@@ -149,14 +149,14 @@ class HealthService:
             HealthResponse model with overall status and individual module statuses
         """
         # Check all modules concurrently
-        vlm_ready, vlm_error = await self.check_vlm()
+        # vlm_ready, vlm_error = await self.check_vlm()
         tts_ready, tts_error = await self.check_tts()
         agent_ready, agent_error = await self.check_agent()
         ltm_ready, ltm_error = await self.check_ltm()
         stm_ready, stm_error = await self.check_stm()
 
         modules = [
-            ModuleStatus(name="VLM", ready=vlm_ready, error=vlm_error),
+            # ModuleStatus(name="VLM", ready=vlm_ready, error=vlm_error),
             ModuleStatus(name="TTS", ready=tts_ready, error=tts_error),
             ModuleStatus(name="Agent", ready=agent_ready, error=agent_error),
             ModuleStatus(name="LTM", ready=ltm_ready, error=ltm_error),
@@ -164,7 +164,7 @@ class HealthService:
         ]
 
         # Overall status is healthy only if all modules are ready
-        all_ready = vlm_ready and tts_ready and agent_ready and ltm_ready and stm_ready
+        all_ready = tts_ready and agent_ready and ltm_ready and stm_ready
         overall_status = "healthy" if all_ready else "unhealthy"
 
         return HealthResponse(status=overall_status, modules=modules)
