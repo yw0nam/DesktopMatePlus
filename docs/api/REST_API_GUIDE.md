@@ -1,10 +1,10 @@
 # REST API Guide
 
-Updated: 2026-03-10
+Updated: 2026-03-11
 
 ## 1. Synopsis
 
-- **Purpose**: RESTful API for STM, LTM, TTS, and VLM services
+- **Purpose**: RESTful API for STM, LTM, and TTS services
 - **I/O**: HTTP requests → JSON responses
 
 ## 2. Core Logic
@@ -36,14 +36,6 @@ Updated: 2026-03-10
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/tts/synthesize` | POST | [Synthesize Speech](./TTS_Synthesize.md) |
-
-### Vision-Language Model (VLM) — ⚠️ Deprecated
-
-> **Deprecated (2026-03-10)**: VLM endpoints are deprecated. Use Agent Service with image support instead.
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/vlm/analyze` | POST | [Analyze Image](./VLM_Analyze.md) *(deprecated)* |
 
 ## 3. Usage
 

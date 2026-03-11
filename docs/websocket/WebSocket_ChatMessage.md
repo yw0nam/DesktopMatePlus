@@ -1,6 +1,6 @@
 # WebSocket: Chat Message
 
-Updated: 2025-11-28
+Updated: 2026-03-11
 
 ## 1. Synopsis
 
@@ -34,7 +34,7 @@ Client → Server
 | `agent_id` | string | Yes | Agent identifier |
 | `user_id` | string | Yes | User identifier |
 | `persona` | string | No | Custom persona/system prompt |
-| `images` | array | No | Image URLs or base64 strings |
+| `images` | array | No | Images in OpenAI-compatible format (see below) |
 | `limit` | integer | No | STM message limit (default: 10) |
 | `session_id` | string | No | Session ID (new if omitted) |
 | `metadata` | object | No | Additional metadata |
@@ -46,6 +46,32 @@ Client → Server
 3. `tool_call` / `tool_result` - If tools used
 4. `tts_ready_chunk` - TTS-ready text
 5. `stream_end` - Response complete
+
+### Image Format
+
+Images must follow the OpenAI-compatible format. Each image is an object with `type` and `image_url`:
+
+```json
+{
+  "type": "chat_message",
+  "content": "What's in this image?",
+  "agent_id": "yuri-assistant",
+  "user_id": "user-123",
+  "images": [
+    {
+      "type": "image_url",
+      "image_url": {
+        "url": "data:image/png;base64,<base64_data>",
+        "detail": "auto"
+      }
+    }
+  ]
+}
+```
+
+`detail` is optional and defaults to `"auto"`. Accepted values: `"auto"`, `"low"`, `"high"`.
+
+Images are only processed when the agent has `support_image: true` in its config.
 
 ## 3. Usage
 
