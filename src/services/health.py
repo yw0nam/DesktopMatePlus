@@ -27,30 +27,6 @@ class HealthService:
         else:
             self.timeout = timeout
 
-    async def check_vlm(self) -> Tuple[bool, str | None]:
-        """Check VLM (Vision Language Model) service health.
-
-        Returns:
-            Tuple of (is_ready, error_message)
-        """
-        try:
-            from src.services import get_vlm_service
-
-            # Get VLM engine and check health
-            vlm_engine = get_vlm_service()
-            if vlm_engine is None:
-                return False, "VLM service not initialized"
-
-            is_healthy, message = vlm_engine.is_healthy()
-
-            if is_healthy:
-                return True, None
-            else:
-                return False, str(message) if message else "VLM service unhealthy"
-
-        except Exception as e:
-            return False, f"VLM check failed: {str(e)}"
-
     async def check_tts(self) -> Tuple[bool, str | None]:
         """Check TTS (Text-to-Speech) service health.
 

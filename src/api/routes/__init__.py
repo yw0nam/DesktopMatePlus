@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
-from src.api.routes import callback, ltm, stm, tts, vlm, websocket
+from src.api.routes import callback, ltm, stm, tts, websocket
 from src.models.responses import HealthResponse
 from src.services.health import HealthService, health_service
 
@@ -12,7 +12,6 @@ router = APIRouter()
 
 # Include service routes
 router.include_router(tts.router)
-router.include_router(vlm.router)
 router.include_router(websocket.router)
 router.include_router(stm.router)
 router.include_router(ltm.router)
@@ -62,7 +61,6 @@ async def health_check(
     """Check the health of all system modules.
 
     Returns health status for:
-    - VLM (Vision Language Model) service
     - TTS (Text-to-Speech) service
     - Agent (LangGraph) module
     - LTM (Long-Term Memory) service

@@ -25,7 +25,6 @@ def test_settings_yaml():
     """Create a temporary YAML settings file for testing."""
     config = {
         "services": {
-            "vlm_service": "openai_compatible.yml",
             "tts_service": "fish_speech.yml",
             "agent_service": "openai_chat_agent.yml",
             "stm_service": "mongodb.yml",

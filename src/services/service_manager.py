@@ -16,11 +16,9 @@ from src.services.agent_service import AgentFactory, AgentService
 from src.services.ltm_service import LTMFactory, LTMService
 from src.services.stm_service import STMFactory, STMService
 from src.services.tts_service import TTSFactory, TTSService
-from src.services.vlm_service import VLMFactory, VLMService
 
 # Global service instances
 _tts_service_instance: Optional[TTSService] = None
-_vlm_service_instance: Optional[VLMService] = None
 _agent_service_instance: Optional[AgentService] = None
 _stm_service_instance: Optional[STMService] = None
 _ltm_service_instance: Optional[LTMService] = None
@@ -149,70 +147,6 @@ def initialize_tts_service(
         logger.error(f"❌ Failed to initialize TTS service: {e}")
         raise
 
-
-def initialize_vlm_service(
-    config_path: Optional[str | Path] = None, force_reinit: bool = False
-) -> VLMService:
-    """Initialize VLM service from YAML configuration.
-
-    Args:
-        config_path: Path to VLM YAML config file. If None, uses default path.
-        force_reinit: If True, reinitialize even if already initialized.
-
-    Returns:
-        Initialized VLM service instance
-
-    Raises:
-        FileNotFoundError: If config file not found
-        ValueError: If configuration is invalid
-    """
-    global _vlm_service_instance
-
-    if _vlm_service_instance is not None and not force_reinit:
-        logger.debug("VLM service already initialized, skipping")
-        return _vlm_service_instance
-
-    # Default config path
-    if config_path is None:
-        config_path = (
-            Path(__file__).parent.parent.parent
-            / "yaml_files"
-            / "services"
-            / "vlm_service"
-            / "openai_compatible.yml"
-        )
-
-    # Load configuration
-    config = _load_yaml_config(config_path)
-    vlm_config = config.get("vlm_config", {})
-    service_type = vlm_config.get("type", "openai_chat_agent")
-    service_configs = vlm_config.get("configs", {})
-    # Create Agent engine using factory with **configs
-    logger.info(
-        f"🔧 Initializing Agent service (type: {service_type}, model: {service_configs.get('model_name')}"
-    )
-    logger.debug(f"Agent config: {service_configs}")
-    # Create VLM engine using factory with **configs
-    logger.info(f"🔧 Initializing VLM service (type: {service_type})")
-    logger.debug(f"VLM config: {service_configs}")
-
-    try:
-        vlm_engine = VLMFactory.get_vlm_service(service_type, **service_configs)
-
-        _vlm_service_instance = vlm_engine
-
-        # Health check
-        is_healthy, msg = vlm_engine.is_healthy()
-        if is_healthy:
-            logger.info(f"✅ VLM service initialized successfully: {msg}")
-        else:
-            logger.warning(f"⚠️  VLM service initialized but not healthy: {msg}")
-
-        return _vlm_service_instance
-
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize VLM service: {e}")
-        raise
 
 
 def initialize_agent_service(
@@ -412,59 +346,40 @@ def initialize_ltm_service(
 
 def initialize_services(
     tts_config_path: Optional[str | Path] = None,
-    vlm_config_path: Optional[str | Path] = None,
     agent_config_path: Optional[str | Path] = None,
     stm_config_path: Optional[str | Path] = None,
     ltm_config_path: Optional[str | Path] = None,
     force_reinit: bool = False,
-) -> tuple[TTSService, VLMService, AgentService, STMService, LTMService]:
+) -> tuple[TTSService, AgentService, STMService, LTMService]:
     """Initialize all services from YAML configurations.
-
-    This is the main entry point for service initialization. It loads
-    configurations from YAML files and creates service instances.
 
     Args:
         tts_config_path: Path to TTS YAML config. If None, uses default.
-        vlm_config_path: Path to VLM YAML config. If None, uses default.
         agent_config_path: Path to Agent YAML config. If None, uses default.
         stm_config_path: Path to STM YAML config. If None, uses default.
         ltm_config_path: Path to LTM YAML config. If None, uses default.
         force_reinit: If True, reinitialize even if already initialized.
 
     Returns:
-        Tuple of (tts_service, vlm_service, agent_service, stm_service, ltm_service)
-
-    Example:
-        >>> tts_service, vlm_service = initialize_services()
-        >>> # Use services...
+        Tuple of (tts_service, agent_service, stm_service, ltm_service)
     """
     logger.info("🚀 Initializing services...")
 
-    # Initialize TTS service
     tts_service = initialize_tts_service(
         config_path=tts_config_path, force_reinit=force_reinit
     )
-
-    # Initialize VLM service
-    # Deprecated: Replace this using Agent service can handle text and image both.
-    vlm_service = initialize_vlm_service(
-        config_path=vlm_config_path, force_reinit=force_reinit
-    )
-    # Initialize Agent service
     agent_service = initialize_agent_service(
         config_path=agent_config_path, force_reinit=force_reinit
     )
-    # Initialize STM service
     stm_service = initialize_stm_service(
         config_path=stm_config_path, force_reinit=force_reinit
     )
-    # Initialize LTM service
     ltm_service = initialize_ltm_service(
         config_path=ltm_config_path, force_reinit=force_reinit
     )
     logger.info("✨ All services initialized successfully")
 
-    return tts_service, vlm_service, agent_service, stm_service, ltm_service
+    return tts_service, agent_service, stm_service, ltm_service
 
 
 def get_tts_service() -> Optional[TTSService]:
@@ -475,14 +390,6 @@ def get_tts_service() -> Optional[TTSService]:
     """
     return _tts_service_instance
 
-
-def get_vlm_service() -> Optional[VLMService]:
-    """Get the initialized VLM service instance.
-
-    Returns:
-        VLM service instance or None if not initialized
-    """
-    return _vlm_service_instance
 
 
 def get_agent_service() -> Optional[AgentService]:
@@ -515,12 +422,10 @@ def get_ltm_service() -> Optional[LTMService]:
 __all__ = [
     "initialize_services",
     "initialize_tts_service",
-    "initialize_vlm_service",
     "initialize_agent_service",
     "initialize_stm_service",
     "initialize_ltm_service",
     "get_tts_service",
-    "get_vlm_service",
     "get_agent_service",
     "get_stm_service",
     "get_ltm_service",

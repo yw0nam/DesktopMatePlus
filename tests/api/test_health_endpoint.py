@@ -15,11 +15,9 @@ class TestHealthEndpoint:
     @pytest.mark.asyncio
     async def test_health_check_all_services_healthy(self, client):
         """Test health check when all services are healthy."""
-        # Mock the health service
         mock_health_response = HealthResponse(
             status="healthy",
             modules=[
-                ModuleStatus(name="VLM", ready=True, error=None),
                 ModuleStatus(name="TTS", ready=True, error=None),
                 ModuleStatus(name="Agent", ready=True, error=None),
                 ModuleStatus(name="LTM", ready=True, error=None),
@@ -37,7 +35,7 @@ class TestHealthEndpoint:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["status"] == "healthy"
-            assert len(data["modules"]) == 5
+            assert len(data["modules"]) == 4
             assert all(module["ready"] for module in data["modules"])
 
     @pytest.mark.asyncio
@@ -46,7 +44,6 @@ class TestHealthEndpoint:
         mock_health_response = HealthResponse(
             status="unhealthy",
             modules=[
-                ModuleStatus(name="VLM", ready=False, error="VLM service unavailable"),
                 ModuleStatus(name="TTS", ready=False, error="TTS service unavailable"),
                 ModuleStatus(
                     name="Agent", ready=False, error="Agent initialization failed"
@@ -75,7 +72,6 @@ class TestHealthEndpoint:
         mock_health_response = HealthResponse(
             status="healthy",
             modules=[
-                ModuleStatus(name="VLM", ready=True, error=None),
                 ModuleStatus(name="TTS", ready=True, error=None),
                 ModuleStatus(name="Agent", ready=True, error=None),
                 ModuleStatus(name="LTM", ready=True, error=None),
@@ -91,12 +87,10 @@ class TestHealthEndpoint:
             response = client.get("/health")
 
             data = response.json()
-            # Check required fields exist
             assert "status" in data
             assert "timestamp" in data
             assert "modules" in data
 
-            # Check modules structure
             for module in data["modules"]:
                 assert "name" in module
                 assert "ready" in module
@@ -107,27 +101,10 @@ class TestHealthService:
     """Test suite for HealthService."""
 
     @pytest.mark.asyncio
-    async def test_check_vlm_success(self):
-        """Test VLM health check with successful response."""
-        service = HealthService(timeout=5)
-
-        # Mock the VLM service getter to return a healthy engine
-        with patch("src.services.get_vlm_service") as mock_get_vlm:
-            mock_vlm_engine = MagicMock()
-            mock_vlm_engine.is_healthy.return_value = (True, "VLM service is healthy")
-            mock_get_vlm.return_value = mock_vlm_engine
-
-            ready, error = await service.check_vlm()
-
-            assert ready is True
-            assert error is None
-
-    @pytest.mark.asyncio
     async def test_check_tts_success(self):
         """Test TTS health check with successful response."""
         service = HealthService(timeout=5)
 
-        # Mock the TTS service getter to return a healthy engine
         with patch("src.services.get_tts_service") as mock_get_tts:
             mock_tts_engine = MagicMock()
             mock_tts_engine.is_healthy.return_value = (True, "Service healthy")
@@ -143,7 +120,6 @@ class TestHealthService:
         """Test Agent health check with successful response."""
         service = HealthService(timeout=5)
 
-        # Mock the Agent service getter to return a healthy engine
         with patch("src.services.get_agent_service") as mock_get_agent:
             mock_agent_engine = MagicMock()
             mock_agent_engine.is_healthy.return_value = (True, "Agent is healthy")
@@ -159,7 +135,6 @@ class TestHealthService:
         """Test LTM health check with successful response."""
         service = HealthService(timeout=5)
 
-        # Mock the LTM service getter to return a healthy engine
         with patch("src.services.get_ltm_service") as mock_get_ltm:
             mock_ltm_engine = MagicMock()
             mock_ltm_engine.is_healthy.return_value = (True, "LTM is healthy")
@@ -175,7 +150,6 @@ class TestHealthService:
         """Test STM health check with successful response."""
         service = HealthService(timeout=5)
 
-        # Mock the STM service getter to return a healthy engine
         with patch("src.services.get_stm_service") as mock_get_stm:
             mock_stm_engine = MagicMock()
             mock_stm_engine.is_healthy.return_value = (True, "STM is healthy")
@@ -192,7 +166,6 @@ class TestHealthService:
         service = HealthService(timeout=5)
 
         with (
-            patch.object(service, "check_vlm", return_value=(True, None)),
             patch.object(service, "check_tts", return_value=(True, None)),
             patch.object(service, "check_agent", return_value=(True, None)),
             patch.object(service, "check_ltm", return_value=(True, None)),
@@ -201,7 +174,7 @@ class TestHealthService:
             health = await service.get_system_health()
 
             assert health.status == "healthy"
-            assert len(health.modules) == 5
+            assert len(health.modules) == 4
             assert all(module.ready for module in health.modules)
 
     @pytest.mark.asyncio
@@ -210,7 +183,6 @@ class TestHealthService:
         service = HealthService(timeout=5)
 
         with (
-            patch.object(service, "check_vlm", return_value=(False, "VLM unavailable")),
             patch.object(service, "check_tts", return_value=(True, None)),
             patch.object(service, "check_agent", return_value=(True, None)),
             patch.object(
@@ -223,11 +195,7 @@ class TestHealthService:
             health = await service.get_system_health()
 
             assert health.status == "unhealthy"
-            assert len(health.modules) == 5
-
-            vlm_module = next(m for m in health.modules if m.name == "VLM")
-            assert vlm_module.ready is False
-            assert vlm_module.error == "VLM unavailable"
+            assert len(health.modules) == 4
 
             ltm_module = next(m for m in health.modules if m.name == "LTM")
             assert ltm_module.ready is False

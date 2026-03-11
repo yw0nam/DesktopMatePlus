@@ -92,7 +92,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 initialize_ltm_service,
                 initialize_stm_service,
                 initialize_tts_service,
-                initialize_vlm_service,
             )
 
             print("\n📋 Loading service configurations...")
@@ -104,14 +103,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             else:
                 print("  - TTS config: Using default")
                 initialize_tts_service()
-
-            # Initialize VLM service
-            if config_paths.get("vlm_config_path"):
-                print(f"  - VLM config: {config_paths['vlm_config_path']}")
-                initialize_vlm_service(config_path=config_paths["vlm_config_path"])
-            else:
-                print("  - VLM config: Using default")
-                initialize_vlm_service()
 
             # Initialize Agent service
             if config_paths.get("agent_config_path"):
