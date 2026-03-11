@@ -62,13 +62,17 @@ class ImageUrl(BaseModel):
     """OpenAI-compatible image URL object."""
 
     url: str = Field(..., description="Image URL or base64 data URI")
-    detail: str = Field(default="auto", description="Image detail level: auto, low, or high")
+    detail: str = Field(
+        default="auto", description="Image detail level: auto, low, or high"
+    )
 
 
 class ImageContent(BaseModel):
     """OpenAI-compatible image content block."""
 
-    type: str = Field(default="image_url", description="Content type, must be 'image_url'")
+    type: str = Field(
+        default="image_url", description="Content type, must be 'image_url'"
+    )
     image_url: ImageUrl = Field(..., description="Image URL object")
 
 

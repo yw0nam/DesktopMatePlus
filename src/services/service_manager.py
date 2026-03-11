@@ -148,7 +148,6 @@ def initialize_tts_service(
         raise
 
 
-
 def initialize_agent_service(
     config_path: Optional[str | Path] = None, force_reinit: bool = False
 ) -> AgentService:
@@ -389,7 +388,6 @@ def get_tts_service() -> Optional[TTSService]:
         TTS service instance or None if not initialized
     """
     return _tts_service_instance
-
 
 
 def get_agent_service() -> Optional[AgentService]:
