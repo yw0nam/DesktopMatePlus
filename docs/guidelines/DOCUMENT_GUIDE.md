@@ -88,6 +88,20 @@ The Appendix serves as both "insurance" and "expansion pack". Move all heavy inf
 | **Error Handling** | Don't list all edge cases in the main body. Only include "Top 3 Common Errors"—put everything else in a separate troubleshooting document or Appendix. |
 | **Reference Triggers** | Include explicit trigger sentences like *"For situation X, refer to Appendix A"* to prevent agents from getting lost. |
 
+### Rule 4: Add patch note for each document
+
+When you update documents, add a patch note at the appendix section of the document with the date and a brief description of what was changed. This helps track the evolution of the document and provides context for future readers.
+
+For example:
+
+```markdown
+
+### PatchNote (Reference & Extensions)
+2026-01-01: Updated the Core Logic section to include new authentication steps for the login process.
+2026-02-15: Added a new troubleshooting section in the Appendix for common deployment errors
+...
+```
+
 ---
 
 ## 4. Quality Checklist
