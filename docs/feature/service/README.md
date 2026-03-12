@@ -2,7 +2,7 @@
 
 ## 1. Synopsis
 
-- **Purpose**: Provide modular business logic for AI capabilities (Agent, TTS, VLM, Memory)
+- **Purpose**: Provide modular business logic for AI capabilities (Agent, TTS, Memory)
 - **I/O**: YAML configs → Service instances via Factory pattern → API responses
 
 ## 2. Core Logic
@@ -19,9 +19,8 @@
 
 | Service | Purpose | Implementation |
 |---------|---------|----------------|
-| Agent | LLM with tools & streaming | `OpenAIChatAgent` |
+| Agent | LLM with tools & streaming (text + image) | `OpenAIChatAgent` |
 | TTS | Text-to-Speech synthesis | `FishSpeechTTS`, `VLLMOmniTTS` |
-| ~~VLM~~ | ~~Vision-Language Model~~ | ~~`OpenAICompatibleVLM`~~ *(deprecated)* |
 | STM | Short-Term Memory (sessions) | `MongoDBSTM` |
 | LTM | Long-Term Memory (semantic) | `Mem0LTM` |
 | WebSocket | Real-time streaming | `WebSocketManager` |
@@ -82,21 +81,22 @@ audio_bytes = tts.generate_speech(
 )
 ```
 
-### VLM Service *(deprecated)*
+### Agent Service (Streaming, with Image)
 
 ```python
-# DEPRECATED: Use Agent Service with support_image: true instead
-vlm = get_vlm_service()
-response = vlm.generate_response(
-    image=image_bytes,
-    prompt="What is in this image?"
-)
-```
+from langchain_core.messages import HumanMessage
 
-### Agent Service (Streaming)
-
-```python
 agent = get_agent_service()
+
+# Text only
+messages = [HumanMessage(content="Hello!")]
+
+# Text + Image (OpenAI-compatible format)
+messages = [HumanMessage(content=[
+    {"type": "text", "text": "What's in this image?"},
+    {"type": "image_url", "image_url": {"url": "data:image/png;base64,...", "detail": "auto"}}
+])]
+
 async for event in agent.stream(messages, session_id="conv_001"):
     if event["type"] == "stream_token":
         print(event["chunk"], end="")
@@ -114,7 +114,6 @@ For detailed service specifications, refer to:
 
 - [Agent Service](./Agent_Service.md)
 - [TTS Service](./TTS_Service.md)
-- [VLM Service](./VLM_Service.md) *(deprecated)*
 - [STM Service](./STM_Service.md)
 - [LTM Service](./LTM_Service.md)
 - [WebSocket Service](./WebSocket_Service.md)
@@ -125,9 +124,8 @@ For detailed service specifications, refer to:
 src/services/
 ├── service_manager.py       # Centralized initialization
 ├── health.py                # Health check service
-├── agent_service/           # AI Agent
+├── agent_service/           # AI Agent (text + image)
 ├── tts_service/             # Text-to-Speech
-├── vlm_service/             # Vision-Language Model (deprecated)
 ├── stm_service/             # Short-Term Memory
 ├── ltm_service/             # Long-Term Memory
 ├── websocket_service/       # Real-time streaming

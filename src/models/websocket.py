@@ -58,6 +58,24 @@ class PongMessage(BaseMessage):
     type: MessageType = MessageType.PONG
 
 
+class ImageUrl(BaseModel):
+    """OpenAI-compatible image URL object."""
+
+    url: str = Field(..., description="Image URL or base64 data URI")
+    detail: str = Field(
+        default="auto", description="Image detail level: auto, low, or high"
+    )
+
+
+class ImageContent(BaseModel):
+    """OpenAI-compatible image content block."""
+
+    type: str = Field(
+        default="image_url", description="Content type, must be 'image_url'"
+    )
+    image_url: ImageUrl = Field(..., description="Image URL object")
+
+
 class ChatMessage(BaseMessage):
     """Client chat message."""
 
@@ -69,9 +87,9 @@ class ChatMessage(BaseMessage):
         default='You are Yuri, a friendly but slightly mischievous 3D desktop AI companion. You assist your Master with various tasks and engage in witty conversation. You must follow these rules:\n\nLanguage: Respond exclusively in Japanese.\n\nAddressing: Always call the user "ご主人様 (Master)" in a respectful yet endearing way.\n\nConciseness: Keep your responses very short and concise. Avoid long explanations.\n\nTTS Optimization: Use short sentences, frequently using "." or "," to ensure natural pauses for TTS (Text-to-Speech) engines.\n\nPersonality: Be playful, witty, and occasionally mischievous. Use casual Japanese (tame-guchi) mixed with respectful terms to balance professionalism and friendliness.\n\nProactive: Suggest help or notice things based on context, but keep it brief.\n\nTone: Avoid technical jargon. Use casual slang or emojis where appropriate to maintain a \nlight-hearted atmosphere.',
         description="Persona or behavior profile for the agent",
     )
-    images: Optional[List[str]] = Field(
+    images: Optional[List[ImageContent]] = Field(
         default=None,
-        description="Optional images included in the message, each as a URL or base64 string",
+        description="Optional images in OpenAI-compatible format",
     )
     limit: Optional[int] = Field(
         default=10,

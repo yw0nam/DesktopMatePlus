@@ -16,7 +16,6 @@ from src.models.stm import (
     UpdateSessionMetadataResponse,
 )
 from src.models.tts import TTSRequest, TTSResponse
-from src.models.vlm import VLMRequest, VLMResponse
 
 __all__ = [
     "HealthResponse",
@@ -35,6 +34,4 @@ __all__ = [
     "UpdateSessionMetadataResponse",
     "TTSRequest",
     "TTSResponse",
-    "VLMRequest",
-    "VLMResponse",
 ]

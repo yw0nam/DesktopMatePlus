@@ -35,11 +35,10 @@ You must adhere to these guidelines for all code generation and refactoring task
 - `src/core`: Core infrastructure (Logging, Exceptions, Middleware).
 - `src/models`: Pydantic data models and schemas.
 - `src/services`: Business logic and Service implementations.
-  - `agent/`: LLM Agent logic (LangGraph).
+  - `agent/`: LLM Agent logic (LangGraph). Natively supports text + image (OpenAI-compatible).
   - `stm/`: Short-Term Memory services.
   - `ltm/`: Long-Term Memory services.
   - `tts/`: Text-to-Speech services.
-  - `vlm/`: Vision-Language Model services. *(deprecated)*
   - `websocket/`: WebSocket communication services.
   - `task_sweep_service/`: Background expired task cleanup.
 - `src/main.py`: Application entry point and lifespan management.

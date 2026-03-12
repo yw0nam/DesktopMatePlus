@@ -18,7 +18,6 @@ from src.models.websocket import (
 )
 from src.services import get_agent_service, get_ltm_service, get_stm_service
 from src.services.agent_service.tools.delegate import DelegateTaskTool
-from src.services.vlm_service.utils import prepare_image_for_vlm
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
@@ -221,12 +220,7 @@ class MessageHandler:
 
             content = [{"type": "text", "text": content}]
             if images and agent_service.support_image:
-                image_dicts = prepare_image_for_vlm(images)
-                # Ensure image_dicts is a list for extend
-                if isinstance(image_dicts, dict):
-                    content.append(image_dicts)
-                else:
-                    content.extend(image_dicts)
+                content.extend([img.model_dump() for img in images])
 
             message_history.append(HumanMessage(content=content))
 
