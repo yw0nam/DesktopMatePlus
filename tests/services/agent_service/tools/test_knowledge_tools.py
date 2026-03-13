@@ -25,7 +25,7 @@ def test_search_knowledge_tool_calls_service(mock_kb_service):
     result = tool._run(query="hello", tags=[])
     mock_kb_service.search.assert_called_once_with(query="hello", tags=[])
     assert isinstance(result, list)
-    assert len(result) > 0
+    assert len(result) == 1
 
 
 def test_search_knowledge_tool_returns_dicts(mock_kb_service):
@@ -33,6 +33,19 @@ def test_search_knowledge_tool_returns_dicts(mock_kb_service):
     result = tool._run(query="hello", tags=[])
     assert result[0]["path"] == "/kb/note.md"
     assert result[0]["content"] == "hello world"
+
+
+def test_search_knowledge_tool_default_tags(mock_kb_service):
+    tool = SearchKnowledgeTool(service=mock_kb_service)
+    tool._run(query="hello")  # no tags argument
+    mock_kb_service.search.assert_called_once_with(query="hello", tags=[])
+
+
+def test_search_knowledge_tool_empty_results(mock_kb_service):
+    mock_kb_service.search.return_value = []
+    tool = SearchKnowledgeTool(service=mock_kb_service)
+    result = tool._run(query="no_match", tags=[])
+    assert result == []
 
 
 def test_read_note_tool_calls_service(mock_kb_service):
