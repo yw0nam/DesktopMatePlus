@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+from collections.abc import Awaitable, Callable
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -416,8 +417,8 @@ async def forward_turn_events(
 # Knowledge summary trigger constants
 MIN_TURNS_FOR_SUMMARY: int = 3
 STM_INLINE_MAX_TURNS: int = 30
-NANOCLAW_URL = os.getenv("NANOCLAW_URL", "http://localhost:3000")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+NANOCLAW_URL: str = os.getenv("NANOCLAW_URL", "http://localhost:3000")
+BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
 def build_delegate_payload(
@@ -425,17 +426,23 @@ def build_delegate_payload(
     user_id: str,
     agent_id: str,
     stm: STMService,
+    messages: list | None = None,
 ) -> dict:
-    """Build NanoClaw delegate payload with Option A (inline) or B (fetch URL) STM."""
+    """Build NanoClaw delegate payload with Option A (inline) or B (fetch URL) STM.
+
+    Args:
+        messages: Pre-fetched chat history. If None, fetched from stm.
+    """
     from langchain_core.messages import HumanMessage as HMsg
     from langchain_core.messages import convert_to_openai_messages
 
-    messages = stm.get_chat_history(
-        user_id=user_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        limit=None,
-    )
+    if messages is None:
+        messages = stm.get_chat_history(
+            user_id=user_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            limit=None,
+        )
     human_count = sum(1 for m in messages if isinstance(m, HMsg))
 
     base_payload: dict = {
@@ -460,7 +467,7 @@ async def on_disconnect_handler(
     user_id: str,
     agent_id: str,
     stm_service: STMService,
-    delegate,
+    delegate: Callable[[dict], Awaitable[None]],
 ) -> None:
     """Trigger knowledge summary delegation on session disconnect.
 
@@ -494,9 +501,10 @@ async def on_disconnect_handler(
             user_id=user_id,
             agent_id=agent_id,
             stm=stm_service,
+            messages=messages,
         )
         logger.info(f"Session {session_id}: triggering knowledge summary delegation")
         await delegate(payload)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Session {session_id}: on_disconnect_handler error: {e}")
