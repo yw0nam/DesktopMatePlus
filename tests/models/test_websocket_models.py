@@ -33,6 +33,9 @@ class TestChatMessageDefaults:
         )
         assert msg.content == "hello"
         assert msg.type == MessageType.CHAT_MESSAGE
+        assert msg.agent_id == "agent-001"
+        assert msg.user_id == "user-001"
+        assert msg.limit == 5
 
     def test_serialization_includes_new_fields(self):
         msg = ChatMessage(

@@ -190,15 +190,24 @@ class StreamEndMessage(BaseMessage):
 
 
 class TtsChunkMessage(BaseMessage):
-    """Server message with a synthesized TTS chunk including audio and animation data."""
+    """Server message with TTS synthesis result and motion metadata.
+
+    Backend → Unity. Sent after TTS synthesis completes for each sentence.
+    audio_base64 is None when TTS is disabled (tts_enabled=False) or synthesis failed.
+    """
 
     type: MessageType = MessageType.TTS_CHUNK
-    sequence: int
-    text: str
-    audio_base64: Optional[str] = None
-    emotion: Optional[str] = None
-    motion_name: str
-    blendshape_name: str
+    sequence: int = Field(
+        ..., description="Sequence number within the turn, starting from 0"
+    )
+    text: str = Field(..., description="Text used for TTS synthesis")
+    audio_base64: Optional[str] = Field(
+        default=None,
+        description="MP3 audio encoded as base64. None means skip audio playback.",
+    )
+    emotion: Optional[str] = Field(default=None, description="Detected emotion tag")
+    motion_name: str = Field(..., description="Unity AnimationPlayer motion to play")
+    blendshape_name: str = Field(..., description="Unity blendshape to apply")
 
 
 class ErrorMessage(BaseMessage):
