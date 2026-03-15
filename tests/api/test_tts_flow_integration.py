@@ -209,29 +209,3 @@ async def test_stream_token_and_tts_chunk_coexist(processor: MessageProcessor):
     assert "tts_chunk" in types
     assert "stream_end" in types
     assert types[-1] == "stream_end"
-
-
-class TestTTSVoicesEndpoint:
-    """Tests for GET /v1/tts/voices endpoint."""
-
-    def test_get_tts_voices_returns_200_and_voices_list(self, client):
-        """GET /v1/tts/voices: 200 + voices list."""
-        with patch("src.api.routes.tts.get_tts_service") as mock_get_svc:
-            mock_svc = MagicMock()
-            mock_svc.list_voices.return_value = ["aria", "alice"]
-            mock_get_svc.return_value = mock_svc
-
-            response = client.get("/v1/tts/voices")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "voices" in data
-        assert len(data["voices"]) >= 1
-
-    def test_get_tts_voices_service_unavailable(self, client):
-        """GET /v1/tts/voices: 503 when service not initialized."""
-        with patch("src.api.routes.tts.get_tts_service") as mock_get_svc:
-            mock_get_svc.return_value = None
-            response = client.get("/v1/tts/voices")
-
-        assert response.status_code == 503

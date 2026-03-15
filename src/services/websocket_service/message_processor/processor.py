@@ -590,6 +590,7 @@ class MessageProcessor:
             for task in turn.tts_tasks:
                 if not task.done():
                     task.cancel()
+            await asyncio.gather(*turn.tts_tasks, return_exceptions=True)
             logger.warning(
                 f"TTS barrier timeout after {timeout}s for turn {turn_id}, "
                 "proceeding to stream_end"
