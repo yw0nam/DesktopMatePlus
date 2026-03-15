@@ -1,6 +1,6 @@
 # WebSocket: Chat Message
 
-Updated: 2026-03-11
+Updated: 2026-03-15
 
 ## 1. Synopsis
 
@@ -37,6 +37,8 @@ Client → Server
 | `images` | array | No | Images in OpenAI-compatible format (see below) |
 | `limit` | integer | No | STM message limit (default: 10) |
 | `session_id` | string | No | Session ID (new if omitted) |
+| `tts_enabled` | bool | No | Enable TTS synthesis (default: `true`). `false` = skip audio, still send `tts_chunk` with motion |
+| `reference_id` | string | No | Voice reference ID for TTS. `null` = engine default voice |
 | `metadata` | object | No | Additional metadata |
 
 ### Response Flow
@@ -44,8 +46,8 @@ Client → Server
 1. `stream_start` - Response begins
 2. `stream_token` (multiple) - Text chunks
 3. `tool_call` / `tool_result` - If tools used
-4. `tts_ready_chunk` - TTS-ready text
-5. `stream_end` - Response complete
+4. `tts_chunk` (multiple) - TTS audio + motion per sentence (parallel to tokens)
+5. `stream_end` - Response complete (all `tts_chunk` guaranteed delivered before this)
 
 ### Image Format
 
@@ -92,4 +94,5 @@ socket.send(JSON.stringify({
 
 - [Stream Start](./WebSocket_StreamStart.md)
 - [Stream Token](./WebSocket_StreamToken.md)
+- [TTS Chunk](./WebSocket_TtsChunk.md)
 - [Stream End](./WebSocket_StreamEnd.md)
