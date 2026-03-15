@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Optional
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict
 
 from loguru import logger
+
+from src.services.tts_service.tts_pipeline import synthesize_chunk
 
 from ..text_processors import TextChunkProcessor, TTSTextProcessor
 from .constants import INTERRUPT_WAIT_TIMEOUT, TOKEN_QUEUE_SENTINEL
@@ -173,16 +175,23 @@ class EventHandler:
                 )
                 continue
 
-            tts_event = self._build_tts_event(
-                turn_id,
-                token_event,
-                text,
-                processed.emotion_tag,
+            task = asyncio.create_task(
+                self._synthesize_and_send(
+                    turn_id=turn_id,
+                    text=text,
+                    emotion=processed.emotion_tag,
+                    sequence=turn.tts_sequence,
+                    tts_enabled=turn.tts_enabled,
+                    reference_id=turn.reference_id,
+                )
             )
+            turn.tts_sequence += 1
+            turn.tts_tasks.append(task)
+            self.processor._task_manager.track_task(turn_id, task)
             logger.info(
-                f"Emitting tts_ready_chunk for turn {turn_id}: {repr(text[:50]) if len(text) > 50 else repr(text)} (len={len(text)}, emotion={processed.emotion_tag})"
+                f"Scheduled TTS task (seq={turn.tts_sequence - 1}) for turn {turn_id}: "
+                f"{repr(text[:50]) if len(text) > 50 else repr(text)}"
             )
-            await self.processor._put_event(turn_id, tts_event)
 
         if sentence_count == 0:
             logger.debug(
@@ -215,34 +224,62 @@ class EventHandler:
             )
             return
 
-        tts_event = self._build_tts_event(
-            turn_id,
-            {},
-            text,
-            processed.emotion_tag,
+        task = asyncio.create_task(
+            self._synthesize_and_send(
+                turn_id=turn_id,
+                text=text,
+                emotion=processed.emotion_tag,
+                sequence=turn.tts_sequence,
+                tts_enabled=turn.tts_enabled,
+                reference_id=turn.reference_id,
+            )
         )
+        turn.tts_sequence += 1
+        turn.tts_tasks.append(task)
+        self.processor._task_manager.track_task(turn_id, task)
         logger.info(
-            f"Emitting flushed tts_ready_chunk for turn {turn_id}: {repr(text[:50]) if len(text) > 50 else repr(text)} (len={len(text)}, emotion={processed.emotion_tag})"
+            f"Scheduled flushed TTS task (seq={turn.tts_sequence - 1}) for turn {turn_id}: "
+            f"{repr(text[:50]) if len(text) > 50 else repr(text)}"
         )
-        await self.processor._put_event(turn_id, tts_event)
 
-    def _build_tts_event(
+    async def _synthesize_and_send(
         self,
         turn_id: str,
-        base_event: Dict[str, Any],
-        chunk: str,
-        emotion: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Construct a tts_ready_chunk event with optional emotion metadata."""
-        event = self.processor._normalize_event(turn_id, base_event)
-        tts_event = {
-            key: value for key, value in event.items() if key not in {"type", "chunk"}
-        }
-        tts_event["type"] = "tts_ready_chunk"
-        tts_event["chunk"] = chunk
-        if emotion:
-            tts_event["emotion"] = emotion
-        return tts_event
+        text: str,
+        emotion: str | None,
+        sequence: int,
+        tts_enabled: bool,
+        reference_id: str | None,
+    ) -> None:
+        """TTS synthesis + event enqueue. Silent drop if connection is closing."""
+        if self.processor.is_connection_closing():
+            return
+
+        chunk_msg = await synthesize_chunk(
+            tts_service=self.processor.tts_service,
+            mapper=self.processor.mapper,
+            text=text,
+            emotion=emotion,
+            sequence=sequence,
+            tts_enabled=tts_enabled,
+            reference_id=reference_id,
+        )
+
+        if self.processor.is_connection_closing():
+            return
+
+        await self.processor._put_event(
+            turn_id,
+            {
+                "type": "tts_chunk",
+                "sequence": chunk_msg.sequence,
+                "text": chunk_msg.text,
+                "audio_base64": chunk_msg.audio_base64,
+                "emotion": chunk_msg.emotion,
+                "motion_name": chunk_msg.motion_name,
+                "blendshape_name": chunk_msg.blendshape_name,
+            },
+        )
 
     async def _put_token_event(self, turn_id: str, event: Dict[str, Any]) -> None:
         """Send a token event to the internal token queue."""

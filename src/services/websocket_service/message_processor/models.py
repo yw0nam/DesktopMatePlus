@@ -43,6 +43,10 @@ class ConversationTurn:
     token_stream_closed: bool = False
     chunk_processor: Optional[TextChunkProcessor] = None
     tts_processor: Optional[TTSTextProcessor] = None
+    tts_enabled: bool = True
+    reference_id: str | None = None
+    tts_tasks: list[asyncio.Task] = field(default_factory=list)
+    tts_sequence: int = 0
 
     def update_status(self, status: TurnStatus, error_message: Optional[str] = None):
         """Update turn status and timestamp."""
