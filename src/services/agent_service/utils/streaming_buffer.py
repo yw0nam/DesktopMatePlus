@@ -58,6 +58,8 @@ class StreamingBuffer:
         return self._take()
 
     def _take(self) -> str | None:
+        """Reset buffer and return stripped content, or None if empty."""
+        # strip() is intentional: leading/trailing whitespace is irrelevant for TTS/streaming consumers
         result = self._buffer.strip()
         self._buffer = ""
         return result if result else None
