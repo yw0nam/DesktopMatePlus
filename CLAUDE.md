@@ -30,6 +30,7 @@ You must adhere to these guidelines for all code generation and refactoring task
 
 ## 3. Directory Structure & Key Paths
 
+- `docs/`: Documentation and guidelines for development, architecture, and coding standards, and code overview.
 - `src/api`: API route definitions and routers.
 - `src/configs`: Configuration management (Pydantic settings + YAML loader).
 - `src/core`: Core infrastructure (Logging, Exceptions, Middleware).
