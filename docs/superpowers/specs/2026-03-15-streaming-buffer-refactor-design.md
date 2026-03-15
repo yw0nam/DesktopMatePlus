@@ -42,13 +42,23 @@ class StreamingBuffer:
 ```
 
 **Rules:**
-- `add()` resets the internal buffer when it returns non-None.
-- Flush triggers in priority order:
-  1. MAX exceeded → force flush (memory guard)
-  2. Ends with SENTENCE_ENDINGS AND len >= MIN → flush
-  3. Ends with WORD_ENDINGS AND len >= MIN×2 → flush
-- Whitespace-only content is silently discarded (returns None, no accumulation).
-- `flush()` returns None on empty buffer (never returns empty string).
+- `add()` appends `content` to the internal buffer first, then evaluates flush conditions.
+  When it returns non-None (the flushed text), the internal buffer is cleared to `""`.
+  No carry-over of flushed content occurs.
+- Flush triggers in priority order (evaluated after appending):
+  1. `len(buffer) > MAX_BUFFER_SIZE` → force flush the full buffer (memory guard).
+  2. **Incoming `content` token** (not the buffer) ends with `SENTENCE_ENDINGS` AND `len(buffer) >= MIN` → flush.
+  3. **Incoming `content` token** ends with `WORD_ENDINGS` AND `len(buffer) >= MIN×2` → flush.
+  - Note: `endswith` checks apply to the freshly received `content` argument, NOT to the accumulated buffer string.
+- Whitespace-only content is silently discarded before accumulation (returns None, no accumulation).
+- `flush()` strips the buffer before returning; returns `None` if the result is empty or whitespace-only.
+
+**Error-path behaviour:**
+`_process_message` must call `buffer.flush()` in its `except` block before yielding the error event,
+to avoid silently dropping buffered tokens on exceptions. This mirrors the existing behaviour.
+
+**Logging:**
+`_process_message` retains its `chunk_count` counter and `logger.info(f"Processing completed: {chunk_count} chunks")` log line. `chunk_count` is incremented in `_process_message` each time `buffer.add()` or `buffer.flush()` returns non-None.
 
 ### `openai_chat_agent.py` (MODIFIED)
 
@@ -68,6 +78,7 @@ if remaining := buffer.flush():
 ```
 
 No change to yielded event shapes or error handling behaviour.
+The module-level docstring referencing the old `process_message` function will be updated to reflect the current class structure.
 
 ### `message_util.py` (MODIFIED)
 
@@ -94,7 +105,7 @@ LangGraph agent.astream()
 
 ## Testing
 
-### New: `tests/unit/test_streaming_buffer.py`
+### New: `tests/services/agent_service/test_streaming_buffer.py`
 
 | Test | Assertion |
 |------|-----------|
@@ -122,4 +133,4 @@ No `process_message` unit tests exist to delete.
 | `src/services/agent_service/utils/__init__.py` | Remove `process_message` export |
 | `src/services/agent_service/utils/message_util.py` | Delete `process_message()` |
 | `src/services/agent_service/openai_chat_agent.py` | Use `StreamingBuffer` in `_process_message` |
-| `tests/unit/test_streaming_buffer.py` | NEW |
+| `tests/services/agent_service/test_streaming_buffer.py` | NEW |
