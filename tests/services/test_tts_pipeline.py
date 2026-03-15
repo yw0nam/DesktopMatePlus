@@ -1,0 +1,101 @@
+"""Tests for synthesize_chunk() TTS pipeline.
+
+Note: asyncio_mode=auto (pyproject.toml) — @pytest.mark.asyncio decorator is NOT needed.
+generate_speech() MUST be mocked in all tests — no real TTS engine in CI.
+"""
+
+from unittest.mock import MagicMock, patch
+
+from src.services.tts_service.tts_pipeline import synthesize_chunk
+
+
+async def test_synthesize_chunk_success():
+    """TTS success: audio_base64 is non-null, motion mapped correctly."""
+    tts_service = MagicMock()
+    tts_service.generate_speech.return_value = "base64encodedaudio=="
+    mapper = MagicMock()
+    mapper.map.return_value = ("happy_idle", "smile")
+
+    chunk = await synthesize_chunk(
+        tts_service=tts_service,
+        mapper=mapper,
+        text="안녕",
+        emotion="joyful",
+        sequence=0,
+        tts_enabled=True,
+    )
+
+    assert chunk.audio_base64 == "base64encodedaudio=="
+    assert chunk.motion_name == "happy_idle"
+    assert chunk.blendshape_name == "smile"
+    assert chunk.sequence == 0
+    assert chunk.text == "안녕"
+    assert chunk.emotion == "joyful"
+    tts_service.generate_speech.assert_called_once()
+
+
+async def test_synthesize_chunk_generate_speech_returns_none():
+    """generate_speech returns None → audio=None, logger.error called once."""
+    tts_service = MagicMock()
+    tts_service.generate_speech.return_value = None
+    mapper = MagicMock()
+    mapper.map.return_value = ("neutral_idle", "neutral")
+
+    with patch("src.services.tts_service.tts_pipeline.logger") as mock_logger:
+        chunk = await synthesize_chunk(
+            tts_service=tts_service,
+            mapper=mapper,
+            text="텍스트",
+            emotion=None,
+            sequence=1,
+            tts_enabled=True,
+        )
+
+    assert chunk.audio_base64 is None
+    assert chunk.sequence == 1
+    assert chunk.motion_name == "neutral_idle"
+    mock_logger.error.assert_called_once()
+
+
+async def test_synthesize_chunk_exception():
+    """generate_speech raises exception → audio=None, logger.error called once."""
+    tts_service = MagicMock()
+    tts_service.generate_speech.side_effect = ConnectionError("TTS server down")
+    mapper = MagicMock()
+    mapper.map.return_value = ("neutral_idle", "neutral")
+
+    with patch("src.services.tts_service.tts_pipeline.logger") as mock_logger:
+        chunk = await synthesize_chunk(
+            tts_service=tts_service,
+            mapper=mapper,
+            text="텍스트",
+            emotion=None,
+            sequence=2,
+            tts_enabled=True,
+        )
+
+    assert chunk.audio_base64 is None
+    assert chunk.sequence == 2
+    mock_logger.error.assert_called_once()
+
+
+async def test_synthesize_chunk_tts_disabled():
+    """tts_enabled=False → audio=None, generate_speech NOT called, motion still set."""
+    tts_service = MagicMock()
+    mapper = MagicMock()
+    mapper.map.return_value = ("sad_idle", "sad")
+
+    chunk = await synthesize_chunk(
+        tts_service=tts_service,
+        mapper=mapper,
+        text="텍스트",
+        emotion="sad",
+        sequence=3,
+        tts_enabled=False,
+    )
+
+    assert chunk.audio_base64 is None
+    assert chunk.motion_name == "sad_idle"
+    assert chunk.blendshape_name == "sad"
+    assert chunk.sequence == 3
+    tts_service.generate_speech.assert_not_called()
