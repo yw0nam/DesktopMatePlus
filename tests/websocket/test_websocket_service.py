@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -12,6 +12,7 @@ from src.models.websocket import (
     InterruptStreamMessage,
     MessageType,
     PongMessage,
+    TtsChunkMessage,
 )
 from src.services.stm_service.service import STMService
 from src.services.websocket_service.manager import ConnectionState, WebSocketManager
@@ -194,6 +195,8 @@ class TestWebSocketManager:
         connection_state.message_processor = MessageProcessor(
             connection_id=connection_id,
             user_id="test_user",
+            tts_service=MagicMock(),
+            mapper=MagicMock(),
         )
 
         manager.connections[connection_id] = connection_state
@@ -246,6 +249,15 @@ class TestWebSocketManager:
             def search_memory(self, query, user_id, agent_id):
                 return {"results": []}  # Return empty search results for test
 
+        fake_tts_chunk = TtsChunkMessage(
+            sequence=0,
+            text="Hello, world!",
+            audio_base64=None,
+            emotion=None,
+            motion_name="neutral_idle",
+            blendshape_name="neutral",
+        )
+
         with (
             patch(
                 "src.services.websocket_service.manager.handlers.get_agent_service",
@@ -258,6 +270,10 @@ class TestWebSocketManager:
             patch(
                 "src.services.websocket_service.manager.handlers.get_ltm_service",
                 return_value=FakeLTMService(),
+            ),
+            patch(
+                "src.services.websocket_service.message_processor.event_handlers.synthesize_chunk",
+                new=AsyncMock(return_value=fake_tts_chunk),
             ),
         ):
             message_data = {
@@ -280,15 +296,15 @@ class TestWebSocketManager:
         event_types = [event.get("type") for event in sent_events]
 
         assert "stream_start" in event_types
-        assert "tts_ready_chunk" in event_types
+        assert "tts_chunk" in event_types
         assert "stream_end" in event_types
 
         # Verify TTS chunk reflects processed agent output
         tts_events = [
-            event for event in sent_events if event.get("type") == "tts_ready_chunk"
+            event for event in sent_events if event.get("type") == "tts_chunk"
         ]
-        assert tts_events, "Expected at least one tts_ready_chunk event"
-        assert any("Hello, world" in evt.get("chunk", "") for evt in tts_events)
+        assert tts_events, "Expected at least one tts_chunk event"
+        assert any("Hello, world" in evt.get("text", "") for evt in tts_events)
 
         await connection_state.message_processor.shutdown()
 
@@ -492,7 +508,7 @@ class TestForwardTurnEvents:
         turn_id = "turn-forward-test"
         events = [
             {"type": "stream_start", "turn_id": turn_id},
-            {"type": "tts_ready_chunk", "chunk": "Hello world!", "turn_id": turn_id},
+            {"type": "tts_chunk", "chunk": "Hello world!", "turn_id": turn_id},
             {"type": "stream_end", "turn_id": turn_id},
         ]
 
@@ -517,7 +533,7 @@ class TestForwardTurnEvents:
             json.loads(call.args[0]) for call in mock_ws.send_text.call_args_list
         ]
         assert sent_payloads[0]["type"] == "stream_start"
-        assert sent_payloads[1]["type"] == "tts_ready_chunk"
+        assert sent_payloads[1]["type"] == "tts_chunk"
         assert sent_payloads[1]["chunk"] == "Hello world!"
         assert sent_payloads[2]["type"] == "stream_end"
 
@@ -541,7 +557,7 @@ class TestForwardTurnEvents:
 
         turn_id = "turn-send-error"
         events = [
-            {"type": "tts_ready_chunk", "chunk": "Hi", "turn_id": turn_id},
+            {"type": "tts_chunk", "chunk": "Hi", "turn_id": turn_id},
             {"type": "stream_end", "turn_id": turn_id},
         ]
 

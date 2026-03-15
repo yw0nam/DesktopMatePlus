@@ -36,6 +36,11 @@ class TTSService(ABC):
         pass
 
     @abstractmethod
+    def list_voices(self) -> list[str]:
+        """Return available reference voice IDs."""
+        pass
+
+    @abstractmethod
     def is_healthy(self) -> tuple[bool, str]:
         """
         Check if the TTS provider is healthy and ready.

@@ -1,6 +1,6 @@
 # REST API Guide
 
-Updated: 2026-03-11
+Updated: 2026-03-15
 
 ## 1. Synopsis
 
@@ -35,15 +35,15 @@ Updated: 2026-03-11
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/tts/synthesize` | POST | [Synthesize Speech](./TTS_Synthesize.md) |
+| `/tts/voices` | GET | List available TTS voices |
 
 ## 3. Usage
 
 ```bash
-# Example: Synthesize speech
-curl -X POST "http://127.0.0.1:5500/v1/tts/synthesize" \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Hello!", "output_format": "base64"}'
+# Example: List available voices
+curl "http://127.0.0.1:5500/v1/tts/voices"
+# Response: {"voices": ["aria", "alice", "bob"]}
+# Returns 503 if TTS service is not initialized
 ```
 
 ---

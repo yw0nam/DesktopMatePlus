@@ -47,8 +47,22 @@ class VLLMOmniTTSService(TTSService):
 
         # Cache for loaded reference audio/text to avoid repeated disk I/O
         self._ref_cache: dict[str, tuple[str, str]] = {}
+        self._available_voices: list[str] = self._scan_voices()
 
         logger.info(f"VLLMOmniTTS initialized at {self.base_url}")
+
+    def _scan_voices(self) -> list[str]:
+        if not self.ref_audio_dir.exists():
+            return []
+        voices: list[str] = []
+        for d in sorted(self.ref_audio_dir.iterdir()):
+            if d.is_dir():
+                if (d / "merged_audio.mp3").exists() and (d / "combined.lab").exists():
+                    voices.append(d.name)
+        return voices
+
+    def list_voices(self) -> list[str]:
+        return self._available_voices
 
     def _file_to_data_url(self, file_path: Path) -> str:
         """Convert an audio file to a base64 data URL string."""

@@ -1,11 +1,11 @@
 # TTS Configuration Fields
 
-Updated: 2025-11-28
+Updated: 2026-03-15
 
 ## 1. Synopsis
 
-- **Purpose**: Configure Fish Speech TTS service settings
-- **I/O**: YAML → `FishLocalTTSConfig` Pydantic model
+- **Purpose**: Configure TTS service settings and emotion-to-motion mapping for Unity avatar
+- **I/O**: YAML → `FishLocalTTSConfig` / `EmotionMotionMapper`
 
 ## 2. Core Logic
 
@@ -30,6 +30,35 @@ Updated: 2025-11-28
 |-------|-------------|
 | `"on"` | Cache reference audio encodings |
 | `"off"` | No caching (default) |
+
+### EmotionMotionMap Fields (`yaml_files/tts_rules.yml`)
+
+Maps emotion keyword → Unity `(motion_name, blendshape_name)`. Used by `EmotionMotionMapper`.
+
+```yaml
+emotion_motion_map:
+  joyful:     { motion: "happy_idle",      blendshape: "smile" }
+  excited:    { motion: "excited_idle",    blendshape: "excited" }
+  sad:        { motion: "sad_idle",        blendshape: "sad" }
+  angry:      { motion: "angry_idle",      blendshape: "angry" }
+  surprised:  { motion: "surprised_idle",  blendshape: "surprised" }
+  fearful:    { motion: "fearful_idle",    blendshape: "fearful" }
+  disgusted:  { motion: "disgusted_idle",  blendshape: "disgusted" }
+  confused:   { motion: "confused_idle",   blendshape: "confused" }
+  embarrassed:{ motion: "embarrassed_idle",blendshape: "embarrassed" }
+  proud:      { motion: "proud_idle",      blendshape: "proud" }
+  bored:      { motion: "bored_idle",      blendshape: "bored" }
+  calm:       { motion: "calm_idle",       blendshape: "calm" }
+  playful:    { motion: "playful_idle",    blendshape: "playful" }
+  loving:     { motion: "loving_idle",     blendshape: "loving" }
+  hopeful:    { motion: "hopeful_idle",    blendshape: "hopeful" }
+  anxious:    { motion: "anxious_idle",    blendshape: "anxious" }
+  default:    { motion: "neutral_idle",    blendshape: "neutral" }
+```
+
+- `default` entry is the fallback for unregistered or `null` emotions
+- If `default` is missing entirely, hardcoded fallback `neutral_idle` / `neutral` is used
+- Partial entries (e.g., only `motion` defined) use `default` for the missing field
 
 ## 3. Usage
 
@@ -57,3 +86,4 @@ tts_config:
 
 - [Configuration System](./README.md)
 - [TTS Service](../service/TTS_Service.md)
+- [Settings Fields](./Settings_Fields.md) — `tts_barrier_timeout_seconds`

@@ -14,6 +14,9 @@ from uuid import UUID, uuid4
 
 from loguru import logger
 
+from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
+from src.services.tts_service.service import TTSService
+
 from .constants import INTERRUPT_WAIT_TIMEOUT
 from .event_handlers import EventHandler
 from .models import ConversationTurn, TurnStatus
@@ -28,6 +31,8 @@ class MessageProcessor:
         connection_id: UUID,
         user_id: str,
         *,
+        tts_service: TTSService | None = None,
+        mapper: EmotionMotionMapper | None = None,
         queue_maxsize: int = 100,
     ):
         """Initialize MessageProcessor.
@@ -35,10 +40,14 @@ class MessageProcessor:
         Args:
             connection_id: WebSocket connection identifier.
             user_id: User identifier for this processor.
+            tts_service: TTS service instance for synthesis.
+            mapper: EmotionMotionMapper instance for emotion/motion lookup.
             queue_maxsize: Maximum size for the per-turn event queue.
         """
         self.connection_id = connection_id
         self.user_id = user_id
+        self.tts_service = tts_service
+        self.mapper = mapper
         self.queue_maxsize = max(1, queue_maxsize)
         self.turns: Dict[str, ConversationTurn] = {}
         self.active_turns: Set[str] = set()
@@ -61,6 +70,10 @@ class MessageProcessor:
             f"MessageProcessor initialized for connection {self.connection_id}, user {user_id}"
         )
 
+    def is_connection_closing(self) -> bool:
+        """Return True if shutdown has been requested for this processor."""
+        return self._shutdown_event.is_set()
+
     async def start_turn(
         self,
         session_id: str,
@@ -68,6 +81,8 @@ class MessageProcessor:
         *,
         agent_stream: Optional[AsyncIterator[Dict[str, Any]]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        tts_enabled: bool = True,
+        reference_id: Optional[str] = None,
     ) -> str:
         """Start a new conversation turn.
 
@@ -100,6 +115,8 @@ class MessageProcessor:
                 user_message=user_input,
                 session_id=session_id,
                 metadata=metadata or {},
+                tts_enabled=tts_enabled,
+                reference_id=reference_id,
             )
 
             turn.event_queue = asyncio.Queue(maxsize=self.queue_maxsize)
@@ -546,6 +563,38 @@ class MessageProcessor:
         logger.debug(
             f"Queued event {event.get('type', 'unknown')} for turn {turn_id} (queue size={queue.qsize()})"
         )
+
+    async def _wait_for_tts_tasks(self, turn_id: str) -> None:
+        """Await all pending TTS tasks before stream_end, with timeout.
+
+        On timeout, cancels remaining tasks and logs a backend-only warning.
+        Never sends warning events to the client.
+
+        Args:
+            turn_id: The conversation turn identifier.
+        """
+        turn = self.turns.get(turn_id)
+        if not turn or not turn.tts_tasks:
+            return
+
+        from src.configs.settings import get_settings
+
+        timeout = get_settings().websocket.tts_barrier_timeout_seconds
+
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*turn.tts_tasks, return_exceptions=True),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            for task in turn.tts_tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*turn.tts_tasks, return_exceptions=True)
+            logger.warning(
+                f"TTS barrier timeout after {timeout}s for turn {turn_id}, "
+                "proceeding to stream_end"
+            )
 
     async def _delayed_cleanup(self, delay: float):
         """Delayed cleanup of resources."""

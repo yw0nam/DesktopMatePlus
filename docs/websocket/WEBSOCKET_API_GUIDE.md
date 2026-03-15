@@ -41,7 +41,7 @@ Updated: 2026-03-03
 | `stream_start` | Response begins | [StreamStart](./WebSocket_StreamStart.md) |
 | `stream_token` | Token chunk | [StreamToken](./WebSocket_StreamToken.md) |
 | `stream_end` | Response complete | [StreamEnd](./WebSocket_StreamEnd.md) |
-| `tts_ready_chunk` | TTS-ready text | [TTSReadyChunk](./WebSocket_TTSReadyChunk.md) |
+| `tts_chunk` | TTS audio + motion | [TtsChunk](./WebSocket_TtsChunk.md) |
 | `tool_call` | Tool invocation | [ToolCall](./WebSocket_ToolCall.md) |
 | `tool_result` | Tool response | [ToolResult](./WebSocket_ToolResult.md) |
 | `error` | Error occurred | [ErrorMessage](./WebSocket_ErrorMessage.md) |
@@ -59,7 +59,8 @@ websocket:
   max_error_tolerance: 5         # Max consecutive errors
   error_backoff_seconds: 0.5     # Delay after recoverable errors
   inactivity_timeout_seconds: 300 # Idle connection timeout
-  disconnect_timeout_seconds: 5.0 # Graceful disconnect timeout
+  disconnect_timeout_seconds: 5.0  # Graceful disconnect timeout
+  tts_barrier_timeout_seconds: 10.0 # TTS barrier timeout before stream_end
 ```
 
 ### Connection Lifecycle

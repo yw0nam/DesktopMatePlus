@@ -20,6 +20,7 @@ from src.models.websocket import (
 )
 from src.services import get_agent_service, get_ltm_service, get_stm_service
 from src.services.agent_service.tools.delegate import DelegateTaskTool
+from src.services.service_manager import get_emotion_motion_mapper, get_tts_service
 from src.services.stm_service.service import STMService
 from src.services.websocket_service.message_processor import MessageProcessor
 
@@ -71,7 +72,10 @@ class MessageHandler:
 
             # Initialize MessageProcessor for this connection
             connection_state.message_processor = MessageProcessor(
-                connection_id=connection_id, user_id=user_id
+                connection_id=connection_id,
+                user_id=user_id,
+                tts_service=get_tts_service(),
+                mapper=get_emotion_motion_mapper(),
             )
 
             response = AuthorizeSuccessMessage(connection_id=connection_id)
@@ -166,6 +170,8 @@ class MessageHandler:
             message_limit = message_data.get("limit", 10)
             images = message_data.get("images", None)
             metadata = dict(message_data.get("metadata", {}) or {})
+            tts_enabled = message_data.get("tts_enabled", True)
+            reference_id = message_data.get("reference_id", None)
 
             # Validate required persistent identifiers
             if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
@@ -250,6 +256,8 @@ class MessageHandler:
                 user_input=content,
                 agent_stream=agent_stream,
                 metadata=metadata,
+                tts_enabled=tts_enabled,
+                reference_id=reference_id,
             )
 
             forward_task = asyncio.create_task(

@@ -23,7 +23,7 @@ class MessageType(str, Enum):
     STREAM_START = "stream_start"
     STREAM_TOKEN = "stream_token"
     STREAM_END = "stream_end"
-    TTS_READY_CHUNK = "tts_ready_chunk"
+    TTS_CHUNK = "tts_chunk"
     TOOL_CALL = "tool_call"
     TOOL_RESULT = "tool_result"
     ERROR = "error"
@@ -94,6 +94,14 @@ class ChatMessage(BaseMessage):
     limit: Optional[int] = Field(
         default=10,
         description="Optional limit for short-term memory messages",
+    )
+    tts_enabled: bool = Field(
+        default=True,
+        description="Whether TTS synthesis is enabled for this message",
+    )
+    reference_id: Optional[str] = Field(
+        default=None,
+        description="TTS voice reference identifier",
     )
     session_id: Optional[UUID] = Field(
         default=None,
@@ -181,12 +189,25 @@ class StreamEndMessage(BaseMessage):
     content: str
 
 
-class TTSReadyChunkMessage(BaseMessage):
-    """Server message with a chunk of text ready for TTS."""
+class TtsChunkMessage(BaseMessage):
+    """Server message with TTS synthesis result and motion metadata.
 
-    type: MessageType = MessageType.TTS_READY_CHUNK
-    chunk: str
-    emotion: Optional[str] = None
+    Backend → Unity. Sent after TTS synthesis completes for each sentence.
+    audio_base64 is None when TTS is disabled (tts_enabled=False) or synthesis failed.
+    """
+
+    type: MessageType = MessageType.TTS_CHUNK
+    sequence: int = Field(
+        ..., description="Sequence number within the turn, starting from 0"
+    )
+    text: str = Field(..., description="Text used for TTS synthesis")
+    audio_base64: Optional[str] = Field(
+        default=None,
+        description="MP3 audio encoded as base64. None means skip audio playback.",
+    )
+    emotion: Optional[str] = Field(default=None, description="Detected emotion tag")
+    motion_name: str = Field(..., description="Unity AnimationPlayer motion to play")
+    blendshape_name: str = Field(..., description="Unity blendshape to apply")
 
 
 class ErrorMessage(BaseMessage):
@@ -219,7 +240,7 @@ ServerMessage = Union[
     ToolCallMessage,
     ToolResultMessage,
     StreamEndMessage,
-    TTSReadyChunkMessage,
+    TtsChunkMessage,
     ErrorMessage,
 ]
 

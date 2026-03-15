@@ -1,6 +1,6 @@
 # Settings Configuration Fields
 
-Updated: 2025-11-28
+Updated: 2026-03-15
 
 ## 1. Synopsis
 
@@ -28,6 +28,8 @@ Updated: 2025-11-28
 | `max_error_tolerance` | int | `5` | Max consecutive errors before close |
 | `error_backoff_seconds` | float | `0.5` | Wait after transient errors |
 | `inactivity_timeout_seconds` | int | `300` | Inactivity timeout (seconds) |
+| `disconnect_timeout_seconds` | float | `5.0` | Graceful disconnect timeout |
+| `tts_barrier_timeout_seconds` | float | `10.0` | Max wait for TTS tasks before `stream_end` |
 
 ## 3. Usage
 
@@ -45,6 +47,8 @@ settings:
     max_error_tolerance: 5
     error_backoff_seconds: 0.5
     inactivity_timeout_seconds: 300
+    disconnect_timeout_seconds: 5.0
+    tts_barrier_timeout_seconds: 10.0
 ```
 
 ---

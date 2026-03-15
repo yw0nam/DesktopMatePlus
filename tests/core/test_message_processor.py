@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import time
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
+from src.models.websocket import TtsChunkMessage
 from src.services.websocket_service.message_processor import (
     ConversationTurn,
     MessageProcessor,
@@ -60,7 +62,12 @@ class TestConversationTurn:
 def processor() -> MessageProcessor:
     """Create a MessageProcessor instance for each test."""
 
-    return MessageProcessor(connection_id=uuid4(), user_id="test_user")
+    return MessageProcessor(
+        connection_id=uuid4(),
+        user_id="test_user",
+        tts_service=MagicMock(),
+        mapper=MagicMock(),
+    )
 
 
 def test_processor_initialization(processor: MessageProcessor):
@@ -110,22 +117,35 @@ async def test_agent_stream_events_forwarded(processor: MessageProcessor):
         yield {"type": "stream_token", "chunk": "Hello"}
         yield {"type": "stream_end"}
 
-    turn_id = await processor.start_turn(
-        "conv-321",
-        "User input",
-        agent_stream=agent_stream(),
+    fake_chunk = TtsChunkMessage(
+        sequence=0,
+        text="Hello",
+        audio_base64=None,
+        emotion=None,
+        motion_name="neutral_idle",
+        blendshape_name="neutral",
     )
 
-    events = []
-    async for event in processor.stream_events(turn_id):
-        events.append(event)
+    with patch(
+        "src.services.websocket_service.message_processor.event_handlers.synthesize_chunk",
+        new=AsyncMock(return_value=fake_chunk),
+    ):
+        turn_id = await processor.start_turn(
+            "conv-321",
+            "User input",
+            agent_stream=agent_stream(),
+        )
+
+        events = []
+        async for event in processor.stream_events(turn_id):
+            events.append(event)
 
     assert [e["type"] for e in events] == [
         "stream_start",
-        "tts_ready_chunk",
+        "tts_chunk",
         "stream_end",
     ]
-    assert events[1]["chunk"] == "Hello"
+    assert events[1]["text"] == "Hello"
     assert processor.get_event_queue(turn_id) is None
     assert processor.turns[turn_id].status == TurnStatus.COMPLETED
 
@@ -229,6 +249,46 @@ def test_imports():
     assert ImportedConversationTurn is not None
     assert ImportedMessageProcessor is not None
     assert ImportedTurnStatus is not None
+
+
+def test_processor_stores_tts_service_and_mapper():
+    from unittest.mock import MagicMock
+
+    tts_service = MagicMock()
+    mapper = MagicMock()
+    proc = MessageProcessor(
+        connection_id=uuid4(), user_id="u", tts_service=tts_service, mapper=mapper
+    )
+    assert proc.tts_service is tts_service
+    assert proc.mapper is mapper
+
+
+def test_is_connection_closing_false_by_default():
+    from unittest.mock import MagicMock
+
+    proc = MessageProcessor(
+        connection_id=uuid4(), user_id="u", tts_service=MagicMock(), mapper=MagicMock()
+    )
+    assert proc.is_connection_closing() is False
+
+
+@pytest.mark.asyncio
+async def test_is_connection_closing_true_after_shutdown():
+    from unittest.mock import MagicMock
+
+    proc = MessageProcessor(
+        connection_id=uuid4(), user_id="u", tts_service=MagicMock(), mapper=MagicMock()
+    )
+    await proc.shutdown(cleanup_delay=0)
+    assert proc.is_connection_closing() is True
+
+
+def test_conversation_turn_tts_fields_defaults():
+    turn = ConversationTurn(turn_id="t1", user_message="hi", session_id="s1")
+    assert turn.tts_enabled is True
+    assert turn.reference_id is None
+    assert turn.tts_tasks == []
+    assert turn.tts_sequence == 0
 
 
 if __name__ == "__main__":  # pragma: no cover

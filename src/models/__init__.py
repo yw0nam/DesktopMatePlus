@@ -15,7 +15,7 @@ from src.models.stm import (
     UpdateSessionMetadataRequest,
     UpdateSessionMetadataResponse,
 )
-from src.models.tts import TTSRequest, TTSResponse
+from src.models.tts import VoicesResponse
 
 __all__ = [
     "HealthResponse",
@@ -32,6 +32,5 @@ __all__ = [
     "DeleteSessionResponse",
     "UpdateSessionMetadataRequest",
     "UpdateSessionMetadataResponse",
-    "TTSRequest",
-    "TTSResponse",
+    "VoicesResponse",
 ]
