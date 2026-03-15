@@ -16,12 +16,14 @@ from src.services.agent_service import AgentFactory, AgentService
 from src.services.ltm_service import LTMFactory, LTMService
 from src.services.stm_service import STMFactory, STMService
 from src.services.tts_service import TTSFactory, TTSService
+from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
 
 # Global service instances
 _tts_service_instance: Optional[TTSService] = None
 _agent_service_instance: Optional[AgentService] = None
 _stm_service_instance: Optional[STMService] = None
 _ltm_service_instance: Optional[LTMService] = None
+_emotion_motion_mapper_instance: Optional[EmotionMotionMapper] = None
 
 T = TypeVar("T")
 
@@ -417,14 +419,56 @@ def get_ltm_service() -> Optional[LTMService]:
     return _ltm_service_instance
 
 
+def initialize_emotion_motion_mapper(
+    config_path: Optional[str | Path] = None,
+    force_reinit: bool = False,
+) -> EmotionMotionMapper:
+    """Initialize EmotionMotionMapper from YAML configuration.
+
+    Args:
+        config_path: Path to TTS rules YAML config file. If None, uses default path.
+        force_reinit: If True, reinitialize even if already initialized.
+
+    Returns:
+        Initialized EmotionMotionMapper instance
+    """
+    global _emotion_motion_mapper_instance
+
+    if _emotion_motion_mapper_instance is not None and not force_reinit:
+        logger.debug("EmotionMotionMapper already initialized, skipping")
+        return _emotion_motion_mapper_instance
+
+    if config_path is None:
+        config_path = (
+            Path(__file__).parent.parent.parent / "yaml_files" / "tts_rules.yml"
+        )
+
+    config = _load_yaml_config(config_path)
+    emotion_map = config.get("emotion_motion_map", {})
+    _emotion_motion_mapper_instance = EmotionMotionMapper(emotion_map)
+    logger.info("EmotionMotionMapper initialized")
+    return _emotion_motion_mapper_instance
+
+
+def get_emotion_motion_mapper() -> Optional[EmotionMotionMapper]:
+    """Get the initialized EmotionMotionMapper instance.
+
+    Returns:
+        EmotionMotionMapper instance or None if not initialized
+    """
+    return _emotion_motion_mapper_instance
+
+
 __all__ = [
     "initialize_services",
     "initialize_tts_service",
     "initialize_agent_service",
     "initialize_stm_service",
     "initialize_ltm_service",
+    "initialize_emotion_motion_mapper",
     "get_tts_service",
     "get_agent_service",
     "get_stm_service",
     "get_ltm_service",
+    "get_emotion_motion_mapper",
 ]

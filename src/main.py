@@ -89,6 +89,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             from src.services import (
                 get_stm_service,
                 initialize_agent_service,
+                initialize_emotion_motion_mapper,
                 initialize_ltm_service,
                 initialize_stm_service,
                 initialize_tts_service,
@@ -103,6 +104,9 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             else:
                 print("  - TTS config: Using default")
                 initialize_tts_service()
+
+            # Initialize EmotionMotionMapper
+            initialize_emotion_motion_mapper()
 
             # Initialize Agent service
             if config_paths.get("agent_config_path"):

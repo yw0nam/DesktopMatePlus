@@ -193,6 +193,10 @@ class FishSpeechTTS(TTSService):
         else:  # "bytes"가 기본값
             return audio_bytes
 
+    def list_voices(self) -> list[str]:
+        """FishSpeech does not manage reference voice directories."""
+        return []
+
     def is_healthy(self) -> tuple[bool, str]:
         """Check Fish Speech TTS health by attempting a minimal synthesis."""
         try:
