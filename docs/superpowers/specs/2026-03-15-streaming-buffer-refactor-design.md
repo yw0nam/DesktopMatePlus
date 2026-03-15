@@ -78,12 +78,14 @@ if remaining := buffer.flush():
 ```
 
 No change to yielded event shapes or error handling behaviour.
-The module-level docstring referencing the old `process_message` function will be updated to reflect the current class structure.
+The module-level `__doc__` string at the top of `openai_chat_agent.py` references a now-deleted `process_message` function. The `Functions:` section will be updated to remove the `process_message` bullet and add a `Classes:` section entry: `StreamingBuffer: Streaming token buffer with natural-break flushing.`
 
 ### `message_util.py` (MODIFIED)
 
 - `process_message()` function deleted.
 - `utils/__init__.py` export of `process_message` removed.
+  Pre-condition verified: no production code imports `process_message` from `utils` or `message_util`
+  (confirmed by grep — only `utils/__init__.py` itself re-exports it; no downstream consumer).
 - All other functions in `message_util.py` untouched.
 
 ---
