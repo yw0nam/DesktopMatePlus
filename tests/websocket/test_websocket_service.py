@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -195,6 +195,8 @@ class TestWebSocketManager:
         connection_state.message_processor = MessageProcessor(
             connection_id=connection_id,
             user_id="test_user",
+            tts_service=MagicMock(),
+            mapper=MagicMock(),
         )
 
         manager.connections[connection_id] = connection_state

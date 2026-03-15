@@ -1,7 +1,7 @@
 """Dedicated tests for the MessageProcessor token-to-TTS pipeline."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -26,7 +26,12 @@ def _make_chunk(text: str, emotion: str | None = None, seq: int = 0) -> TtsChunk
 
 @pytest.fixture
 async def processor():
-    message_processor = MessageProcessor(connection_id=uuid4(), user_id="test_user")
+    message_processor = MessageProcessor(
+        connection_id=uuid4(),
+        user_id="test_user",
+        tts_service=MagicMock(),
+        mapper=MagicMock(),
+    )
     try:
         yield message_processor
     finally:

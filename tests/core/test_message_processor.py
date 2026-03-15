@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -62,7 +62,12 @@ class TestConversationTurn:
 def processor() -> MessageProcessor:
     """Create a MessageProcessor instance for each test."""
 
-    return MessageProcessor(connection_id=uuid4(), user_id="test_user")
+    return MessageProcessor(
+        connection_id=uuid4(),
+        user_id="test_user",
+        tts_service=MagicMock(),
+        mapper=MagicMock(),
+    )
 
 
 def test_processor_initialization(processor: MessageProcessor):

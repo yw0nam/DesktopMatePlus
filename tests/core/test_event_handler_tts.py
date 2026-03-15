@@ -134,7 +134,9 @@ async def test_synthesize_and_send_is_closing_drops_silently():
 
 @pytest.mark.asyncio
 async def test_tts_task_registered_in_both_lists():
-    """create_task result is in turn.tts_tasks AND passed to _task_manager.track_task."""
+    """_process_token_event creates a task that ends up in tts_tasks AND track_task."""
+    from unittest.mock import ANY
+
     from src.models.websocket import TtsChunkMessage
 
     turn_id = "t4"
@@ -143,7 +145,7 @@ async def test_tts_task_registered_in_both_lists():
 
     fake_chunk = TtsChunkMessage(
         sequence=0,
-        text="test",
+        text="Hello world",
         audio_base64=None,
         motion_name="neutral_idle",
         blendshape_name="neutral",
@@ -153,23 +155,13 @@ async def test_tts_task_registered_in_both_lists():
         "src.services.websocket_service.message_processor.event_handlers.synthesize_chunk",
         new=AsyncMock(return_value=fake_chunk),
     ):
-        task = asyncio.create_task(
-            handler._synthesize_and_send(
-                turn_id=turn_id,
-                text="test",
-                emotion=None,
-                sequence=turn.tts_sequence,
-                tts_enabled=turn.tts_enabled,
-                reference_id=turn.reference_id,
-            )
-        )
-        turn.tts_sequence += 1
-        turn.tts_tasks.append(task)
-        proc._task_manager.track_task(turn_id, task)
-        await task
+        # "Hello world." ends with a sentence terminator so the chunker yields it
+        await handler._process_token_event(turn_id, {"chunk": "Hello world."})
+        # Let the asyncio task actually run
+        await asyncio.gather(*turn.tts_tasks)
 
     assert len(turn.tts_tasks) == 1
-    proc._task_manager.track_task.assert_called_once_with(turn_id, task)
+    proc._task_manager.track_task.assert_called_once_with(turn_id, ANY)
 
 
 @pytest.mark.asyncio

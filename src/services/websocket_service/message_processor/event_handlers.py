@@ -255,6 +255,10 @@ class EventHandler:
         if self.processor.is_connection_closing():
             return
 
+        # guard against uninitialized services
+        if self.processor.tts_service is None or self.processor.mapper is None:
+            return
+
         chunk_msg = await synthesize_chunk(
             tts_service=self.processor.tts_service,
             mapper=self.processor.mapper,
