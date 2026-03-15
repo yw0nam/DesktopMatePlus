@@ -18,6 +18,7 @@ from langgraph.prebuilt import create_react_agent
 from loguru import logger
 
 from src.services.agent_service.service import AgentService
+from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
 from src.services.agent_service.utils.text_processor import (
     load_emotion_keywords,
     load_emotion_prompt_template,
@@ -28,19 +29,20 @@ from src.services.stm_service import STMService
 load_dotenv()
 
 __doc__ = """
-This module contains the implementation of the AgentFactory class, which provides functionality for processing chat messages using a language model and tools from a Multi-Server MCP client.
+This module contains the implementation of the OpenAIChatAgent class, which provides
+functionality for processing chat messages using a language model and tools from a
+Multi-Server MCP client.
 
 Classes:
-- AgentFactory: A class that encapsulates the logic for message processing and tool interaction.
+- OpenAIChatAgent: Processes chat messages via LangGraph react agent with tool support.
 
 Functions:
-- process_message: Processes incoming messages asynchronously through an agent and yields responses or tool calls.
-- stream: Initializes the agent with the provided language model and configuration, then streams message processing results.
+- stream: Initializes the agent with the provided language model and configuration,
+  then streams message processing results.
 
 Example usage:
-    llm = LLMFactory.get_llm_service(...)
-    agent_factory = AgentFactory(llm)
-    async for result in agent_factory.stream(messages=[...], mcp_config={...}):
+    agent = OpenAIChatAgent(temperature=0.7, top_p=0.9, ...)
+    async for result in agent.stream(messages=[...]):
         print(result)
 """
 
@@ -223,67 +225,25 @@ class OpenAIChatAgent(AgentService):
         node = None
         tool_called = False
         gathered = ""
-        content_buffer = ""
-
-        # 개선된 버퍼링 설정
-        MIN_BUFFER_SIZE = 20  # 최소 버퍼 크기 (더 큰 청크로 전송)
-        MAX_BUFFER_SIZE = 100  # 최대 버퍼 크기 (메모리 보호)
-
-        # 문장 종료 문자 (더 자연스러운 분할점)
-        SENTENCE_ENDINGS = (".", "!", "?", "\n")
-        WORD_ENDINGS = (" ", ",", ";", ":")
-
         chunk_count = 0
+        buffer = StreamingBuffer()
 
         try:
             async for msg, metadata in agent.astream(
                 {"messages": messages}, stream_mode="messages", config=config
             ):
-                # 노드 변경 처리 (로깅만, 클라이언트 전송 없음)
                 if node != metadata.get("langgraph_node"):
                     node = metadata.get("langgraph_node", "unknown")
 
-                # 일반 메시지 콘텐츠 처리
                 if isinstance(msg.content, str) and not msg.additional_kwargs:
                     content = msg.content
-
-                    # 빈 콘텐츠 및 공백만 있는 콘텐츠 스킵
                     if not content or content.isspace():
                         continue
 
-                    # 버퍼에 콘텐츠 추가
-                    content_buffer += content
-
-                    # 메모리 보호: 최대 크기 초과 시 강제 전송
-                    if len(content_buffer) > MAX_BUFFER_SIZE:
-                        if content_buffer.strip():
-                            yield self._flush_buffer(node, content_buffer)
-                            chunk_count += 1
-                        content_buffer = ""
-                        continue
-
-                    # 자연스러운 분할점에서 전송
-                    should_send = False
-
-                    # 1. 문장 종료 시 전송
-                    if (
-                        content.endswith(SENTENCE_ENDINGS)
-                        and len(content_buffer) >= MIN_BUFFER_SIZE
-                    ):
-                        should_send = True
-                    # 2. 단어 종료 시 최소 크기 확인 후 전송
-                    elif (
-                        content.endswith(WORD_ENDINGS)
-                        and len(content_buffer) >= MIN_BUFFER_SIZE * 2
-                    ):
-                        should_send = True
-
-                    if should_send and content_buffer.strip():
-                        yield self._flush_buffer(node, content_buffer)
+                    if flushed := buffer.add(content):
+                        yield self._flush_buffer(node, flushed)
                         chunk_count += 1
-                        content_buffer = ""
 
-                # AI 메시지 청크 및 툴 콜 처리 (향후 MCP 재활성화 대비)
                 elif isinstance(msg, AIMessageChunk) and msg.additional_kwargs.get(
                     "tool_calls"
                 ):
@@ -293,7 +253,6 @@ class OpenAIChatAgent(AgentService):
                     else:
                         gathered = gathered + msg
 
-                    # 툴 콜 완성 확인
                     if hasattr(msg, "tool_call_chunks") and msg.tool_call_chunks:
                         tool_info = gathered.tool_call_chunks[0]
                         args_str = tool_info.get("args", "")
@@ -306,20 +265,15 @@ class OpenAIChatAgent(AgentService):
                                 "args": args_str,
                                 "node": node,
                             }
-                            # 상태 리셋
                             tool_called = False
                             gathered = ""
 
-            # 마지막 버퍼 처리
-            if content_buffer.strip():
-                yield self._flush_buffer(node, content_buffer)
+            if remaining := buffer.flush():
+                yield self._flush_buffer(node, remaining)
                 chunk_count += 1
 
             state = agent.get_state(config=config)
-
             new_chats = state.values["messages"][len(messages) - 1 :]
-            # This is the final response after all chunks have been sent.
-            # This yield indicates completion. and don't send to client. Only for use in server for saving the chat history.
             yield {
                 "type": "final_response",
                 "data": new_chats,
@@ -328,9 +282,8 @@ class OpenAIChatAgent(AgentService):
 
         except Exception as e:
             logger.error(f"Error in process_message: {e}")
-            # 버퍼에 남은 내용이 있으면 먼저 전송
-            if content_buffer.strip():
-                yield self._flush_buffer(node, content_buffer)
+            if remaining := buffer.flush():
+                yield self._flush_buffer(node, remaining)
             yield {
                 "type": "error",
                 "error": "메시지 처리 중 오류가 발생했습니다.",
