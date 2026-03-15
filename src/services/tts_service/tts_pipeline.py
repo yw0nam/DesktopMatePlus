@@ -54,8 +54,10 @@ async def synthesize_chunk(
                 "mp3",
             )
             if result is None:
-                raise ValueError("generate_speech returned None")
-            audio = result
+                logger.error(f"TTS synthesis returned None for sequence {sequence}")
+                audio = None
+            else:
+                audio = result
         except Exception as e:
             logger.error(f"TTS synthesis failed for sequence {sequence}: {e}")
             audio = None
