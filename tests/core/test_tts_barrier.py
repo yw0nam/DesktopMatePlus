@@ -78,21 +78,24 @@ async def test_barrier_timeout_logs_and_continues(processor: MessageProcessor):
     turn.tts_tasks = [hanging]
 
     # Override timeout to a tiny value
-    from src.configs.settings import get_settings
+    from unittest.mock import MagicMock
 
-    original_timeout = get_settings().websocket.tts_barrier_timeout_seconds
-    get_settings().websocket.__dict__["tts_barrier_timeout_seconds"] = 0.05
+    mock_settings = MagicMock()
+    mock_settings.websocket.tts_barrier_timeout_seconds = 0.05
 
     try:
-        with patch(
-            "src.services.websocket_service.message_processor.processor.logger"
-        ) as mock_logger:
+        with (
+            patch(
+                "src.configs.settings.get_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "src.services.websocket_service.message_processor.processor.logger"
+            ) as mock_logger,
+        ):
             await processor._wait_for_tts_tasks(turn_id)
             mock_logger.warning.assert_called_once()
     finally:
-        get_settings().websocket.__dict__[
-            "tts_barrier_timeout_seconds"
-        ] = original_timeout
         hanging.cancel()
         try:
             await hanging

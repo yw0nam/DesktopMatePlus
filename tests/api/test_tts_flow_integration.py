@@ -158,19 +158,22 @@ async def test_barrier_timeout_no_deadlock_no_warning_event(
     hanging = asyncio.create_task(hanging_task())
     turn.tts_tasks = [hanging]
 
-    from src.configs.settings import get_settings
-
-    original = get_settings().websocket.tts_barrier_timeout_seconds
-    get_settings().websocket.__dict__["tts_barrier_timeout_seconds"] = 0.05
+    mock_settings = MagicMock()
+    mock_settings.websocket.tts_barrier_timeout_seconds = 0.05
 
     try:
-        with patch(
-            "src.services.websocket_service.message_processor.processor.logger"
-        ) as mock_logger:
+        with (
+            patch(
+                "src.configs.settings.get_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "src.services.websocket_service.message_processor.processor.logger"
+            ) as mock_logger,
+        ):
             events = [e async for e in processor.stream_events(turn_id)]
             mock_logger.warning.assert_called()
     finally:
-        get_settings().websocket.__dict__["tts_barrier_timeout_seconds"] = original
         hanging.cancel()
         try:
             await hanging
