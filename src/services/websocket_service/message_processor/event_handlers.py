@@ -53,6 +53,7 @@ class EventHandler:
                 if event_type == "stream_end":
                     await self._signal_token_stream_closed(turn_id)
                     await self._wait_for_token_queue(turn_id)
+                    await self.processor._wait_for_tts_tasks(turn_id)
                     logger.info(
                         f"Emitting stream_end for turn {turn_id} (all TTS chunks processed)"
                     )

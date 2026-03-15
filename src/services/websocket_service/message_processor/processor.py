@@ -564,6 +564,37 @@ class MessageProcessor:
             f"Queued event {event.get('type', 'unknown')} for turn {turn_id} (queue size={queue.qsize()})"
         )
 
+    async def _wait_for_tts_tasks(self, turn_id: str) -> None:
+        """Await all pending TTS tasks before stream_end, with timeout.
+
+        On timeout, cancels remaining tasks and logs a backend-only warning.
+        Never sends warning events to the client.
+
+        Args:
+            turn_id: The conversation turn identifier.
+        """
+        turn = self.turns.get(turn_id)
+        if not turn or not turn.tts_tasks:
+            return
+
+        from src.configs.settings import get_settings
+
+        timeout = get_settings().websocket.tts_barrier_timeout_seconds
+
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*turn.tts_tasks, return_exceptions=True),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            for task in turn.tts_tasks:
+                if not task.done():
+                    task.cancel()
+            logger.warning(
+                f"TTS barrier timeout after {timeout}s for turn {turn_id}, "
+                "proceeding to stream_end"
+            )
+
     async def _delayed_cleanup(self, delay: float):
         """Delayed cleanup of resources."""
 

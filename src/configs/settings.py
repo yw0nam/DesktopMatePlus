@@ -38,6 +38,11 @@ class WebSocketConfig(BaseModel):
         ge=0,
         description="Timeout for graceful disconnect in seconds",
     )
+    tts_barrier_timeout_seconds: float = Field(
+        default=10.0,
+        ge=0,
+        description="Timeout in seconds for TTS barrier before stream_end",
+    )
 
 
 class Settings(BaseModel):

@@ -185,6 +185,30 @@ def test_initialize_settings():
         temp_path.unlink()
 
 
+def test_websocket_config_tts_barrier_timeout_default():
+    """tts_barrier_timeout_seconds defaults to 10.0."""
+    config = WebSocketConfig()
+    assert config.tts_barrier_timeout_seconds == 10.0
+
+
+def test_websocket_config_tts_barrier_timeout_from_yaml():
+    """tts_barrier_timeout_seconds is loaded from YAML."""
+    import tempfile
+    from pathlib import Path
+
+    import yaml
+
+    config = {"settings": {"websocket": {"tts_barrier_timeout_seconds": 5.0}}}
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+        yaml.dump(config, f)
+        tmp = Path(f.name)
+    try:
+        settings = load_settings_from_yaml(tmp)
+        assert settings.websocket.tts_barrier_timeout_seconds == 5.0
+    finally:
+        tmp.unlink()
+
+
 def test_settings_validation():
     """Test that invalid settings raise validation errors."""
     from pydantic import ValidationError

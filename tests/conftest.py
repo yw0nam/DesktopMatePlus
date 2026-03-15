@@ -42,6 +42,7 @@ def test_settings_yaml():
                 "max_error_tolerance": 5,
                 "error_backoff_seconds": 0.5,
                 "inactivity_timeout_seconds": 300,
+                "tts_barrier_timeout_seconds": 10.0,
             },
         },
     }
