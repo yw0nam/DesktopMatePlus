@@ -1,4 +1,3 @@
-import logging
 from typing import List
 
 import psycopg
@@ -9,8 +8,6 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def trim_messages(
