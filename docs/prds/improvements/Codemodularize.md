@@ -34,5 +34,5 @@
 [Done] handlers.py (on_disconnect_handler, build_delegate_payload)
 [Done] processor.py → TaskManager.cleanup_turn() 위임
 [Done] service_manager.py → _initialize_service() 헬퍼로 DRY화 (TTS/STM/LTM/Agent 4개 적용)
-[ ] api/routes/stm.py (STM 서비스 의존성 헬퍼)
-[ ] main.py (lifespan 함수 분리)
+[Done] api/routes/stm.py (STM 서비스 의존성 헬퍼)
+[Done] main.py (lifespan 함수 분리)

@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from langchain_core.messages import convert_to_messages, convert_to_openai_messages
 
 from src.models.stm import (
@@ -17,8 +17,19 @@ from src.models.stm import (
     UpdateSessionMetadataResponse,
 )
 from src.services import get_stm_service
+from src.services.stm_service import STMService
 
 router = APIRouter(prefix="/v1/stm", tags=["STM"])
+
+
+def get_stm_service_or_raise() -> STMService:
+    stm_service = get_stm_service()
+    if stm_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="STM service not initialized",
+        )
+    return stm_service
 
 
 @router.post(
@@ -54,7 +65,10 @@ router = APIRouter(prefix="/v1/stm", tags=["STM"])
         },
     },
 )
-async def add_chat_history(request: AddChatHistoryRequest) -> AddChatHistoryResponse:
+async def add_chat_history(
+    request: AddChatHistoryRequest,
+    stm_service: STMService = Depends(get_stm_service_or_raise),
+) -> AddChatHistoryResponse:
     """Add chat history to a session.
 
     This endpoint accepts messages and stores them in the specified session.
@@ -69,14 +83,6 @@ async def add_chat_history(request: AddChatHistoryRequest) -> AddChatHistoryResp
     Raises:
         HTTPException: If STM service is not initialized or processing fails
     """
-    stm_service = get_stm_service()
-
-    if stm_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="STM service not initialized",
-        )
-
     try:
         # Parse messages
         messages = convert_to_messages(request.messages)
@@ -150,6 +156,7 @@ async def get_chat_history(
     agent_id: str,
     session_id: str,
     limit: Optional[int] = None,
+    stm_service: STMService = Depends(get_stm_service_or_raise),
 ) -> GetChatHistoryResponse:
     """Get chat history from a session.
 
@@ -167,14 +174,6 @@ async def get_chat_history(
     Raises:
         HTTPException: If STM service is not initialized or processing fails
     """
-    stm_service = get_stm_service()
-
-    if stm_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="STM service not initialized",
-        )
-
     try:
         # Get chat history
         messages = stm_service.get_chat_history(
@@ -237,6 +236,7 @@ async def get_chat_history(
 async def list_sessions(
     user_id: str,
     agent_id: str,
+    stm_service: STMService = Depends(get_stm_service_or_raise),
 ) -> ListSessionsResponse:
     """List all sessions for a user and agent.
 
@@ -252,14 +252,6 @@ async def list_sessions(
     Raises:
         HTTPException: If STM service is not initialized or processing fails
     """
-    stm_service = get_stm_service()
-
-    if stm_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="STM service not initialized",
-        )
-
     try:
         # List sessions
         sessions = stm_service.list_sessions(
@@ -332,6 +324,7 @@ async def delete_session(
     session_id: str,
     user_id: str,
     agent_id: str,
+    stm_service: STMService = Depends(get_stm_service_or_raise),
 ) -> DeleteSessionResponse:
     """Delete a session.
 
@@ -348,14 +341,6 @@ async def delete_session(
     Raises:
         HTTPException: If STM service is not initialized or processing fails
     """
-    stm_service = get_stm_service()
-
-    if stm_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="STM service not initialized",
-        )
-
     try:
         # Delete session
         success = stm_service.delete_session(
@@ -426,6 +411,7 @@ async def delete_session(
 async def update_session_metadata(
     session_id: str,
     request: UpdateSessionMetadataRequest,
+    stm_service: STMService = Depends(get_stm_service_or_raise),
 ) -> UpdateSessionMetadataResponse:
     """Update session metadata.
 
@@ -441,14 +427,6 @@ async def update_session_metadata(
     Raises:
         HTTPException: If STM service is not initialized or processing fails
     """
-    stm_service = get_stm_service()
-
-    if stm_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="STM service not initialized",
-        )
-
     try:
         # Update session metadata
         success = stm_service.update_session_metadata(

@@ -68,15 +68,11 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
     settings = get_settings()
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        """Manage application lifespan events."""
-        # Setup logging first
+    async def _startup() -> "BackgroundSweepService | None":  # noqa: F821
         log_level = os.getenv("LOG_LEVEL", "INFO")
         log_retention = os.getenv("LOG_RETENTION", "30 days")
         setup_logging(level=log_level, retention=log_retention)
 
-        # Startup
         print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
         print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
         print(f"🔧 Debug mode: {settings.debug}")
@@ -84,7 +80,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
         sweep_service: "BackgroundSweepService | None" = None  # noqa: F821
 
-        # Initialize all services using the centralized service manager
         try:
             from src.services import (
                 get_stm_service,
@@ -97,7 +92,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
             print("\n📋 Loading service configurations...")
 
-            # Initialize TTS service
             if config_paths.get("tts_config_path"):
                 print(f"  - TTS config: {config_paths['tts_config_path']}")
                 initialize_tts_service(config_path=config_paths["tts_config_path"])
@@ -105,10 +99,8 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 print("  - TTS config: Using default")
                 initialize_tts_service()
 
-            # Initialize EmotionMotionMapper
             initialize_emotion_motion_mapper()
 
-            # Initialize Agent service
             if config_paths.get("agent_config_path"):
                 print(f"  - Agent config: {config_paths['agent_config_path']}")
                 initialize_agent_service(config_path=config_paths["agent_config_path"])
@@ -123,7 +115,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 print("  - STM config: Using default from settings")
                 initialize_stm_service()
 
-            # Initialize LTM service (no client API exposure needed)
             if config_paths.get("ltm_config_path"):
                 print(f"  - LTM config: {config_paths['ltm_config_path']}")
                 initialize_ltm_service(config_path=config_paths["ltm_config_path"])
@@ -131,7 +122,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 print("  - LTM config: Using default")
                 initialize_ltm_service()
 
-            # Start background sweep service for expired delegated tasks
             try:
                 import yaml as _yaml
 
@@ -170,13 +160,21 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
             traceback.print_exc()
 
-        yield
+        return sweep_service
 
-        # Shutdown — stop sweep before other services
+    async def _shutdown(
+        sweep_service: "BackgroundSweepService | None",  # noqa: F821
+    ) -> None:
         if sweep_service is not None:
             await sweep_service.stop()
-
         print(f"👋 Shutting down {settings.app_name}")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Manage application lifespan events."""
+        sweep_service = await _startup()
+        yield
+        await _shutdown(sweep_service)
 
     # Create FastAPI application instance
     app = FastAPI(
