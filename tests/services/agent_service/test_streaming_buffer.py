@@ -108,6 +108,6 @@ def test_endswith_check_is_on_incoming_token_not_buffer():
     # → no flush on second token even though buffer ends with "."
     buf = StreamingBuffer()
     buf.add("First sentence.")  # 15 chars < MIN(20), no flush
-    result = buf.add("x")      # "x" doesn't end with sentence/word char → no flush
+    result = buf.add("x")  # "x" doesn't end with sentence/word char → no flush
     assert result is None
     assert buf.flush() == "First sentence.x"

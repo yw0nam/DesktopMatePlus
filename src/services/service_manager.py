@@ -89,6 +89,61 @@ def _load_yaml_config(yaml_path: str | Path) -> dict:
     return config or {}
 
 
+def _initialize_service(
+    service_name: str,
+    default_config_path: Path,
+    config_key: str,
+    factory_fn: Callable[..., T],
+    config_path: Optional[str | Path] = None,
+    pre_factory_hook: Optional[Callable[[dict, dict], None]] = None,
+    async_health_check: bool = False,
+    swallow_health_error: bool = False,
+) -> T:
+    """Shared service initialization: load YAML config, create service, run health check."""
+    resolved_path = Path(config_path) if config_path else default_config_path
+    config = _load_yaml_config(resolved_path)
+    svc_config = config.get(config_key, {})
+    service_type = svc_config.get("type")
+    service_configs: dict = dict(svc_config.get("configs", {}))
+
+    if pre_factory_hook:
+        pre_factory_hook(config, service_configs)
+
+    logger.info(f"🔧 Initializing {service_name} service (type: {service_type})")
+    logger.debug(f"{service_name} config: {service_configs}")
+
+    try:
+        service = factory_fn(service_type, **service_configs)
+
+        try:
+            if async_health_check:
+                is_healthy, msg = _run_async_callable(service.is_healthy)
+            else:
+                is_healthy, msg = service.is_healthy()
+            if is_healthy:
+                logger.info(
+                    f"✅ {service_name} service initialized successfully: {msg}"
+                )
+            else:
+                logger.warning(
+                    f"⚠️  {service_name} service initialized but not healthy: {msg}"
+                )
+        except Exception as health_err:  # noqa: BLE001
+            if swallow_health_error:
+                logger.error(f"⚠️  {service_name} health check failed: {health_err}")
+            else:
+                raise
+
+        return service
+
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize {service_name} service: {e}")
+        raise
+
+
+_BASE_YAML = Path(__file__).parent.parent.parent / "yaml_files"
+
+
 def initialize_tts_service(
     config_path: Optional[str | Path] = None, force_reinit: bool = False
 ) -> TTSService:
@@ -111,49 +166,21 @@ def initialize_tts_service(
         logger.debug("TTS service already initialized, skipping")
         return _tts_service_instance
 
-    # Default config path
-    if config_path is None:
-        config_path = (
-            Path(__file__).parent.parent.parent
-            / "yaml_files"
-            / "services"
-            / "tts_service"
-            / "fish_speech.yml"
-        )
-
-    # Load configuration
-    config = _load_yaml_config(config_path)
-    tts_config = config.get("tts_config", {})
-    service_type = tts_config.get("type", "fish_local_tts")
-    service_configs = tts_config.get("configs", {})
-
-    # Create TTS engine using factory with **configs
-    logger.info(f"🔧 Initializing TTS service (type: {service_type})")
-    logger.debug(f"TTS config: {service_configs}")
-
-    try:
-        tts_engine = TTSFactory.get_tts_engine(service_type, **service_configs)
-
-        _tts_service_instance = tts_engine
-
-        # Health check
-        is_healthy, msg = tts_engine.is_healthy()
-        if is_healthy:
-            logger.info(f"✅ TTS service initialized successfully: {msg}")
-        else:
-            logger.warning(f"⚠️  TTS service initialized but not healthy: {msg}")
-
-        return _tts_service_instance
-
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize TTS service: {e}")
-        raise
+    _tts_service_instance = _initialize_service(
+        service_name="TTS",
+        default_config_path=_BASE_YAML / "services" / "tts_service" / "fish_speech.yml",
+        config_key="tts_config",
+        factory_fn=TTSFactory.get_tts_engine,
+        config_path=config_path,
+    )
+    return _tts_service_instance
 
 
 def initialize_agent_service(
     config_path: Optional[str | Path] = None, force_reinit: bool = False
 ) -> AgentService:
     """Initialize Agent service from YAML configuration.
+
     Args:
         config_path: Path to Agent YAML config file. If None, uses default path.
         force_reinit: If True, reinitialize even if already initialized.
@@ -171,52 +198,23 @@ def initialize_agent_service(
         logger.debug("Agent service already initialized, skipping")
         return _agent_service_instance
 
-    # Default config path
-    if config_path is None:
-        config_path = (
-            Path(__file__).parent.parent.parent
-            / "yaml_files"
-            / "services"
-            / "agent_service"
-            / "openai_chat_agent.yml"
-        )
+    def _inject_mcp(config: dict, service_configs: dict) -> None:
+        service_configs["mcp_config"] = config.get("mcp_config", None)
 
-    # Load configuration
-    config = _load_yaml_config(config_path)
-    llm_config = config.get("llm_config", {})
-    mcp_config = config.get("mcp_config", None)
-    service_type = llm_config.get("type", "openai_chat_agent")
-    service_configs = llm_config.get("configs", {})
-    # Create Agent engine using factory with **configs
-    logger.info(
-        f"🔧 Initializing Agent service (type: {service_type}, model: {service_configs.get('model_name')}"
+    _agent_service_instance = _initialize_service(
+        service_name="Agent",
+        default_config_path=_BASE_YAML
+        / "services"
+        / "agent_service"
+        / "openai_chat_agent.yml",
+        config_key="llm_config",
+        factory_fn=AgentFactory.get_agent_service,
+        config_path=config_path,
+        pre_factory_hook=_inject_mcp,
+        async_health_check=True,
+        swallow_health_error=True,
     )
-    service_configs["mcp_config"] = mcp_config
-    logger.debug(f"Agent config: {service_configs}")
-
-    try:
-        agent_engine = AgentFactory.get_agent_service(
-            service_type=service_type, **service_configs
-        )
-
-        _agent_service_instance = agent_engine
-
-        try:
-            is_healthy, health_msg = _run_async_callable(agent_engine.is_healthy)
-            if is_healthy:
-                logger.info(f"✅ Agent service initialized successfully: {health_msg}")
-            else:
-                logger.warning(
-                    f"⚠️  Agent service initialized but not healthy: {health_msg}"
-                )
-        except Exception as health_error:  # noqa: BLE001 - log health check failure
-            logger.error(f"⚠️  Agent health check failed: {health_error}")
-
-        return _agent_service_instance
-
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize Agent service: {e}")
-        raise
+    return _agent_service_instance
 
 
 def initialize_stm_service(
@@ -225,6 +223,7 @@ def initialize_stm_service(
     """Initialize STM service from configuration.
 
     Args:
+        config_path: Path to STM YAML config file. If None, uses default path.
         force_reinit: If True, reinitialize even if already initialized.
 
     Returns:
@@ -239,47 +238,14 @@ def initialize_stm_service(
         logger.debug("STM service already initialized, skipping")
         return _stm_service_instance
 
-    # Get STM configuration from settings
-
-    if config_path is None:
-        config_path = (
-            Path(__file__).parent.parent.parent
-            / "yaml_files"
-            / "services"
-            / "stm_service"
-            / "mongodb.yml"
-        )
-
-    # Load configuration
-    config = _load_yaml_config(config_path)
-    stm_config = config.get("stm_config", {})
-    service_type = stm_config.get("type")
-    service_configs = stm_config.get("configs", {})
-
-    # Get MongoDB configuration
-
-    # Create STM service using factory
-    logger.info(f"🔧 Initializing STM service (type: {service_type})")
-
-    try:
-        stm_service = STMFactory.get_stm_service(
-            service_type=service_type, **service_configs
-        )
-
-        _stm_service_instance = stm_service
-
-        # Check health
-        is_healthy, health_msg = stm_service.is_healthy()
-        if is_healthy:
-            logger.info(f"✅ STM service initialized successfully: {health_msg}")
-        else:
-            logger.warning(f"⚠️  STM service initialized but not healthy: {health_msg}")
-
-        return _stm_service_instance
-
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize STM service: {e}")
-        raise
+    _stm_service_instance = _initialize_service(
+        service_name="STM",
+        default_config_path=_BASE_YAML / "services" / "stm_service" / "mongodb.yml",
+        config_key="stm_config",
+        factory_fn=STMFactory.get_stm_service,
+        config_path=config_path,
+    )
+    return _stm_service_instance
 
 
 def initialize_ltm_service(
@@ -288,6 +254,7 @@ def initialize_ltm_service(
     """Initialize LTM service from configuration.
 
     Args:
+        config_path: Path to LTM YAML config file. If None, uses default path.
         force_reinit: If True, reinitialize even if already initialized.
 
     Returns:
@@ -302,47 +269,14 @@ def initialize_ltm_service(
         logger.debug("LTM service already initialized, skipping")
         return _ltm_service_instance
 
-    # Get STM configuration from settings
-
-    if config_path is None:
-        config_path = (
-            Path(__file__).parent.parent.parent
-            / "yaml_files"
-            / "services"
-            / "ltm_service"
-            / "mem0.yml"
-        )
-
-    # Load configuration
-    config = _load_yaml_config(config_path)
-    ltm_config = config.get("ltm_config", {})
-    service_type = ltm_config.get("type")
-    service_configs = ltm_config.get("configs", {})
-
-    # Get MongoDB configuration
-
-    # Create LTM service using factory
-    logger.info(f"🔧 Initializing LTM service (type: {service_type})")
-
-    try:
-        ltm_service = LTMFactory.get_ltm_service(
-            service_type=service_type, **service_configs
-        )
-
-        _ltm_service_instance = ltm_service
-
-        # Check health
-        is_healthy, health_msg = ltm_service.is_healthy()
-        if is_healthy:
-            logger.info(f"✅ LTM service initialized successfully: {health_msg}")
-        else:
-            logger.warning(f"⚠️  LTM service initialized but not healthy: {health_msg}")
-
-        return _ltm_service_instance
-
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize LTM service: {e}")
-        raise
+    _ltm_service_instance = _initialize_service(
+        service_name="LTM",
+        default_config_path=_BASE_YAML / "services" / "ltm_service" / "mem0.yml",
+        config_key="ltm_config",
+        factory_fn=LTMFactory.get_ltm_service,
+        config_path=config_path,
+    )
+    return _ltm_service_instance
 
 
 def initialize_services(

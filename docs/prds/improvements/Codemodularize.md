@@ -11,7 +11,7 @@
   ├────────────────────────────────────────┼──────┼────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
   │ openai_chat_agent.py + message_util.py │ —    │ streaming buffer 처리 코드 중복 (버그 위험)    │ 공통 StreamingBuffer 클래스로 통합                           │
   ├────────────────────────────────────────┼──────┼────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ service_manager.py                     │ 474L │ initialize_X() 패턴 5회 반복                   │ _initialize_service(name, factory) 헬퍼로 DRY                │
+  │ service_manager.py                     │ 474L │ initialize_X() 패턴 5회 반복                   │_initialize_service(name, factory) 헬퍼로 DRY                │
   └────────────────────────────────────────┴──────┴────────────────────────────────────────────────┴──────────────────────────────────────────────────────────────┘
 
   P1 — 중요도 보통
@@ -26,4 +26,13 @@
 
   P2 — 낮은 우선순위
 
-  - agent_service/ 내 각 agent 파일 200-300L 수준 — 현재 크기 적정, 기능 추가 시 재검토
+- agent_service/ 내 각 agent 파일 200-300L 수준 — 현재 크기 적정, 기능 추가 시 재검토
+
+## Progress Tracking
+
+[Done] openai_chat_agent.py + message_util.py
+[Done] handlers.py (on_disconnect_handler, build_delegate_payload)
+[Done] processor.py → TaskManager.cleanup_turn() 위임
+[Done] service_manager.py → _initialize_service() 헬퍼로 DRY화 (TTS/STM/LTM/Agent 4개 적용)
+[Done] api/routes/stm.py (STM 서비스 의존성 헬퍼)
+[Done] main.py (lifespan 함수 분리)

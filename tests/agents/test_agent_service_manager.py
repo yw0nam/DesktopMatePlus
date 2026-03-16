@@ -62,9 +62,9 @@ class TestAgentServiceInitialization:
         assert service is mock_agent
         mock_factory.assert_called_once()
 
-        # Verify factory was called with correct parameters (now using kwargs)
+        # Verify factory was called with correct parameters (positional + kwargs)
         call_args = mock_factory.call_args
-        assert call_args[1]["service_type"] == "openai_chat_agent"
+        assert call_args[0][0] == "openai_chat_agent"
         assert call_args[1]["temperature"] == 0.7
         assert call_args[1]["top_p"] == 0.9
         assert call_args[1]["mcp_config"] is None
@@ -281,9 +281,9 @@ class TestAgentServiceInitialization:
         ):
             initialize_agent_service()
 
-        # Verify YAML config values are passed (env vars are now handled in the factory)
+        # Verify YAML config values are passed (positional service_type + kwargs)
         call_args = mock_factory.call_args
-        assert call_args[1]["service_type"] == "openai_chat_agent"
+        assert call_args[0][0] == "openai_chat_agent"
         assert call_args[1]["openai_api_base"] == "http://yaml-config:8080/v1"
         assert call_args[1]["model_name"] == "yaml-model"
         assert call_args[1]["mcp_config"] is None
