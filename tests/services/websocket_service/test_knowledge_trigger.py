@@ -6,7 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.services.stm_service.service import STMService
-from src.services.websocket_service.manager.handlers import (
+from src.services.websocket_service.manager.disconnect_handler import (
     build_delegate_payload,
     on_disconnect_handler,
 )
