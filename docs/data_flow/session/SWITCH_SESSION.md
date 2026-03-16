@@ -5,29 +5,36 @@
 ```mermaid
 sequenceDiagram
     actor User as User
-    participant FE as Godot (Manager)
+    participant FE as Client (Manager)
     participant BE_API as FastAPI (REST)
     participant BE_WS as WebSocket (Stream)
 
     Note over User, FE: 1. 세션 변경 (View Update)
     User->>FE: 세션 B 클릭
     FE->>FE: current_session_id = "Session_B" (즉시 변경)
-    FE->>BE_API: GET /history?session_id=Session_B
+    FE->>BE_API: GET /v1/stm/get-chat-history?user_id=...&agent_id=...&session_id=Session_B
     BE_API-->>FE: History JSON (과거 대화 로그)
     FE->>FE: 채팅창 UI 초기화 및 렌더링
 
-    Note over User, FE: 2. 메시지 전송 (Action)
+    Note over FE, BE_WS: 2. WS 인증 (최초 연결 시)
+    FE->>BE_WS: send_json({ "type": "authorize", "token": "..." })
+    BE_WS-->>FE: { "type": "authorize_success", "connection_id": "..." }
+
+    Note over User, FE: 3. 메시지 전송 (Action)
     User->>FE: "안녕" 입력
-    FE->>BE_WS: send_json({<br/> "type": "chat_message",<br/> "session_id": "Session_B",<br/> "content": "안녕"<br/>})
+    FE->>BE_WS: send_json({<br/> "type": "chat_message",<br/> "session_id": "Session_B",<br/> "user_id": "...",<br/> "agent_id": "...",<br/> "content": "안녕"<br/>})
 
     activate BE_WS
     Note right of BE_WS: [Backend Logic]<br>1. packet.session_id 확인<br>2. STM에서 History Load<br>3. LLM Invoke (History + "안녕")
 
-    loop Response Stream
+    BE_WS-->>FE: stream_start
+    Note over BE_WS, FE: stream_token 과 tts_chunk 는 독립적으로 interleave되어 전송됨
+    loop LLM 토큰 스트림 (토큰 단위)
         BE_WS-->>FE: stream_token ("반가")
         BE_WS-->>FE: stream_token ("워요")
-        BE_WS-->>FE: tts_ready_chunk ("반가워요")
     end
+    Note right of BE_WS: 문장 완성 시 TTS 합성 후<br>비동기로 tts_chunk 전송
+    BE_WS-->>FE: tts_chunk ({ text, audio_base64, emotion, ... })
     BE_WS-->>FE: stream_end
     deactivate BE_WS
 ```

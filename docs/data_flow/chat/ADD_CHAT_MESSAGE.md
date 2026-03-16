@@ -22,7 +22,7 @@ sequenceDiagram
     actor User as User (Client)
     participant FE as Mate-Engine (Front-End)
     participant BE as Back-End (WebSocket Server)
-    participant API as Back-End (REST API)
+    participant STM as Back-End (STM Service)
 
     Note over User, FE: Trigger
     User->>FE: User sends a new chat message (Text/Image)
@@ -62,17 +62,11 @@ sequenceDiagram
                 FE-->>User: Play audio with Lip Sync
                 FE-->>User: Play VRM Motion & Expression
             end
-        and
-            rect rgb(240, 255, 240)
-                note right of FE: Tool Execution
-                BE-->>FE: tool_call (name, args)
-                FE->>FE: Display tool call in UI
-            end
         end
 
-        BE->>API: Save conversation turn to REST API
-        API-->>BE: Success
-        BE-->>FE: stream_end (session_id)
+        Note right of BE: tool_call / tool_result 이벤트는<br/>서버 로그에만 기록, FE로 전달되지 않음
+        BE->>STM: save_memory(user+assistant messages)<br/>(asyncio.create_task — non-blocking)
+        BE-->>FE: stream_end (session_id, content)
         Note right of FE: Guaranteed: all tts_chunk events arrive before stream_end
         deactivate BE
 
@@ -81,8 +75,8 @@ sequenceDiagram
             FE->>FE: Capture session_id from stream_end
             FE->>FE: Update currentSessionId
             FE->>FE: Preserve optimistic UI state (no reload)
-            FE->>API: Refresh session list
-            API-->>FE: Updated sessions
+            FE->>BE: GET /v1/stm/sessions (user_id, agent_id)
+            BE-->>FE: Updated sessions
             FE-->>User: Show new session in sidebar
         else Existing Session
             Note over FE: Session already tracked

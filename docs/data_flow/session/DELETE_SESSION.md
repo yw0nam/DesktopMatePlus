@@ -21,7 +21,7 @@ sequenceDiagram
 
     Note over FE, BE: 2. List Refresh (Data Sync)
     alt 삭제 성공 시
-        FE->>BE: GET /stm/sessions (user_id, agent_id)
+        FE->>BE: GET /v1/stm/sessions (user_id, agent_id)
         activate BE
         BE-->>FE: 갱신된 Session List 반환
         deactivate BE

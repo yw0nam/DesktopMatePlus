@@ -12,7 +12,7 @@ sequenceDiagram
     User->>FE: 사이드바의 Session List 클릭
 
     Note over FE, BE: Data Flow
-    FE->>BE: GET /stm/sessions (user_id, agent_id)
+    FE->>BE: GET /v1/stm/sessions (user_id, agent_id)
     activate BE
     BE-->>FE: Session List 데이터 반환 (JSON)
     deactivate BE
