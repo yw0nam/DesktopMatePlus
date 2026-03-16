@@ -7,7 +7,7 @@ This example demonstrates the complete TTS streaming pipeline:
 3. Receive streaming tokens from the agent
 4. Receive TTS chunks as sentences are completed (real-time)
 5. Print each TTS chunk
-6. Save TTS audio to WAV files
+6. Save TTS audio to files
 
 Expected behavior:
 - TTS chunks arrive WHILE the agent is still streaming (not after)
@@ -19,14 +19,18 @@ Expected behavior:
 import argparse
 import asyncio
 import base64
+import io
 import json
 import mimetypes
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import httpx
 import websockets
+from PIL import Image
+
+# Max binary image size before resizing (4MB → ~5.3MB base64, well under server limit)
+_MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
 
 class RealtimeTTSDemo:
@@ -35,14 +39,12 @@ class RealtimeTTSDemo:
     def __init__(
         self,
         websocket_url: str = "ws://localhost:8000/v1/chat/stream",
-        tts_url: str = "http://localhost:8000/v1/tts/synthesize",
         output_dir: str = "./tts_output",
         token: str = "demo-token",
         reference_id: str = "ナツメ",
         images: list[str] | None = None,
     ):
         self.websocket_url = websocket_url
-        self.tts_url = tts_url
         self.output_dir = Path(output_dir)
         self.token = token
         self.reference_id = reference_id
@@ -57,9 +59,38 @@ class RealtimeTTSDemo:
         if self.images:
             print(f"🖼️  Images to include: {len(self.images)}")
 
+    def _resize_to_limit(self, image_bytes: bytes) -> tuple[bytes, str]:
+        """Resize image bytes to fit within _MAX_IMAGE_BYTES using Pillow.
+
+        Returns:
+            Tuple of (resized_bytes, mime_type). Output is always JPEG.
+        """
+        img = Image.open(io.BytesIO(image_bytes))
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+
+        scale = 1.0
+        while True:
+            if scale < 1.0:
+                new_w = max(1, int(img.width * scale))
+                new_h = max(1, int(img.height * scale))
+                candidate = img.resize((new_w, new_h), Image.LANCZOS)
+            else:
+                candidate = img
+
+            buf = io.BytesIO()
+            candidate.save(buf, format="JPEG", quality=85, optimize=True)
+            result = buf.getvalue()
+
+            if len(result) <= _MAX_IMAGE_BYTES or scale < 0.1:
+                return result, "image/jpeg"
+
+            scale *= 0.75
+
     def _load_image_as_base64(self, image_path: str) -> str | None:
         """
         Load an image file and convert to base64 data URL.
+        Automatically resizes if the file exceeds _MAX_IMAGE_BYTES.
 
         Args:
             image_path: Path to local image file
@@ -73,14 +104,20 @@ class RealtimeTTSDemo:
                 print(f"⚠️  Image file not found: {image_path}")
                 return None
 
-            # Detect MIME type
-            mime_type, _ = mimetypes.guess_type(str(path))
-            if not mime_type or not mime_type.startswith("image/"):
-                mime_type = "image/png"  # Default fallback
-
-            # Read and encode
             with open(path, "rb") as f:
                 image_bytes = f.read()
+
+            original_mb = len(image_bytes) / 1024 / 1024
+            if len(image_bytes) > _MAX_IMAGE_BYTES:
+                print(
+                    f"  📐 Resizing {image_path} ({original_mb:.1f}MB → target <{_MAX_IMAGE_BYTES // 1024 // 1024}MB)..."
+                )
+                image_bytes, mime_type = self._resize_to_limit(image_bytes)
+                print(f"     → {len(image_bytes) / 1024 / 1024:.1f}MB after resize")
+            else:
+                mime_type, _ = mimetypes.guess_type(str(path))
+                if not mime_type or not mime_type.startswith("image/"):
+                    mime_type = "image/png"
 
             base64_data = base64.b64encode(image_bytes).decode("utf-8")
             return f"data:{mime_type};base64,{base64_data}"
@@ -89,7 +126,7 @@ class RealtimeTTSDemo:
             print(f"❌ Failed to load image {image_path}: {e}")
             return None
 
-    def _prepare_images(self) -> list[str]:
+    def _prepare_images(self) -> list[dict]:
         """
         Prepare images for the chat message.
 
@@ -98,13 +135,14 @@ class RealtimeTTSDemo:
         - Local file paths - converted to base64 data URLs
 
         Returns:
-            List of image strings (URLs or base64 data URLs)
+            List of image objects in OpenAI format
         """
         prepared = []
         for img in self.images:
+            url = None
             if img.startswith(("http://", "https://", "data:")):
                 # Already a URL or data URL, use as-is
-                prepared.append(img)
+                url = img
                 print(
                     f"  🌐 Using URL: {img[:80]}..."
                     if len(img) > 80
@@ -112,10 +150,18 @@ class RealtimeTTSDemo:
                 )
             else:
                 # Assume it's a local file path
-                base64_url = self._load_image_as_base64(img)
-                if base64_url:
-                    prepared.append(base64_url)
+                url = self._load_image_as_base64(img)
+                if url:
                     print(f"  📄 Loaded file: {img}")
+
+            if url:
+                prepared.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": url,
+                        "detail": "auto"
+                    }
+                })
         return prepared
 
     async def send_json(self, websocket: Any, payload: dict):
@@ -124,61 +170,13 @@ class RealtimeTTSDemo:
         await websocket.send(message)
         print(f">> {payload['type']}")
 
-    async def synthesize_tts(
-        self, text: str, emotion: str | None = None
-    ) -> bytes | None:
-        """Call TTS API to synthesize speech and return WAV audio."""
-        payload = {
-            "text": text,
-            "output_format": "base64",  # Request base64 format
-            "reference_id": self.reference_id,  # Use specified reference voice
-        }
-        if emotion:
-            # Note: The TTS API might not support emotion parameter directly
-            # You may need to embed it in the text like: "(joyful) text"
-            pass
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self.tts_url,
-                    json=payload,
-                    timeout=30.0,
-                )
-
-                if response.status_code == 200:
-                    result = response.json()
-                    # TTS API returns base64 encoded audio in 'audio_data' field
-                    audio_base64 = result.get("audio_data")
-                    if audio_base64:
-                        audio_bytes = base64.b64decode(audio_base64)
-                        return audio_bytes
-                    else:
-                        print(f"❌ No audio_data in response: {result}")
-                        return None
-                else:
-                    error_text = response.text
-                    print(
-                        f"❌ TTS API error {response.status_code}: {error_text[:200]}"
-                    )
-                    return None
-        except httpx.ConnectError as e:
-            print(f"❌ Cannot connect to TTS service: {e}")
-            return None
-        except httpx.TimeoutException as e:
-            print(f"❌ TTS request timeout: {e}")
-            return None
-        except Exception as e:
-            print(f"❌ TTS synthesis failed: {type(e).__name__}: {e}")
-            return None
-
-    def save_wav(
-        self, audio_bytes: bytes, text: str, emotion: str | None = None
+    def save_audio(
+        self, audio_bytes: bytes, sequence: int, emotion: str | None = None
     ) -> Path:
-        """Save WAV audio to file."""
+        """Save audio to file."""
         self.chunk_count += 1
         emotion_tag = f"_{emotion}" if emotion else ""
-        filename = f"{self.session_id}_chunk{self.chunk_count:03d}{emotion_tag}.wav"
+        filename = f"{self.session_id}_seq{sequence:03d}{emotion_tag}.mp3"
         filepath = self.output_dir / filename
 
         with open(filepath, "wb") as f:
@@ -255,6 +253,8 @@ class RealtimeTTSDemo:
                             "session_id": "c157b220-47c0-4c48-a878-382ba6448cd6",
                             "agent_id": "yuri",
                             "user_id": "nanami",
+                            "tts_enabled": True,
+                            "reference_id": self.reference_id,
                         }
 
                         # Include images if provided
@@ -277,34 +277,37 @@ class RealtimeTTSDemo:
                         print("─" * 70)
                         continue
 
-                    # ⭐ THIS IS THE KEY EVENT: tts_ready_chunk
-                    if event_type == "tts_ready_chunk":
-                        chunk_text = data.get("chunk", "")
+                    # ⭐ THIS IS THE KEY EVENT: tts_chunk
+                    if event_type == "tts_chunk":
+                        sequence = data.get("sequence", 0)
+                        chunk_text = data.get("text", "")
                         emotion = data.get("emotion")
+                        motion = data.get("motion_name")
+                        blendshape = data.get("blendshape_name")
+                        audio_base64 = data.get("audio_base64")
 
                         print("\n" + "─" * 70)
-                        print("🎤 TTS CHUNK RECEIVED (real-time!)")
+                        print(f"🎤 TTS CHUNK [{sequence}] RECEIVED (real-time!)")
                         print("─" * 70)
                         print(f"📝 Text: {chunk_text}")
                         if emotion:
                             print(f"😊 Emotion: {emotion}")
+                        if motion or blendshape:
+                            print(f"🎭 Motion: {motion}, Blendshape: {blendshape}")
 
                         # Save the chunk info
                         tts_chunks_received.append(
-                            {"text": chunk_text, "emotion": emotion}
+                            {"sequence": sequence, "text": chunk_text, "emotion": emotion}
                         )
 
-                        # Synthesize speech via TTS API
-                        print("🔊 Synthesizing speech...")
-                        audio_bytes = await self.synthesize_tts(chunk_text, emotion)
-
-                        if audio_bytes:
-                            # Save to WAV file
-                            filepath = self.save_wav(audio_bytes, chunk_text, emotion)
+                        if audio_base64:
+                            audio_bytes = base64.b64decode(audio_base64)
+                            # Save to file
+                            filepath = self.save_audio(audio_bytes, sequence, emotion)
                             size_kb = len(audio_bytes) / 1024
                             print(f"💾 Saved: {filepath.name} ({size_kb:.1f} KB)")
                         else:
-                            print("❌ TTS synthesis failed")
+                            print("⚠️ No audio data in chunk (tts_enabled=false or failed)")
 
                         print("─" * 70 + "\n")
                         continue
@@ -336,7 +339,7 @@ class RealtimeTTSDemo:
         print(f"{'='*70}")
         print(f"Stream tokens received: {len(stream_tokens_received)}")
         print(f"TTS chunks received: {len(tts_chunks_received)}")
-        print(f"WAV files saved: {self.chunk_count}")
+        print(f"Audio files saved: {self.chunk_count}")
         print(f"Output directory: {self.output_dir.absolute()}")
         print(f"\n{'='*70}")
         print("✅ Demo Complete!")
@@ -345,9 +348,9 @@ class RealtimeTTSDemo:
         # Show TTS chunks details
         if tts_chunks_received:
             print("📝 TTS Chunks Details:")
-            for i, chunk in enumerate(tts_chunks_received, 1):
+            for chunk in tts_chunks_received:
                 emotion_str = f" ({chunk['emotion']})" if chunk["emotion"] else ""
-                print(f"  {i}. {chunk['text'][:60]}...{emotion_str}")
+                print(f"  {chunk['sequence']}. {chunk['text'][:60]}...{emotion_str}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -386,8 +389,7 @@ Example usage:
 
   # Custom API endpoints
   python examples/realtime_tts_streaming_demo.py \\
-    --ws-url ws://localhost:8000/v1/chat/stream \\
-    --tts-url http://localhost:8000/v1/tts/synthesize
+    --ws-url ws://localhost:8000/v1/chat/stream
         """,
     )
     parser.add_argument(
@@ -408,14 +410,9 @@ Example usage:
         help="WebSocket endpoint URL",
     )
     parser.add_argument(
-        "--tts-url",
-        default="http://localhost:5500/v1/tts/synthesize",
-        help="TTS API endpoint URL",
-    )
-    parser.add_argument(
         "--output",
         default="./tts_output",
-        help="Output directory for WAV files",
+        help="Output directory for audio files",
     )
     parser.add_argument(
         "--token",
@@ -435,7 +432,6 @@ async def main():
 
     demo = RealtimeTTSDemo(
         websocket_url=args.ws_url,
-        tts_url=args.tts_url,
         output_dir=args.output,
         token=args.token,
         reference_id=args.reference_id,
