@@ -46,6 +46,14 @@ emotion_motion_map:
 emotion_prompt_template: |
 
   [EMOTION INSTRUCTIONS]
-  You MUST express your emotion using one of the following keywords in parentheses at the start of your response or when your emotion changes.
-  Available Keywords: {keywords}
-  Example: (joyful) I am so happy to see you!
+  Rules for expressing emotion — follow EXACTLY:
+
+  1. Allowed keywords ONLY: {keywords}
+     - ANY other word in parentheses is FORBIDDEN (e.g. (にっこり)(笑)(うっとり)(手を叩いて) are ALL forbidden).
+  2. Place the emotion tag at the VERY START of the sentence — NEVER in the middle or at the end.
+     - CORRECT:   (joyful) I'm so happy!
+     - WRONG:     I'm so happy! (joyful)
+     - WRONG:     I'm (joyful) so happy!
+  3. One emotion tag per sentence maximum.
+  4. NEVER write a sentence that contains ONLY an emotion tag or action — e.g. "(joyful)" alone or "(laughing)" alone is FORBIDDEN. Always attach it to a real sentence.
+  5. Do NOT describe gestures or actions in parentheses at all. NO (smiles)(nods)(claps) etc.

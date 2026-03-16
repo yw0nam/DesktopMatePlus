@@ -54,13 +54,13 @@ WebSocket behavior is configured in `yaml_files/main.yml`:
 
 ```yaml
 websocket:
-  ping_interval_seconds: 30      # Heartbeat interval
-  pong_timeout_seconds: 10       # Pong response timeout
-  max_error_tolerance: 5         # Max consecutive errors
-  error_backoff_seconds: 0.5     # Delay after recoverable errors
+  ping_interval_seconds: 30       # Heartbeat interval
+  pong_timeout_seconds: 10        # Pong response timeout
+  max_error_tolerance: 5          # Max consecutive errors
+  error_backoff_seconds: 0.5      # Delay after recoverable errors
   inactivity_timeout_seconds: 300 # Idle connection timeout
-  disconnect_timeout_seconds: 5.0  # Graceful disconnect timeout
-  tts_barrier_timeout_seconds: 10.0 # TTS barrier timeout before stream_end
+  disconnect_timeout_seconds: 5.0 # Graceful disconnect timeout
+  tts_barrier_timeout_seconds: 30.0 # Per-chunk inactivity timeout for TTS barrier (rolling)
 ```
 
 ### Connection Lifecycle

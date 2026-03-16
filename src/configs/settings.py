@@ -39,9 +39,9 @@ class WebSocketConfig(BaseModel):
         description="Timeout for graceful disconnect in seconds",
     )
     tts_barrier_timeout_seconds: float = Field(
-        default=10.0,
+        default=30.0,
         ge=0,
-        description="Timeout in seconds for TTS barrier before stream_end",
+        description="Inactivity timeout in seconds for TTS barrier: resets each time a TTS chunk completes",
     )
 
 

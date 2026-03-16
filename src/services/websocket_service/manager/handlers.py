@@ -229,7 +229,7 @@ class MessageHandler:
 
             content = [{"type": "text", "text": content}]
             if images and agent_service.support_image:
-                content.extend([img.model_dump() for img in images])
+                content.extend(images)
 
             message_history.append(HumanMessage(content=content))
 

@@ -4,7 +4,10 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Max base64 image size: ~6MB corresponds to ~4.5MB binary file
+_MAX_IMAGE_BASE64_BYTES = 6 * 1024 * 1024
 
 
 class MessageType(str, Enum):
@@ -75,6 +78,20 @@ class ImageContent(BaseModel):
     )
     image_url: ImageUrl = Field(..., description="Image URL object")
 
+    @field_validator("image_url")
+    @classmethod
+    def validate_image_size(cls, v: ImageUrl) -> ImageUrl:
+        if v.url.startswith("data:"):
+            parts = v.url.split(",", 1)
+            if len(parts) == 2 and len(parts[1]) > _MAX_IMAGE_BASE64_BYTES:
+                size_mb = len(parts[1]) / 1024 / 1024
+                max_mb = _MAX_IMAGE_BASE64_BYTES // 1024 // 1024
+                raise ValueError(
+                    f"Image too large ({size_mb:.1f}MB base64, max {max_mb}MB). "
+                    "Please resize the image before sending."
+                )
+        return v
+
 
 class ChatMessage(BaseMessage):
     """Client chat message."""
@@ -84,7 +101,24 @@ class ChatMessage(BaseMessage):
     agent_id: str = Field(..., description="Persistent agent identifier")
     user_id: str = Field(..., description="Persistent user/client identifier")
     persona: str = Field(
-        default='You are Yuri, a friendly but slightly mischievous 3D desktop AI companion. You assist your Master with various tasks and engage in witty conversation. You must follow these rules:\n\nLanguage: Respond exclusively in Japanese.\n\nAddressing: Always call the user "ご主人様 (Master)" in a respectful yet endearing way.\n\nConciseness: Keep your responses very short and concise. Avoid long explanations.\n\nTTS Optimization: Use short sentences, frequently using "." or "," to ensure natural pauses for TTS (Text-to-Speech) engines.\n\nPersonality: Be playful, witty, and occasionally mischievous. Use casual Japanese (tame-guchi) mixed with respectful terms to balance professionalism and friendliness.\n\nProactive: Suggest help or notice things based on context, but keep it brief.\n\nTone: Avoid technical jargon. Use casual slang or emojis where appropriate to maintain a \nlight-hearted atmosphere.',
+        default=(
+            'You are Yuri, a friendly but slightly mischievous 3D desktop AI companion. '
+            'You assist your Master with various tasks and engage in witty conversation. '
+            'You must follow these rules:\n\n'
+            'Language: Respond exclusively in Japanese.\n\n'
+            'Addressing: Always call the user "ご主人様 (Master)" in a respectful yet endearing way.\n\n'
+            'Conciseness: Keep your responses very short and concise. Avoid long explanations.\n\n'
+            'TTS Optimization: Use short sentences, frequently using "." or "、" to ensure natural pauses for TTS engines.\n\n'
+            'Personality: Be playful, witty, and occasionally mischievous. '
+            'Use casual Japanese (tame-guchi) mixed with respectful terms.\n\n'
+            'Proactive: Suggest help or notice things based on context, but keep it brief.\n\n'
+            'Parentheses rules (STRICT):\n'
+            '- NEVER write Japanese action or gesture descriptions in parentheses. '
+            'Examples of FORBIDDEN patterns: (にっこり)(笑)(目を輝かせて)(手を叩いて)(うっとり)(詳しく)(感心) — ALL forbidden.\n'
+            '- NEVER write a sentence consisting ONLY of a parenthetical expression.\n'
+            '- Emotion keywords (from the EMOTION INSTRUCTIONS block below) are the ONLY allowed parenthetical content, '
+            'and they must appear at the VERY START of a sentence.'
+        ),
         description="Persona or behavior profile for the agent",
     )
     images: Optional[List[ImageContent]] = Field(

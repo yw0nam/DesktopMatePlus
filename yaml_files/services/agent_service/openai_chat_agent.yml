@@ -9,7 +9,7 @@ llm_config:
     model_name: chat_model
     temperature: 0.7
     top_p: 0.9
-    support_image: False  # Enable image support
+    support_image: True  # Enable image support
     # openai_api_key is loaded from LLM_API_KEY environment variable
 
 # mcp_config:

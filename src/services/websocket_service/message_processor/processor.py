@@ -565,10 +565,11 @@ class MessageProcessor:
         )
 
     async def _wait_for_tts_tasks(self, turn_id: str) -> None:
-        """Await all pending TTS tasks before stream_end, with timeout.
+        """Await pending TTS tasks before stream_end, with a rolling inactivity timeout.
 
-        On timeout, cancels remaining tasks and logs a backend-only warning.
-        Never sends warning events to the client.
+        The timeout resets each time any TTS task completes. If no task completes
+        within the inactivity window, remaining tasks are cancelled and a backend-only
+        warning is logged. Never sends warning events to the client.
 
         Args:
             turn_id: The conversation turn identifier.
@@ -579,22 +580,26 @@ class MessageProcessor:
 
         from src.configs.settings import get_settings
 
-        timeout = get_settings().websocket.tts_barrier_timeout_seconds
+        inactivity_timeout = get_settings().websocket.tts_barrier_timeout_seconds
 
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(*turn.tts_tasks, return_exceptions=True),
-                timeout=timeout,
+        pending = {t for t in turn.tts_tasks if not t.done()}
+        while pending:
+            done, pending = await asyncio.wait(
+                pending,
+                timeout=inactivity_timeout,
+                return_when=asyncio.FIRST_COMPLETED,
             )
-        except asyncio.TimeoutError:
-            for task in turn.tts_tasks:
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*turn.tts_tasks, return_exceptions=True)
-            logger.warning(
-                f"TTS barrier timeout after {timeout}s for turn {turn_id}, "
-                "proceeding to stream_end"
-            )
+            if not done:
+                # No task completed within the inactivity window
+                for task in pending:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+                logger.warning(
+                    f"TTS barrier inactivity timeout after {inactivity_timeout}s "
+                    f"for turn {turn_id}, proceeding to stream_end"
+                )
+                break
 
     async def _delayed_cleanup(self, delay: float):
         """Delayed cleanup of resources."""

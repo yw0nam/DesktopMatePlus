@@ -66,7 +66,7 @@ async def test_barrier_waits_for_all_tts_tasks(processor: MessageProcessor):
 
 
 async def test_barrier_timeout_logs_and_continues(processor: MessageProcessor):
-    """Timeout: logger.warning called, no deadlock, no warning event queued."""
+    """Inactivity timeout: logger.warning called, hanging task cancelled, no deadlock."""
     turn_id = await processor.start_turn("sess-3", "hi")
     turn = processor.turns.get(turn_id)
     assert turn is not None
@@ -77,30 +77,25 @@ async def test_barrier_timeout_logs_and_continues(processor: MessageProcessor):
     hanging = asyncio.create_task(hanging_task())
     turn.tts_tasks = [hanging]
 
-    # Override timeout to a tiny value
+    # Override inactivity timeout to a tiny value
     from unittest.mock import MagicMock
 
     mock_settings = MagicMock()
     mock_settings.websocket.tts_barrier_timeout_seconds = 0.05
 
-    try:
-        with (
-            patch(
-                "src.configs.settings.get_settings",
-                return_value=mock_settings,
-            ),
-            patch(
-                "src.services.websocket_service.message_processor.processor.logger"
-            ) as mock_logger,
-        ):
-            await processor._wait_for_tts_tasks(turn_id)
-            mock_logger.warning.assert_called_once()
-    finally:
-        hanging.cancel()
-        try:
-            await hanging
-        except (asyncio.CancelledError, Exception):
-            pass
+    with (
+        patch(
+            "src.configs.settings.get_settings",
+            return_value=mock_settings,
+        ),
+        patch(
+            "src.services.websocket_service.message_processor.processor.logger"
+        ) as mock_logger,
+    ):
+        await processor._wait_for_tts_tasks(turn_id)
+        mock_logger.warning.assert_called_once()
+
+    assert hanging.cancelled() or hanging.done()
 
 
 async def test_stream_end_arrives_after_last_tts_chunk(processor: MessageProcessor):

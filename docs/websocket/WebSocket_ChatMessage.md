@@ -75,6 +75,19 @@ Images must follow the OpenAI-compatible format. Each image is an object with `t
 
 Images are only processed when the agent has `support_image: true` in its config.
 
+### Image Size Constraints
+
+| Limit                      | Value   |
+|---------------------------|---------|
+| Max binary size per image  | ~4.5 MB |
+| Max base64 size per image  | 6 MB    |
+
+**Server enforcement**: `ImageContent` validates the base64 URL size on receipt. If exceeded, the server returns an `error` event with a descriptive message instead of silently closing the connection.
+
+**Client responsibility**: Resize images to under 4 MB binary before encoding. The reference demo (`examples/realtime_tts_streaming_demo.py`) handles this automatically using Pillow.
+
+> **Why**: Base64-encoding a large image (e.g. 27 MB PNG → 36 MB JSON) exceeds the WebSocket frame limit, causing a silent connection drop with no error log.
+
 ## 3. Usage
 
 ```javascript

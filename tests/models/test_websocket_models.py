@@ -1,9 +1,18 @@
 """Unit tests for WebSocket message models."""
 
+import base64
+
 import pytest
 from pydantic import ValidationError
 
-from src.models.websocket import ChatMessage, MessageType, TtsChunkMessage
+from src.models.websocket import (
+    _MAX_IMAGE_BASE64_BYTES,
+    ChatMessage,
+    ImageContent,
+    ImageUrl,
+    MessageType,
+    TtsChunkMessage,
+)
 
 
 class TestChatMessageDefaults:
@@ -97,3 +106,23 @@ class TestTtsChunkMessage:
         data = msg.model_dump()
         assert data["type"] == "tts_chunk"
         assert data["audio_base64"] is None
+
+
+class TestImageContentValidation:
+    def _make_data_url(self, size_bytes: int) -> str:
+        b64 = base64.b64encode(b"x" * size_bytes).decode()
+        return f"data:image/jpeg;base64,{b64}"
+
+    def test_small_image_passes(self):
+        url = self._make_data_url(100)
+        content = ImageContent(image_url=ImageUrl(url=url))
+        assert content.image_url.url == url
+
+    def test_oversized_image_raises(self):
+        url = self._make_data_url(_MAX_IMAGE_BASE64_BYTES + 1)
+        with pytest.raises(ValidationError, match="too large"):
+            ImageContent(image_url=ImageUrl(url=url))
+
+    def test_http_url_skips_size_check(self):
+        content = ImageContent(image_url=ImageUrl(url="https://example.com/img.jpg"))
+        assert content.image_url.url == "https://example.com/img.jpg"
