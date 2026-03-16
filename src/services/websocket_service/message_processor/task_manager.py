@@ -103,6 +103,43 @@ class TaskManager:
 
         return drained
 
+    async def cleanup_turn(self, turn_id: str) -> None:
+        """Cancel and await all tasks for a turn, including the token consumer."""
+        turn = self.processor.turns.get(turn_id)
+        if not turn:
+            return
+
+        current_task = asyncio.current_task()
+        tasks_to_cancel: List[asyncio.Task] = []
+        token_consumer_task = turn.token_consumer_task
+
+        if token_consumer_task and token_consumer_task.done():
+            token_consumer_task = None
+
+        for task in list(turn.tasks):
+            if task is current_task:
+                continue
+            if token_consumer_task and task is token_consumer_task:
+                continue
+            if not task.done():
+                task.cancel()
+            tasks_to_cancel.append(task)
+
+        if token_consumer_task:
+            await asyncio.gather(token_consumer_task, return_exceptions=True)
+
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
+        for task in tasks_to_cancel:
+            self.processor.active_tasks.discard(task)
+            turn.tasks.discard(task)
+
+        if token_consumer_task:
+            self.processor.active_tasks.discard(token_consumer_task)
+            turn.tasks.discard(token_consumer_task)
+            turn.token_consumer_task = None
+
     def ensure_token_consumer(self, turn_id: str) -> None:
         """Ensure the token consumer task exists for the given turn."""
         turn = self.processor.turns.get(turn_id)

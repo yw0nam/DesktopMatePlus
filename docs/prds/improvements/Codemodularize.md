@@ -32,7 +32,7 @@
 
 [Done] openai_chat_agent.py + message_util.py
 [Done] handlers.py (on_disconnect_handler, build_delegate_payload)
-[ ] processor.py (task cleanup)
-[ ] service_manager.py (initialize_X 패턴)
+[Done] processor.py → TaskManager.cleanup_turn() 위임
+[Done] service_manager.py → _initialize_service() 헬퍼로 DRY화 (TTS/STM/LTM/Agent 4개 적용)
 [ ] api/routes/stm.py (STM 서비스 의존성 헬퍼)
 [ ] main.py (lifespan 함수 분리)
