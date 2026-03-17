@@ -186,9 +186,9 @@ def test_initialize_settings():
 
 
 def test_websocket_config_tts_barrier_timeout_default():
-    """tts_barrier_timeout_seconds defaults to 10.0."""
+    """tts_barrier_timeout_seconds defaults to 30.0."""
     config = WebSocketConfig()
-    assert config.tts_barrier_timeout_seconds == 10.0
+    assert config.tts_barrier_timeout_seconds == 30.0
 
 
 def test_websocket_config_tts_barrier_timeout_from_yaml():
