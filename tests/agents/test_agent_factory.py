@@ -232,3 +232,20 @@ class TestOpenAIChatAgent:
         assert llm.model_name == "test_model"
         assert llm.temperature == 0.7
         assert llm.openai_api_base == "http://localhost:5580/v1"
+
+    def test_agent_has_no_checkpoint(self, agent_service):
+        """After migration, checkpoint is removed."""
+        assert not hasattr(agent_service, "checkpoint")
+
+    def test_initialize_model_returns_only_llm(self, agent_service):
+        """initialize_model returns BaseChatModel, not tuple."""
+        result = agent_service.initialize_model()
+        # Not a tuple — single LLM
+        assert not isinstance(result, tuple)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_initialize_async_exists(self, agent_service):
+        """initialize_async is callable on AgentService."""
+        # Without mcp_config or stm_service, this should be a no-op
+        await agent_service.initialize_async()

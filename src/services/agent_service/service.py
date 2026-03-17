@@ -3,8 +3,6 @@ from typing import Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage
-from langchain_core.tools import BaseTool
-from langgraph.checkpoint.memory import BaseCheckpointSaver
 from loguru import logger
 
 from src.services.ltm_service import LTMService
@@ -12,108 +10,44 @@ from src.services.stm_service import STMService
 
 
 class AgentService(ABC):
-    """Abstract base class for agent services.
-
-    Args:
-        mcp_config (dict): Configuration for the Multi-Server MCP Client.
-        checkpoint_config (dict, optional): Configuration for checkpoint saving.
-    """
+    """Abstract base class for agent services."""
 
     def __init__(
         self,
         mcp_config: dict = None,
-        checkpoint_config: dict = None,
         support_image: bool = False,
     ):
         self.mcp_config = mcp_config
-        self.checkpoint = checkpoint_config
         self.support_image = support_image
-
-        self.llm, self.checkpoint = self.initialize_model()
+        self.llm = self.initialize_model()
 
     @abstractmethod
-    def initialize_model(self) -> tuple[BaseChatModel, BaseCheckpointSaver]:
-        """
-        Initialize the language model and checkpoint saver.
+    def initialize_model(self) -> BaseChatModel:
+        """Initialize and return the language model."""
 
-        Returns:
-            tuple[BaseChatModel, BaseCheckpointSaver]: The initialized model and checkpoint saver.
-        """
+    async def initialize_async(self) -> None:
+        """Async initialization: MCP tool fetch + agent creation. Default: no-op."""
+        pass
 
     @abstractmethod
     async def is_healthy(self) -> tuple[bool, str]:
-        """
-        Check if the Agent is healthy and ready.
-
-        Returns:
-            Tuple of (is_healthy: bool, message: str)
-        """
+        """Check if the Agent is healthy and ready."""
 
     @abstractmethod
     async def stream(
         self,
         messages: list[BaseMessage],
         session_id: str = "",
-        tools: Optional[list[BaseTool]] = None,
-        persona: str = "",
+        persona_id: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
         stm_service: Optional[STMService] = None,
         ltm_service: Optional[LTMService] = None,
     ):
-        """Generate a response from the model based on the prompt and messages.
-        Note, you have to yield stream response following format:
+        """Stream agent response.
 
-        Yields examples:
-            For stream start:
-                {
-                    "type": "stream_start",
-                    "turn_id": "unique_turn_id",
-                    "session_id": session_id,
-                }
-            For agent streaming response:
-                {
-                    "type": "stream_token",
-                    "chunk": "message chunk",
-                    "node": "node_id_123",
-                }
-            For tool call:
-                {
-                    "type": "tool_call",
-                    "tool_name": "example_tool",
-                    "args": "input for the tool",
-                    "node": "node_id_123",
-                }
-            For tool result:
-                {
-                    "type": "tool_result",
-                    "result": "result from the tool",
-                    "node": "node_id_123",
-                }
-            For stream end:
-                {
-                    "type": "stream_end",
-                    "turn_id": "unique_turn_id",
-                    "session_id": session_id,
-                    "content": "final complete message",
-                }
-            For error handling:
-                {
-                    "type": "error",
-                    "error": "error message",
-                }
-
-        Args:
-            messages (list[BaseMessage]): The messages to include in the request.
-            session_id (str): conversation  identifier.
-            tools (Optional[list[BaseTool]]): Additional tools for the agent.
-            user_id (str): Persistent user identifier for memory tool.
-            agent_id (str): Persistent agent identifier for memory tool.
-            ltm_service (Optional[LTMService]): Long-Term memory service instance.
-            stm_service (Optional[STMService]): Short-Term memory service instance.
-
-        Yields:
-            dict: The model's response stream.
+        Yields dicts with type: stream_start | stream_token | tool_call |
+        tool_result | stream_end | error
         """
 
     LTM_CONSOLIDATION_TURN_INTERVAL = 10
@@ -129,9 +63,7 @@ class AgentService(ABC):
     ):
         """Save new chats to STM and conditionally consolidate to LTM.
 
-        Runs as a fire-and-forget background task via asyncio.create_task().
-        Uses asyncio.to_thread() for blocking MongoDB I/O.
-        Errors are logged but do not affect the client response.
+        Fire-and-forget background task via asyncio.create_task().
         """
         import asyncio
 
