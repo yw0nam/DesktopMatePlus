@@ -58,6 +58,18 @@ class TestChatMessageDefaults:
         assert data["tts_enabled"] is True
         assert data["reference_id"] == "voice-x"
 
+    def test_persona_id_default_is_yuri(self):
+        msg = ChatMessage(content="hello", agent_id="a1", user_id="u1")
+        assert msg.persona_id == "yuri"
+
+    def test_persona_id_can_be_set(self):
+        msg = ChatMessage(content="hello", agent_id="a1", user_id="u1", persona_id="kael")
+        assert msg.persona_id == "kael"
+
+    def test_persona_field_no_longer_exists(self):
+        msg = ChatMessage(content="hello", agent_id="a1", user_id="u1")
+        assert not hasattr(msg, "persona")
+
 
 class TestTtsChunkMessage:
     def test_required_fields(self):
