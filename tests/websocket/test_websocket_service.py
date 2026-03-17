@@ -206,8 +206,7 @@ class TestWebSocketManager:
                 self,
                 messages,
                 session_id,
-                tools=None,
-                persona="",
+                persona_id="yuri",
                 user_id="default_user",
                 agent_id="default_agent",
                 stm_service=None,
@@ -280,7 +279,7 @@ class TestWebSocketManager:
                 "content": "Hello, world!",
                 "agent_id": "test-agent",
                 "user_id": "test-user",
-                "persona": "test-persona",
+                "persona_id": "test-persona",
                 "limit": 10,
                 "metadata": {"test": "data"},
             }

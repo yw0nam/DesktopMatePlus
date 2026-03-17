@@ -17,7 +17,6 @@ from src.models.websocket import (
     PongMessage,
 )
 from src.services import get_agent_service, get_ltm_service, get_stm_service
-from src.services.agent_service.tools.delegate import DelegateTaskTool
 from src.services.service_manager import get_emotion_motion_mapper, get_tts_service
 from src.services.websocket_service.message_processor import MessageProcessor
 
@@ -161,7 +160,7 @@ class MessageHandler:
             content = message_data.get("content", "")
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
-            persona = message_data.get("persona")
+            persona_id = message_data.get("persona_id", "yuri")
             # Extract session_id from client (None for new conversations)
             session_id = message_data.get("session_id")
             message_limit = message_data.get("limit", 10)
@@ -230,18 +229,10 @@ class MessageHandler:
 
             message_history.append(HumanMessage(content=content))
 
-            # Build tools list for this session
-            tools = []
-            if stm_service:
-                tools.append(
-                    DelegateTaskTool(stm_service=stm_service, session_id=session_id)
-                )
-
             agent_stream = agent_service.stream(
                 messages=message_history,
                 session_id=session_id,
-                tools=tools,
-                persona=persona,
+                persona_id=persona_id,
                 user_id=user_id,
                 agent_id=agent_id,
                 stm_service=stm_service,
