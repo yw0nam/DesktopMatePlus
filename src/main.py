@@ -82,6 +82,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
         try:
             from src.services import (
+                get_agent_service,
                 get_stm_service,
                 initialize_agent_service,
                 initialize_emotion_motion_mapper,
@@ -101,13 +102,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
             initialize_emotion_motion_mapper()
 
-            if config_paths.get("agent_config_path"):
-                print(f"  - Agent config: {config_paths['agent_config_path']}")
-                initialize_agent_service(config_path=config_paths["agent_config_path"])
-            else:
-                print("  - Agent config: Using default")
-                initialize_agent_service()
-
+            # STM before agent so stm_service can be injected
             if config_paths.get("stm_config_path"):
                 print(f"  - STM config: {config_paths['stm_config_path']}")
                 initialize_stm_service(config_path=config_paths["stm_config_path"])
@@ -115,12 +110,30 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 print("  - STM config: Using default from settings")
                 initialize_stm_service()
 
+            stm_svc_for_agent = get_stm_service()
+
+            if config_paths.get("agent_config_path"):
+                print(f"  - Agent config: {config_paths['agent_config_path']}")
+                initialize_agent_service(
+                    config_path=config_paths["agent_config_path"],
+                    stm_service=stm_svc_for_agent,
+                )
+            else:
+                print("  - Agent config: Using default")
+                initialize_agent_service(stm_service=stm_svc_for_agent)
+
             if config_paths.get("ltm_config_path"):
                 print(f"  - LTM config: {config_paths['ltm_config_path']}")
                 initialize_ltm_service(config_path=config_paths["ltm_config_path"])
             else:
                 print("  - LTM config: Using default")
                 initialize_ltm_service()
+
+            # Async initialization: MCP tools + agent creation
+            agent_svc = get_agent_service()
+            if agent_svc is not None:
+                await agent_svc.initialize_async()
+                logger.info("Agent async initialization complete")
 
             try:
                 import yaml as _yaml
