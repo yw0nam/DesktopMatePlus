@@ -25,8 +25,9 @@ class AgentFactory:
             from src.configs.agent import OpenAIChatAgentConfig
             from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
 
+            stm_service = kwargs.pop("stm_service", None)
             agent_config = OpenAIChatAgentConfig(**kwargs)
-            return OpenAIChatAgent(**agent_config.model_dump())
+            return OpenAIChatAgent(stm_service=stm_service, **agent_config.model_dump())
         else:
             raise ValueError(f"Unknown Agent service type: {service_type}")
 

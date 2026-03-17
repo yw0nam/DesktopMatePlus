@@ -54,6 +54,20 @@ class TestAgentFactory:
         assert agent_service.temperature == 0.7
         assert agent_service.top_p == 0.9
 
+    def test_factory_passes_stm_service_to_agent(self):
+        """stm_service kwarg reaches OpenAIChatAgent without OpenAIChatAgentConfig rejecting it."""
+        mock_stm = Mock()
+        configs = OpenAIChatAgentConfig(
+            openai_api_key="test_key",
+            openai_api_base="http://localhost:5580/v1",
+            model_name="test_model",
+            mcp_config={},
+        )
+        agent_service = AgentFactory.get_agent_service(
+            "openai_chat_agent", stm_service=mock_stm, **configs.model_dump()
+        )
+        assert agent_service.stm_service is mock_stm
+
 
 class TestOpenAIChatAgent:
     """Test OpenAI Chat Agent service."""
@@ -178,7 +192,9 @@ class TestOpenAIChatAgent:
             top_p=0.9,
             mcp_config=mcp_config,
         )
-        agent_svc = AgentFactory.get_agent_service("openai_chat_agent", **configs.model_dump())
+        agent_svc = AgentFactory.get_agent_service(
+            "openai_chat_agent", **configs.model_dump()
+        )
 
         with patch(
             "src.services.agent_service.openai_chat_agent.MultiServerMCPClient"
@@ -189,7 +205,9 @@ class TestOpenAIChatAgent:
             mock_client.get_tools = AsyncMock(return_value=[])
             mock_mcp.return_value = mock_client
 
-            with patch("src.services.agent_service.openai_chat_agent.create_agent") as mock_create:
+            with patch(
+                "src.services.agent_service.openai_chat_agent.create_agent"
+            ) as mock_create:
                 mock_create.return_value = Mock()
                 await agent_svc.initialize_async()
 
