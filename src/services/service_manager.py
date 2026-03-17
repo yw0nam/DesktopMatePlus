@@ -312,7 +312,9 @@ def initialize_services(
         config_path=stm_config_path, force_reinit=force_reinit
     )
     agent_service = initialize_agent_service(
-        config_path=agent_config_path, force_reinit=force_reinit, stm_service=stm_service
+        config_path=agent_config_path,
+        force_reinit=force_reinit,
+        stm_service=stm_service,
     )
     ltm_service = initialize_ltm_service(
         config_path=ltm_config_path, force_reinit=force_reinit

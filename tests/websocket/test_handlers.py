@@ -1,4 +1,5 @@
 """Tests for WebSocket message handlers."""
+
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -56,12 +57,30 @@ class TestHandlerPersonaId:
         }.get(k, d)
 
         import uuid
-        with patch("src.services.websocket_service.manager.handlers.get_agent_service", return_value=mock_agent), \
-             patch("src.services.websocket_service.manager.handlers.get_stm_service", return_value=mock_stm), \
-             patch("src.services.websocket_service.manager.handlers.get_ltm_service", return_value=None):
+
+        with (
+            patch(
+                "src.services.websocket_service.manager.handlers.get_agent_service",
+                return_value=mock_agent,
+            ),
+            patch(
+                "src.services.websocket_service.manager.handlers.get_stm_service",
+                return_value=mock_stm,
+            ),
+            patch(
+                "src.services.websocket_service.manager.handlers.get_ltm_service",
+                return_value=None,
+            ),
+        ):
             await handler.handle_chat_message(uuid.uuid4(), msg, AsyncMock())
 
-        assert "persona_id" in captured_kwargs, f"persona_id must be passed; got keys: {list(captured_kwargs.keys())}"
-        assert "persona" not in captured_kwargs, f"persona must NOT be passed; got keys: {list(captured_kwargs.keys())}"
-        assert "tools" not in captured_kwargs, f"tools must NOT be passed; got keys: {list(captured_kwargs.keys())}"
+        assert (
+            "persona_id" in captured_kwargs
+        ), f"persona_id must be passed; got keys: {list(captured_kwargs.keys())}"
+        assert (
+            "persona" not in captured_kwargs
+        ), f"persona must NOT be passed; got keys: {list(captured_kwargs.keys())}"
+        assert (
+            "tools" not in captured_kwargs
+        ), f"tools must NOT be passed; got keys: {list(captured_kwargs.keys())}"
         assert captured_kwargs["persona_id"] == "yuri"

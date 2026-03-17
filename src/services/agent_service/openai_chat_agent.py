@@ -95,8 +95,7 @@ class OpenAIChatAgent(AgentService):
         template = load_emotion_prompt_template()
         emotion_instructions = template.format(keywords=", ".join(keywords))
         self._personas = {
-            pid: text + emotion_instructions
-            for pid, text in raw_personas.items()
+            pid: text + emotion_instructions for pid, text in raw_personas.items()
         }
         logger.info(f"Loaded {len(self._personas)} personas: {list(self._personas)}")
 
@@ -158,9 +157,7 @@ class OpenAIChatAgent(AgentService):
             }
 
             new_chats: list[BaseMessage] = []
-            async for item in self._process_message(
-                messages=messages, config=config
-            ):
+            async for item in self._process_message(messages=messages, config=config):
                 if item["type"] != "final_response":
                     yield item
                 else:
