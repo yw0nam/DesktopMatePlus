@@ -1,23 +1,26 @@
 import asyncio
-import os
 import traceback
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
+import yaml
 from dotenv import load_dotenv
+from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool
+from langchain_core.messages import (
+    AIMessageChunk,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
 from loguru import logger
 
 from src.services.agent_service.service import AgentService
+from src.services.agent_service.utils.delegate_middleware import DelegateToolMiddleware
 from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
 from src.services.agent_service.utils.text_processor import (
     load_emotion_keywords,
@@ -28,36 +31,29 @@ from src.services.stm_service import STMService
 
 load_dotenv()
 
-__doc__ = """
-This module contains the implementation of the OpenAIChatAgent class, which provides
-functionality for processing chat messages using a language model and tools from a
-Multi-Server MCP client.
+_PERSONAS_PATH = Path(__file__).resolve().parents[3] / "yaml_files" / "personas.yml"
 
-Classes:
-- OpenAIChatAgent: Processes chat messages via LangGraph react agent with tool support.
 
-Functions:
-- stream: Initializes the agent with the provided language model and configuration,
-  then streams message processing results.
-
-Example usage:
-    agent = OpenAIChatAgent(temperature=0.7, top_p=0.9, ...)
-    async for result in agent.stream(messages=[...]):
-        print(result)
-"""
+def _load_personas() -> dict[str, str]:
+    """Load persona system_prompts from personas.yml."""
+    if not _PERSONAS_PATH.exists():
+        logger.warning(f"personas.yml not found at {_PERSONAS_PATH}")
+        return {}
+    try:
+        with open(_PERSONAS_PATH, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return {
+            pid: p["system_prompt"]
+            for pid, p in data.get("personas", {}).items()
+            if "system_prompt" in p
+        }
+    except Exception as e:
+        logger.error(f"Failed to load personas.yml: {e}")
+        return {}
 
 
 class OpenAIChatAgent(AgentService):
-    """OpenAI Chat Agent for processing messages.
-
-    Args:
-        temperature (float): Sampling temperature for the language model.
-        top_p (float): Nucleus sampling parameter.
-        openai_api_key (str, optional): OpenAI API key.
-        openai_api_base (str, optional): Base URL for OpenAI API.
-        model_name (str, optional): Name of the language model to use.
-        **kwargs: Additional arguments for the base AgentService class.
-    """
+    """Single-instance OpenAI Chat Agent using langchain.agents.create_agent."""
 
     def __init__(
         self,
@@ -66,6 +62,7 @@ class OpenAIChatAgent(AgentService):
         openai_api_key: str = None,
         openai_api_base: str = None,
         model_name: str = None,
+        stm_service: Optional[STMService] = None,
         **kwargs,
     ):
         self.temperature = temperature
@@ -73,111 +70,101 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_key = openai_api_key
         self.openai_api_base = openai_api_base
         self.model_name = model_name
+        self.stm_service = stm_service
+        self.agent = None
+        self._mcp_tools: list = []
+        self._personas: dict[str, str] = {}
         super().__init__(**kwargs)
         logger.info(f"Agent initialized: model={self.model_name}")
 
-    def initialize_model(self) -> tuple[BaseChatModel, MemorySaver]:
-        llm = ChatOpenAI(
+    def initialize_model(self) -> BaseChatModel:
+        """Initialize and return the ChatOpenAI model."""
+        return ChatOpenAI(
             temperature=self.temperature,
             top_p=self.top_p,
             openai_api_key=self.openai_api_key,
             openai_api_base=self.openai_api_base,
             model_name=self.model_name,
         )
-        memory_saver = MemorySaver()
-        return llm, memory_saver
+
+    async def initialize_async(self) -> None:
+        """Fetch MCP tools once and create the single agent instance."""
+        # 1. Load persona texts + append emotion instructions
+        raw_personas = _load_personas()
+        keywords = load_emotion_keywords()
+        template = load_emotion_prompt_template()
+        emotion_instructions = template.format(keywords=", ".join(keywords))
+        self._personas = {
+            pid: text + emotion_instructions
+            for pid, text in raw_personas.items()
+        }
+        logger.info(f"Loaded {len(self._personas)} personas: {list(self._personas)}")
+
+        # 2. Fetch MCP tools once
+        if self.mcp_config:
+            async with MultiServerMCPClient(self.mcp_config) as client:
+                self._mcp_tools = await client.get_tools()
+            logger.info(f"Cached {len(self._mcp_tools)} MCP tools")
+
+        # 3. Create single agent instance
+        self.agent = create_agent(
+            model=self.llm,
+            tools=self._mcp_tools,
+            middleware=[DelegateToolMiddleware(stm_service=self.stm_service)],
+        )
+        logger.info("Agent created successfully")
 
     async def is_healthy(self) -> tuple[bool, str]:
-        """
-        Performs a health check on the agent by sending a test message
-        and verifying a response is received.
-        Returns:
-            tuple: A tuple containing a boolean indicating health status and a message.
-        """
+        """Check if the agent is healthy and ready."""
+        if self.agent is None:
+            return False, "Agent not initialized (call initialize_async first)"
         try:
-            test_message = [HumanMessage(content="Health check")]
-            async for _ in self.stream(messages=test_message, tools=[]):
+            async for _ in self.stream(messages=[HumanMessage(content="Health check")]):
                 continue
-
             return True, "Agent is healthy."
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False, f"Health check failed: {e}"
 
-    # TODO: Make these methods reusable in base class AgentService, And this method handle only streaming
-    # For example: load persona, load tools, mcp tools, save memory etc. These are common for all agents.
-    # So these should be in base class so that other agent classes can reuse them.
     async def stream(
         self,
         messages: list[BaseMessage],
         session_id: str = "",
-        persona: str = "",
-        tools: list[BaseTool] = None,
+        persona_id: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
         stm_service: Optional[STMService] = None,
         ltm_service: Optional[LTMService] = None,
     ):
-        """
-        Streams the processing of messages through the agent.
-
-        Args:
-            messages (list[BaseMessage]): List of messages to process.
-            session_id (str): Identifier for the client. Note: this should be generated by uuid4()
-            tools (list[BaseTool], optional): Additional tools for the agent.
-            with_memory (bool): Whether to initialize memory for the agent.
-        Yields:
-            dict: Streaming response chunks including start, tokens, tool calls, tool results, and end
-        """
-        if tools is None:
-            tools = []
+        """Stream agent response, yielding typed dicts."""
         logger.debug(f"Starting LLM stream: {len(messages)} messages")
         try:
-            # Handle case where mcp_config is None (no MCP configuration)
-            mcp_tools = []
-            if self.mcp_config:
-                mcp_client = MultiServerMCPClient(self.mcp_config)
-                mcp_tools = await mcp_client.get_tools()
-                logger.info(f"Fetched {len(mcp_tools)} MCP tools")
-            else:
-                logger.debug("No MCP configuration")
-
-            logger.debug("Creating react agent.")
-            # Only pass prompt parameter if persona is provided and not empty
-            agent_kwargs = {
-                "model": self.llm,
-                "tools": tools + mcp_tools if tools else mcp_tools,
-                "checkpointer": self.checkpoint,
-            }
-            if persona and persona.strip():
-                keywords = load_emotion_keywords()
-                template = load_emotion_prompt_template()
-                emotion_instructions = template.format(keywords=", ".join(keywords))
-                agent_kwargs["prompt"] = (
-                    persona
-                    + emotion_instructions
+            # Prepend persona SystemMessage if available
+            persona_text = self._personas.get(persona_id, "")
+            if persona_text:
+                full_persona = (
+                    persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
                 )
+                messages = [SystemMessage(content=full_persona)] + list(messages)
 
-            agent = create_react_agent(**agent_kwargs)
             turn_id = str(uuid4())
-            thread_id = str(uuid4())
-            config = {"configurable": {"thread_id": thread_id}}
+            config = {"configurable": {"session_id": session_id}}
 
             yield {
                 "type": "stream_start",
                 "turn_id": turn_id,
                 "session_id": session_id,
             }
-            new_chats: list[BaseMessage] = []  # Initialize to empty list
+
+            new_chats: list[BaseMessage] = []
             async for item in self._process_message(
-                messages=messages, agent=agent, config=config
+                messages=messages, config=config
             ):
                 if item["type"] != "final_response":
                     yield item
-                elif item["type"] == "final_response":
+                else:
                     new_chats = item["data"]
-                    # 최종 응답은 채팅 기록 저장에만 사용됩니다.
 
             if stm_service or ltm_service:
                 asyncio.create_task(
@@ -191,9 +178,8 @@ class OpenAIChatAgent(AgentService):
                     ),
                     name=f"save-memory-{session_id}",
                 )
-            # Get final content safely
-            content = new_chats[-1].content if new_chats else ""
 
+            content = new_chats[-1].content if new_chats else ""
             yield {
                 "type": "stream_end",
                 "turn_id": turn_id,
@@ -202,13 +188,11 @@ class OpenAIChatAgent(AgentService):
             }
         except Exception as e:
             logger.error(f"Error in stream method: {e}")
-
             traceback.print_exc()
             raise
 
     @staticmethod
     def _flush_buffer(node: str, buffer: str) -> dict:
-        """Create a flush message from the content buffer."""
         if node == "tools":
             return {"type": "tool_result", "result": buffer.strip(), "node": node}
         return {"type": "stream_token", "chunk": buffer.strip(), "node": node}
@@ -216,118 +200,74 @@ class OpenAIChatAgent(AgentService):
     async def _process_message(
         self,
         messages: list[BaseMessage],
-        agent: CompiledStateGraph,
-        config: RunnableConfig,
+        config: dict,
     ):
-        """메시지를 처리하고 스트리밍 응답을 생성합니다."""
+        """Process messages and yield streaming events."""
         logger.debug(f"Processing {len(messages)} messages with agent")
-
         node = None
         tool_called = False
         gathered = ""
         chunk_count = 0
         buffer = StreamingBuffer()
+        new_chats: list[BaseMessage] = []
 
         try:
-            async for msg, metadata in agent.astream(
-                {"messages": messages}, stream_mode="messages", config=config
+            async for stream_type, data in self.agent.astream(
+                {"messages": messages},
+                config=config,
+                stream_mode=["messages", "updates"],
             ):
-                if node != metadata.get("langgraph_node"):
-                    node = metadata.get("langgraph_node", "unknown")
+                if stream_type == "updates":
+                    for node_name, updates in data.items():
+                        if node_name in ("model", "tools"):
+                            new_chats.extend(updates.get("messages", []))
 
-                if isinstance(msg.content, str) and not msg.additional_kwargs:
-                    content = msg.content
-                    if not content or content.isspace():
-                        continue
+                elif stream_type == "messages":
+                    msg, metadata = data
+                    if node != metadata.get("langgraph_node"):
+                        node = metadata.get("langgraph_node", "unknown")
 
-                    if flushed := buffer.add(content):
-                        yield self._flush_buffer(node, flushed)
-                        chunk_count += 1
+                    if isinstance(msg.content, str) and not msg.additional_kwargs:
+                        content = msg.content
+                        if not content or content.isspace():
+                            continue
+                        if flushed := buffer.add(content):
+                            yield self._flush_buffer(node, flushed)
+                            chunk_count += 1
 
-                elif isinstance(msg, AIMessageChunk) and msg.additional_kwargs.get(
-                    "tool_calls"
-                ):
-                    if not tool_called:
-                        gathered = msg
-                        tool_called = True
-                    else:
-                        gathered = gathered + msg
+                    elif isinstance(msg, AIMessageChunk) and msg.additional_kwargs.get(
+                        "tool_calls"
+                    ):
+                        if not tool_called:
+                            gathered = msg
+                            tool_called = True
+                        else:
+                            gathered = gathered + msg
 
-                    if hasattr(msg, "tool_call_chunks") and msg.tool_call_chunks:
-                        tool_info = gathered.tool_call_chunks[0]
-                        args_str = tool_info.get("args", "")
-                        if args_str and args_str.strip().endswith("}"):
-                            tool_name = tool_info.get("name", "unknown")
-                            logger.info(f"Tool call detected: '{tool_name}'")
-                            yield {
-                                "type": "tool_call",
-                                "tool_name": tool_name,
-                                "args": args_str,
-                                "node": node,
-                            }
-                            tool_called = False
-                            gathered = ""
+                        if hasattr(msg, "tool_call_chunks") and msg.tool_call_chunks:
+                            tool_info = gathered.tool_call_chunks[0]
+                            args_str = tool_info.get("args", "")
+                            if args_str and args_str.strip().endswith("}"):
+                                tool_name = tool_info.get("name", "unknown")
+                                logger.info(f"Tool call detected: '{tool_name}'")
+                                yield {
+                                    "type": "tool_call",
+                                    "tool_name": tool_name,
+                                    "args": args_str,
+                                    "node": node,
+                                }
+                                tool_called = False
+                                gathered = ""
 
             if remaining := buffer.flush():
                 yield self._flush_buffer(node, remaining)
                 chunk_count += 1
 
-            state = agent.get_state(config=config)
-            new_chats = state.values["messages"][len(messages) - 1 :]
-            yield {
-                "type": "final_response",
-                "data": new_chats,
-            }
+            yield {"type": "final_response", "data": new_chats}
             logger.info(f"Processing completed: {chunk_count} chunks")
 
         except Exception as e:
             logger.error(f"Error in process_message: {e}")
             if remaining := buffer.flush():
                 yield self._flush_buffer(node, remaining)
-            yield {
-                "type": "error",
-                "error": "메시지 처리 중 오류가 발생했습니다.",
-            }
-
-
-if __name__ == "__main__":
-    import asyncio
-    import os
-    from uuid import uuid4
-
-    from dotenv import load_dotenv
-    from langchain_core.messages import HumanMessage
-
-    load_dotenv()
-
-    mcp_config = {
-        "sequential-thinking": {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-            "transport": "stdio",
-        }
-    }
-    agent_factory = OpenAIChatAgent(
-        temperature=0.7,
-        top_p=0.9,
-        openai_api_key=os.getenv("LLM_API_KEY"),
-        openai_api_base="http://localhost:55120/v1",
-        model_name="chat_model",
-        mcp_config=mcp_config,
-    )
-
-    async def test_agent_factory():
-        async for result in agent_factory.stream(
-            messages=[
-                HumanMessage(
-                    content="Hello, can you help me?, Use Sequential Thinking for answer."
-                )
-            ],
-            session_id=str(uuid4()),
-            tools=[],
-            user_id="test_user_1",
-            agent_id="test_agent_1",
-        ):
-            print(result)
-
-    asyncio.run(test_agent_factory())
+            yield {"type": "error", "error": "메시지 처리 중 오류가 발생했습니다."}

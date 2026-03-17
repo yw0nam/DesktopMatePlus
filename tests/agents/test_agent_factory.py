@@ -7,7 +7,7 @@ Tests the Agent service integration with factory pattern.
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from langchain_core.messages import AIMessageChunk, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from src.configs.agent import OpenAIChatAgentConfig
 from src.services.agent_service.agent_factory import AgentFactory
@@ -78,11 +78,14 @@ class TestOpenAIChatAgent:
         """Test agent service initializes correctly."""
         assert agent_service is not None
         assert agent_service.llm is not None
-        assert agent_service.checkpoint is not None
+        # agent is None until initialize_async() is called
+        assert agent_service.agent is None
 
     @pytest.mark.asyncio
     async def test_health_check_no_mcp(self, agent_service):
         """Test health check without MCP configuration."""
+        # Set agent to a non-None sentinel so is_healthy proceeds past the guard
+        agent_service.agent = Mock()
 
         # Mock the stream method to return a simple response
         async def mock_stream(*args, **kwargs):
@@ -100,6 +103,8 @@ class TestOpenAIChatAgent:
     @pytest.mark.asyncio
     async def test_health_check_failure(self, agent_service):
         """Test health check handles failures gracefully."""
+        # Set agent to a non-None sentinel so is_healthy proceeds past the guard
+        agent_service.agent = Mock()
 
         # Mock the stream method to raise an exception
         async def mock_stream(*args, **kwargs):
@@ -115,53 +120,49 @@ class TestOpenAIChatAgent:
 
     @pytest.mark.asyncio
     async def test_stream_basic_functionality(self, agent_service):
-        """Test basic streaming functionality."""
-        # Mock MCP client to avoid external dependencies
-        with patch(
-            "src.services.agent_service.openai_chat_agent.MultiServerMCPClient"
-        ) as mock_mcp:
-            # Setup mock MCP client
-            mock_client_instance = AsyncMock()
-            mock_client_instance.get_tools = AsyncMock(return_value=[])
-            mock_mcp.return_value = mock_client_instance
+        """Test basic streaming — agent must be initialized first."""
+        from langchain_core.messages import AIMessage
 
-            # Mock the agent's astream method
-            async def mock_astream(*args, **kwargs):
-                yield (
-                    AIMessageChunk(content="Hello"),
-                    {"langgraph_node": "agent"},
-                )
+        # Setup mock agent
+        async def mock_astream(*args, **kwargs):
+            # Yield updates mode entry for model node
+            yield ("updates", {"model": {"messages": [AIMessage(content="Hello")]}})
+            # Yield messages mode entry
+            yield (
+                "messages",
+                (AIMessage(content="Hello"), {"langgraph_node": "model"}),
+            )
 
-            with patch("langgraph.prebuilt.create_react_agent") as mock_create_agent:
-                mock_agent = Mock()
-                mock_agent.astream = mock_astream
-                mock_create_agent.return_value = mock_agent
+        mock_agent = Mock()
+        mock_agent.astream = mock_astream
+        agent_service.agent = mock_agent
 
-                messages = [HumanMessage(content="Hello")]
-                results = []
+        # Load personas so stream can find "yuri" — patch _personas directly
+        agent_service._personas = {"yuri": "You are Yuri."}
 
-                # Create mock services
-                mock_stm_service = Mock()
-                mock_stm_service.add_chat_history.return_value = "session_123"
-                mock_ltm_service = Mock()
-                mock_ltm_service.add_memory.return_value = "memory_456"
+        messages = [HumanMessage(content="Hello")]
+        results = []
+        mock_stm = Mock()
+        mock_ltm = Mock()
 
-                async for result in agent_service.stream(
-                    messages=messages,
-                    session_id="test_client",
-                    stm_service=mock_stm_service,
-                    ltm_service=mock_ltm_service,
-                ):
-                    results.append(result)
+        async for result in agent_service.stream(
+            messages=messages,
+            session_id="test_session",
+            persona_id="yuri",
+            stm_service=mock_stm,
+            ltm_service=mock_ltm,
+        ):
+            results.append(result)
 
-                # Check that we got some results
-                assert len(results) > 0
-                # Check for stream_start event
-                assert any(r.get("type") == "stream_start" for r in results)
+        assert any(r.get("type") == "stream_start" for r in results)
+        assert any(r.get("type") == "stream_end" for r in results)
 
     @pytest.mark.asyncio
     async def test_stream_with_mcp_tools(self):
-        """Test streaming with MCP tools configured."""
+        """Test initialize_async caches MCP tools and creates agent."""
+        from src.configs.agent import OpenAIChatAgentConfig
+        from src.services.agent_service.agent_factory import AgentFactory
+
         mcp_config = {
             "test-server": {
                 "command": "test",
@@ -177,58 +178,29 @@ class TestOpenAIChatAgent:
             top_p=0.9,
             mcp_config=mcp_config,
         )
-        agent_service = AgentFactory.get_agent_service(
-            "openai_chat_agent", **configs.model_dump()
-        )
+        agent_svc = AgentFactory.get_agent_service("openai_chat_agent", **configs.model_dump())
 
         with patch(
             "src.services.agent_service.openai_chat_agent.MultiServerMCPClient"
         ) as mock_mcp:
-            # Setup mock MCP client without tools to avoid tool validation issues
-            mock_client_instance = AsyncMock()
-            mock_client_instance.get_tools = AsyncMock(return_value=[])
-            mock_mcp.return_value = mock_client_instance
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get_tools = AsyncMock(return_value=[])
+            mock_mcp.return_value = mock_client
 
-            async def mock_astream(*args, **kwargs):
-                yield (
-                    AIMessageChunk(content="Response"),
-                    {"langgraph_node": "agent"},
-                )
+            with patch("src.services.agent_service.openai_chat_agent.create_agent") as mock_create:
+                mock_create.return_value = Mock()
+                await agent_svc.initialize_async()
 
-            with patch("langgraph.prebuilt.create_react_agent") as mock_create_agent:
-                mock_agent = Mock()
-                mock_agent.astream = mock_astream
-                mock_create_agent.return_value = mock_agent
+            mock_client.get_tools.assert_called_once()
+            mock_create.assert_called_once()
+            assert agent_svc.agent is not None
 
-                messages = [HumanMessage(content="Test")]
-                results = []
-
-                # Create mock services
-                mock_stm_service = Mock()
-                mock_stm_service.add_chat_history.return_value = "session_123"
-                mock_ltm_service = Mock()
-                mock_ltm_service.add_memory.return_value = "memory_456"
-
-                async for result in agent_service.stream(
-                    messages=messages,
-                    session_id="test_client",
-                    stm_service=mock_stm_service,
-                    ltm_service=mock_ltm_service,
-                ):
-                    results.append(result)
-
-                # Verify MCP client was initialized with config
-                mock_mcp.assert_called_once_with(mcp_config)
-                # Verify tools were fetched
-                mock_client_instance.get_tools.assert_called_once()
-
-    def test_initialize_model(self, agent_service):
-        """Test model initialization."""
-        llm, checkpoint = agent_service.initialize_model()
-
+    def test_initialize_model_returns_llm(self, agent_service):
+        """initialize_model returns a single BaseChatModel."""
+        llm = agent_service.initialize_model()
         assert llm is not None
-        assert checkpoint is not None
-        # Verify LLM has correct configuration
         assert llm.model_name == "test_model"
         assert llm.temperature == 0.7
         assert llm.openai_api_base == "http://localhost:5580/v1"
