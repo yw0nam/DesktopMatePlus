@@ -179,14 +179,12 @@ def initialize_tts_service(
 def initialize_agent_service(
     config_path: Optional[str | Path] = None,
     force_reinit: bool = False,
-    stm_service=None,
 ) -> AgentService:
     """Initialize Agent service from YAML configuration.
 
     Args:
         config_path: Path to Agent YAML config file. If None, uses default path.
         force_reinit: If True, reinitialize even if already initialized.
-        stm_service: STM service instance to inject into agent service.
 
     Returns:
         Initialized Agent service instance
@@ -201,9 +199,8 @@ def initialize_agent_service(
         logger.debug("Agent service already initialized, skipping")
         return _agent_service_instance
 
-    def _inject_deps(config: dict, service_configs: dict) -> None:
+    def _inject_mcp(config: dict, service_configs: dict) -> None:
         service_configs["mcp_config"] = config.get("mcp_config", None)
-        service_configs["stm_service"] = stm_service
 
     _agent_service_instance = _initialize_service(
         service_name="Agent",
@@ -214,7 +211,7 @@ def initialize_agent_service(
         config_key="llm_config",
         factory_fn=AgentFactory.get_agent_service,
         config_path=config_path,
-        pre_factory_hook=_inject_deps,
+        pre_factory_hook=_inject_mcp,
         async_health_check=True,
         swallow_health_error=True,
     )
@@ -307,14 +304,11 @@ def initialize_services(
     tts_service = initialize_tts_service(
         config_path=tts_config_path, force_reinit=force_reinit
     )
-    # STM before agent so stm_service can be injected
+    agent_service = initialize_agent_service(
+        config_path=agent_config_path, force_reinit=force_reinit
+    )
     stm_service = initialize_stm_service(
         config_path=stm_config_path, force_reinit=force_reinit
-    )
-    agent_service = initialize_agent_service(
-        config_path=agent_config_path,
-        force_reinit=force_reinit,
-        stm_service=stm_service,
     )
     ltm_service = initialize_ltm_service(
         config_path=ltm_config_path, force_reinit=force_reinit

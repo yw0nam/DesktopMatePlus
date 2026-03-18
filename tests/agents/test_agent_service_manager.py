@@ -395,7 +395,6 @@ class TestInitializeAllServices:
         mock_init_agent.assert_called_once_with(
             config_path=custom_agent_path,
             force_reinit=False,
-            stm_service=mock_init_stm.return_value,
         )
         mock_init_ltm.assert_called_once_with(
             config_path=custom_ltm_path, force_reinit=False
