@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from slack_sdk.web.async_client import AsyncWebClient
 
 STM_USER_ID = "default"  # TODO: multi-user support requires auth system
-LTM_USER_ID = "default"  # TODO: multi-user support requires auth system
 
 _SLACK_TIMESTAMP_TOLERANCE = 300  # 5분
 
@@ -63,6 +62,8 @@ class SlackService:
         if event.get("type") != "message":
             return None
         if event.get("bot_id"):
+            return None
+        if event.get("subtype"):
             return None
         text = event.get("text", "").strip()
         channel_id = event.get("channel", "")
