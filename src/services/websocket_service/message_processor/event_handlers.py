@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, AsyncIterator, Dict
 from loguru import logger
 
 from src.services.tts_service.tts_pipeline import synthesize_chunk
+from src.services.websocket_service.manager.memory_orchestrator import save_turn
 
 from ..text_processors import TextChunkProcessor, TTSTextProcessor
 from .constants import INTERRUPT_WAIT_TIMEOUT, TOKEN_QUEUE_SENTINEL
@@ -51,6 +52,10 @@ class EventHandler:
                     continue
 
                 if event_type == "stream_end":
+                    # Pop new_chats before forwarding — BaseMessage objects are not
+                    # JSON-serializable and must not reach the WebSocket client.
+                    new_chats = event.pop("new_chats", [])
+
                     await self._signal_token_stream_closed(turn_id)
                     await self._wait_for_token_queue(turn_id)
                     await self.processor._wait_for_tts_tasks(turn_id)
@@ -59,6 +64,22 @@ class EventHandler:
                     )
                     await self.processor._put_event(turn_id, event)
                     await self.processor.complete_turn(turn_id)
+
+                    # Fire memory persistence in background using context stored in turn.metadata
+                    turn = self.processor.turns.get(turn_id)
+                    if new_chats and turn:
+                        meta = turn.metadata
+                        asyncio.create_task(
+                            save_turn(
+                                new_chats=new_chats,
+                                stm_service=meta.get("stm_service"),
+                                ltm_service=meta.get("ltm_service"),
+                                user_id=self.processor.user_id,
+                                agent_id=meta.get("agent_id", ""),
+                                session_id=turn.session_id,
+                            ),
+                            name=f"save-memory-{turn_id}",
+                        )
                     continue
 
                 if event_type == "error":

@@ -5,7 +5,7 @@ import json
 from typing import Optional
 from uuid import UUID, uuid4
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from loguru import logger
 
 from src.models.websocket import (
@@ -18,6 +18,7 @@ from src.models.websocket import (
 )
 from src.services import get_agent_service, get_ltm_service, get_stm_service
 from src.services.service_manager import get_emotion_motion_mapper, get_tts_service
+from src.services.websocket_service.manager.memory_orchestrator import load_context
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
@@ -147,14 +148,6 @@ class MessageHandler:
             )
             return
 
-        if stm_service is None:
-            logger.error("STM service not initialized")
-            await self.send_message(
-                connection_id,
-                ErrorMessage(error="STM service not initialized"),
-            )
-            return
-
         try:
             # Extract message content and persistent identifiers
             content = message_data.get("content", "")
@@ -202,26 +195,16 @@ class MessageHandler:
 
             session_id = str(session_id)
             metadata.setdefault("session_id", session_id)
-            message_history = []
-            # Retrieve long-term memories if available
-            if ltm_service:
-                search_result = ltm_service.search_memory(
-                    query=content, user_id=user_id, agent_id=agent_id
-                )
-                if search_result.get("results", []) != []:
-                    result = json.dumps(search_result)
-                    # Prepend retrieved memories to the message history
-                    message_history.append(
-                        SystemMessage(content=f"Long-term memories: {result}")
-                    )
-            # Retrieve short-term memories if available
-            if stm_service:
-                message_history = stm_service.get_chat_history(
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    session_id=session_id,
-                    limit=message_limit,
-                )
+
+            message_history = await load_context(
+                stm_service=stm_service,
+                ltm_service=ltm_service,
+                user_id=user_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                query=content,
+                limit=message_limit,
+            )
 
             content = [{"type": "text", "text": content}]
             if images and agent_service.support_image:
@@ -229,14 +212,16 @@ class MessageHandler:
 
             message_history.append(HumanMessage(content=content))
 
+            metadata["agent_id"] = agent_id
+            metadata["stm_service"] = stm_service
+            metadata["ltm_service"] = ltm_service
+
             agent_stream = agent_service.stream(
                 messages=message_history,
                 session_id=session_id,
                 persona_id=persona_id,
                 user_id=user_id,
                 agent_id=agent_id,
-                stm_service=stm_service,
-                ltm_service=ltm_service,
             )
 
             turn_id = await connection_state.message_processor.start_turn(
