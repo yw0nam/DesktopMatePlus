@@ -54,8 +54,13 @@ async def _run_process_message_directly(
     from src.services.channel_service import process_message
 
     with (
-        patch("src.services.channel_service.get_slack_service", return_value=mock_slack_svc),
-        patch("src.services.channel_service.load_context", new=AsyncMock(return_value=[])),
+        patch(
+            "src.services.channel_service.get_slack_service",
+            return_value=mock_slack_svc,
+        ),
+        patch(
+            "src.services.channel_service.load_context", new=AsyncMock(return_value=[])
+        ),
         patch("src.services.channel_service.save_turn", new=AsyncMock()),
     ):
         await process_message(
