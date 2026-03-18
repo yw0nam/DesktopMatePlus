@@ -5,6 +5,7 @@ services:
   stm_service: mongodb.yml
   ltm_service: mem0.yml
   task_sweep_service: sweep.yml
+  channel_service: channel.yml
 
 # Main application settings
 settings:

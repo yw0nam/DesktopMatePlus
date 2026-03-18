@@ -135,6 +135,25 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 await agent_svc.initialize_async()
                 logger.info("Agent async initialization complete")
 
+            # Channel service (Slack 등 외부 채널)
+            try:
+                import yaml as _yaml
+
+                from src.services.channel_service import init_channel_service
+                from src.services.channel_service.slack_service import SlackSettings
+
+                channel_config_path = config_paths.get("channel_service_path")
+                slack_settings = SlackSettings()
+                if channel_config_path and Path(channel_config_path).exists():
+                    with open(channel_config_path, "r", encoding="utf-8") as _f:
+                        _raw = _yaml.safe_load(_f) or {}
+                    slack_cfg_dict = _raw.get("slack", {})
+                    slack_settings = SlackSettings(**slack_cfg_dict)
+                init_channel_service(slack_settings)
+                logger.info("Channel service initialized")
+            except Exception:
+                logger.exception("Failed to initialize channel service")
+
             try:
                 import yaml as _yaml
 
