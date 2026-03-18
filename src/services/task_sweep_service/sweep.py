@@ -10,11 +10,15 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Callable
 
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from src.services.stm_service.service import STMService
+
+if TYPE_CHECKING:
+    from src.services.channel_service.slack_service import SlackService
 
 # Statuses that are considered "active" and therefore eligible for expiry.
 _EXPIRABLE_STATUSES = frozenset({"pending", "running"})
@@ -46,9 +50,15 @@ class BackgroundSweepService:
         await sweep_svc.stop()
     """
 
-    def __init__(self, stm_service: STMService, config: SweepConfig) -> None:
+    def __init__(
+        self,
+        stm_service: STMService,
+        config: SweepConfig,
+        slack_service_fn: Callable[[], "SlackService | None"] | None = None,
+    ) -> None:
         self._stm = stm_service
         self.config = config
+        self._slack_service_fn = slack_service_fn
         self._task: asyncio.Task | None = None  # type: ignore[type-arg]
 
     # ------------------------------------------------------------------
@@ -168,3 +178,18 @@ class BackgroundSweepService:
                     logger.exception(
                         f"BackgroundSweepService: failed to update metadata for session {session_id}"
                     )
+                # Slack 알림: reply_channel이 있는 외부 채널 세션만
+                if self._slack_service_fn:
+                    reply_channel = metadata.get("reply_channel")
+                    if reply_channel and reply_channel.get("provider") == "slack":
+                        slack = self._slack_service_fn()
+                        if slack:
+                            try:
+                                await slack.send_message(
+                                    reply_channel["channel_id"],
+                                    "태스크가 시간 초과됐어. 다시 시도해줘",
+                                )
+                            except Exception:
+                                logger.exception(
+                                    "Failed to send sweep timeout Slack notification"
+                                )

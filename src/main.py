@@ -170,10 +170,14 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                     sweep_cfg_dict = _raw.get("sweep_config", {})
                 sweep_cfg = SweepConfig(**sweep_cfg_dict)
 
+                from src.services.channel_service import get_slack_service
+
                 stm_svc = get_stm_service()
                 if stm_svc is not None:
                     sweep_service = BackgroundSweepService(
-                        stm_service=stm_svc, config=sweep_cfg
+                        stm_service=stm_svc,
+                        config=sweep_cfg,
+                        slack_service_fn=get_slack_service,
                     )
                     await sweep_service.start()
                     logger.info(
