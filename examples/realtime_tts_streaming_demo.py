@@ -158,13 +158,9 @@ class RealtimeTTSDemo:
                     print(f"  📄 Loaded file: {img}")
 
             if url:
-                prepared.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": url,
-                        "detail": "auto"
-                    }
-                })
+                prepared.append(
+                    {"type": "image_url", "image_url": {"url": url, "detail": "auto"}}
+                )
         return prepared
 
     async def send_json(self, websocket: Any, payload: dict):
@@ -301,7 +297,11 @@ class RealtimeTTSDemo:
 
                         # Save the chunk info
                         tts_chunks_received.append(
-                            {"sequence": sequence, "text": chunk_text, "emotion": emotion}
+                            {
+                                "sequence": sequence,
+                                "text": chunk_text,
+                                "emotion": emotion,
+                            }
                         )
 
                         if audio_base64:
@@ -311,7 +311,9 @@ class RealtimeTTSDemo:
                             size_kb = len(audio_bytes) / 1024
                             print(f"💾 Saved: {filepath.name} ({size_kb:.1f} KB)")
                         else:
-                            print("⚠️ No audio data in chunk (tts_enabled=false or failed)")
+                            print(
+                                "⚠️ No audio data in chunk (tts_enabled=false or failed)"
+                            )
 
                         print("─" * 70 + "\n")
                         continue
@@ -425,8 +427,8 @@ Example usage:
     )
     parser.add_argument(
         "--reference-id",
-        default="ナツメ",
-        help="Reference voice ID for TTS (default: ナツメ)",
+        default="七海",
+        help="Reference voice ID for TTS (default: 七海)",
     )
     parser.add_argument(
         "--persona-id",

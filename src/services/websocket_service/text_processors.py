@@ -26,13 +26,36 @@ _DEFAULT_RULES: List[dict] = [
     {"pattern": r"\s{2,}", "replacement": " "},
 ]
 
+_DEFAULT_RULES_PATH = Path(__file__).resolve().parents[3] / "yaml_files" / "tts_rules.yml"
+_DEFAULT_MIN_CHUNK_LENGTH = 50
+
+
+def _load_min_chunk_length(path: Path) -> int:
+    if not path.exists():
+        return _DEFAULT_MIN_CHUNK_LENGTH
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if isinstance(data, dict):
+            return int(data.get("min_chunk_length", _DEFAULT_MIN_CHUNK_LENGTH))
+    except (yaml.YAMLError, OSError, ValueError) as exc:
+        logger.warning(f"Failed to load min_chunk_length from {path}: {exc}")
+    return _DEFAULT_MIN_CHUNK_LENGTH
+
 
 class TextChunkProcessor:
     """Wrapper exposing the agent chunker with a generator-style API."""
 
-    def __init__(self, min_chunk_length: int = 0) -> None:
-        # Use min_chunk_length=0 to disable sentence merging for immediate processing
-        self._delegate = AgentTextChunkProcessor(min_chunk_length=min_chunk_length)
+    def __init__(
+        self,
+        min_chunk_length: int | None = None,
+        rules_path: Optional[Path | str] = None,
+    ) -> None:
+        path = Path(rules_path) if rules_path else _DEFAULT_RULES_PATH
+        resolved_length = (
+            min_chunk_length if min_chunk_length is not None else _load_min_chunk_length(path)
+        )
+        self._delegate = AgentTextChunkProcessor(min_chunk_length=resolved_length)
 
     def process(self, token: str) -> Iterator[str]:
         """Yield completed sentences after ingesting a token fragment."""
@@ -134,7 +157,7 @@ class TTSTextProcessor:
 def build_sentence_pipeline(tokens: Iterable[str]) -> List[ProcessedText]:
     """Utility to run the combined pipeline on an iterable of token chunks."""
 
-    chunker = TextChunkProcessor()
+    chunker = TextChunkProcessor(min_chunk_length=0)
     cleaner = TTSTextProcessor()
     results: List[ProcessedText] = []
 

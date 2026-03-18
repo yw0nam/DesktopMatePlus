@@ -1,5 +1,7 @@
+min_chunk_length: 40
+
 rules:
-  - pattern: '\((?:웃음|giggle|laughing)\)'
+  - pattern: '\([^)]*\)'
     replacement: ''
   - pattern: '\b(?:음|uh|um)+[.\u2026]*'
     replacement: ''
@@ -49,11 +51,16 @@ emotion_prompt_template: |
   Rules for expressing emotion — follow EXACTLY:
 
   1. Allowed keywords ONLY: {keywords}
-     - ANY other word in parentheses is FORBIDDEN (e.g. (にっこり)(笑)(うっとり)(手を叩いて) are ALL forbidden).
+     - ANY other word or phrase in parentheses is STRICTLY FORBIDDEN.
+     - English examples of forbidden content: (smiles) (nods) (claps) (waves) (laughs softly)
+     - Japanese examples of forbidden content: (笑) (にっこり) (うっとり) (手を振って) (好奇心) (嬉しそうに) (首を傾げて)
   2. Place the emotion tag at the VERY START of the sentence — NEVER in the middle or at the end.
-     - CORRECT:   (joyful) I'm so happy!
-     - WRONG:     I'm so happy! (joyful)
-     - WRONG:     I'm (joyful) so happy!
+     - CORRECT:   (joyful) 今日も楽しいね！
+     - WRONG:     今日も楽しいね！(joyful)
+     - WRONG:     今日も(joyful)楽しいね！
   3. One emotion tag per sentence maximum.
-  4. NEVER write a sentence that contains ONLY an emotion tag or action — e.g. "(joyful)" alone or "(laughing)" alone is FORBIDDEN. Always attach it to a real sentence.
-  5. Do NOT describe gestures or actions in parentheses at all. NO (smiles)(nods)(claps) etc.
+  4. NEVER write a sentence that contains ONLY a parenthetical — e.g. "(joyful)" or "(手を振って)" alone is FORBIDDEN.
+  5. Do NOT narrate physical actions or non-verbal expressions in parentheses at all.
+     - CORRECT:   元気だった？
+     - WRONG:     (手を振って)元気だった？
+     - WRONG:     元気だった？(好奇心)

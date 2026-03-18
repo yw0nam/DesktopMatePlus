@@ -42,23 +42,20 @@ async def processor():
 async def test_stream_tokens_emit_tts_chunks_before_stream_end(
     processor: MessageProcessor,
 ):
+    # Each sentence is long enough (>= min_chunk_length=50) to be emitted individually
+    long_sentence_1 = "Hello world, this is indeed a long enough sentence to emit."
+    long_sentence_2 = "How are you doing today on this fine and wonderful afternoon?"
+    long_sentence_3 = "Everything is going well, and I am quite satisfied with the results."
+
     async def agent_stream():
         yield {"type": "stream_start"}
         await asyncio.sleep(0)
-        yield {"type": "stream_token", "chunk": "Hello world! "}
+        yield {"type": "stream_token", "chunk": long_sentence_1 + " "}
         await asyncio.sleep(0)
-        yield {"type": "stream_token", "chunk": "How are you"}
+        yield {"type": "stream_token", "chunk": long_sentence_2 + " "}
         await asyncio.sleep(0)
-        yield {"type": "stream_token", "chunk": " doing today? This is fine."}
+        yield {"type": "stream_token", "chunk": long_sentence_3}
         yield {"type": "stream_end"}
-
-    chunks_by_seq: dict[int, TtsChunkMessage] = {}
-
-    def make_chunk_for_text(text, **kwargs):
-        seq = len(chunks_by_seq)
-        chunk = _make_chunk(text, seq=seq)
-        chunks_by_seq[seq] = chunk
-        return chunk
 
     with patch(
         "src.services.websocket_service.message_processor.event_handlers.synthesize_chunk",
@@ -81,9 +78,9 @@ async def test_stream_tokens_emit_tts_chunks_before_stream_end(
     assert len(tts_events) == 3
 
     assert [e["text"] for e in tts_events] == [
-        "Hello world!",
-        "How are you doing today?",
-        "This is fine.",
+        long_sentence_1,
+        long_sentence_2,
+        long_sentence_3,
     ]
     assert all("emotion" in e for e in tts_events)
 

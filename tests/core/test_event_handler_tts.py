@@ -155,8 +155,11 @@ async def test_tts_task_registered_in_both_lists():
         "src.services.websocket_service.message_processor.event_handlers.synthesize_chunk",
         new=AsyncMock(return_value=fake_chunk),
     ):
-        # "Hello world." ends with a sentence terminator so the chunker yields it
-        await handler._process_token_event(turn_id, {"chunk": "Hello world."})
+        # Long enough sentence (>= min_chunk_length) so the chunker yields it immediately
+        await handler._process_token_event(
+            turn_id,
+            {"chunk": "Hello world, this is a long enough sentence to pass the minimum threshold."},
+        )
         # Let the asyncio task actually run
         await asyncio.gather(*turn.tts_tasks)
 
