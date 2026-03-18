@@ -16,6 +16,7 @@ Updated: 2025-12-10
 ```
 
 **Example:**
+
 ```text
 11:29:24.548 | INFO     | handlers:551 | [req_x9z1] - Sent turn_end event to connection 4074d
 11:33:01.364 | INFO     | websocket:64 | [req_x9z1] - ⚡ WebSocket disconnected: 4074d
@@ -49,12 +50,14 @@ context_logger.info("Processing chat message")
 ### API Logging Patterns
 
 **HTTP Entry/Exit:**
+
 ```python
 logger.info(f"➡️ POST /api/chat/start")
 logger.info(f"⬅️ POST /api/chat/start (200 OK) - 150ms")
 ```
 
 **WebSocket Events:**
+
 ```python
 logger.info(f"🔌 WebSocket connected: {connection_id}")
 logger.info(f"⚡ WebSocket disconnected: {connection_id}")
@@ -160,6 +163,7 @@ grep "ERROR" logs/app_*.log
 ### A. Service-Specific Patterns
 
 **Agent Service:**
+
 ```python
 logger.info(f"Agent initialized: {agent_type}")
 logger.info(f"Processing message for session {session_id}")
@@ -169,6 +173,7 @@ logger.info(f"Message processing completed. Chunks: {chunk_count}")
 ```
 
 **STM/LTM Service:**
+
 ```python
 logger.info(f"Adding memory: user={user_id}, type={mem_type}")
 logger.info(f"Searching memories: query='{query}', limit={limit}")
@@ -177,6 +182,7 @@ logger.debug(f"Memory content: {memory_data}")
 ```
 
 **TTS Service:**
+
 ```python
 logger.info(f"TTS synthesis started: text_length={len(text)}")
 logger.debug(f"Streaming audio chunk: {chunk_size} bytes")
@@ -184,6 +190,7 @@ logger.info(f"TTS completed: duration={audio_duration}s")
 ```
 
 **VLM Service:**
+
 ```python
 logger.info(f"VLM analysis started: image_size={image.size}")
 logger.info(f"Detected {len(objects)} objects")
@@ -193,6 +200,7 @@ logger.debug(f"Detection details: {objects}")
 ### B. Best Practices
 
 **✅ DO:**
+
 - Use Request ID for all logs within request context
 - Log API entry/exit points with clear markers
 - Include context (session_id, user_id, connection_id)
@@ -200,6 +208,7 @@ logger.debug(f"Detection details: {objects}")
 - Log errors with exception details
 
 **❌ DON'T:**
+
 - Log sensitive data (passwords, tokens, personal info)
 - Use JSON format for human-readable files
 - Include full file paths in logs
@@ -208,12 +217,14 @@ logger.debug(f"Detection details: {objects}")
 - Leave DEBUG logs in production code
 
 **Good Example:**
+
 ```python
 logger.info(f"Chat session started: session_id={session_id}, user_id={user_id}")
 logger.info(f"Processing turn {turn_number} for connection {conn_id}")
 ```
 
 **Bad Example:**
+
 ```python
 logger.info("starting the chat processing now...")
 logger.info(f"Full message object: {entire_message_dump}")
@@ -232,6 +243,7 @@ LOG_DIR = os.getenv("LOG_DIR", "logs")
 ### D. File Rotation Details
 
 **Naming Convention:**
+
 ```
 logs/
 ├── app_2025-12-10.log
@@ -240,6 +252,7 @@ logs/
 ```
 
 **Retention Policy:**
+
 - Development: 7 days
 - Production: 30 days
 - Automatic cleanup after retention period

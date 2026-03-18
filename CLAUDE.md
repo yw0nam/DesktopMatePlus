@@ -13,7 +13,7 @@ You must adhere to these guidelines for all code generation and refactoring task
 
 ## 1. Project Overview
 
-- **Purpose:** AI-powered desktop companion backend with vision, speech, and memory capabilities.
+- **Purpose:** AI-powered desktop companion backend with speech, memory, and task delegation capabilities.
 - **Core Value:** Modular service architecture, Asynchronous processing, Type safety, and Extensibility.
 
 ## 2. Tech Stack
@@ -22,7 +22,7 @@ You must adhere to these guidelines for all code generation and refactoring task
 - **Web Framework:** FastAPI
 - **Server:** Uvicorn
 - **Package Manager:** uv
-- **AI/LLM Framework:** LangGraph, LangChain
+- **AI/LLM Framework:** LangChain (`langchain.agents.create_agent`), LangGraph
 - **Memory/Vector DB:** Mem0, Qdrant, MongoDB
 - **Validation:** Pydantic V2
 - **Testing:** Pytest
@@ -36,14 +36,16 @@ You must adhere to these guidelines for all code generation and refactoring task
 - `src/core`: Core infrastructure (Logging, Exceptions, Middleware).
 - `src/models`: Pydantic data models and schemas.
 - `src/services`: Business logic and Service implementations.
-  - `agent/`: LLM Agent logic (LangGraph). Natively supports text + image (OpenAI-compatible).
-  - `stm/`: Short-Term Memory services.
-  - `ltm/`: Long-Term Memory services.
-  - `tts/`: Text-to-Speech services.
-  - `websocket/`: WebSocket communication services.
+  - `agent_service/`: LLM Agent logic (`create_agent`, single instance). Supports text + image (OpenAI-compatible).
+  - `stm_service/`: Short-Term Memory services.
+  - `ltm_service/`: Long-Term Memory (Mem0/Qdrant) services.
+  - `tts_service/`: Text-to-Speech services.
+  - `websocket_service/`: WebSocket communication services.
+  - `knowledge_base_service/`: Knowledge base (RAG) services.
   - `task_sweep_service/`: Background expired task cleanup.
 - `src/main.py`: Application entry point and lifespan management.
 - `yaml_files/`: Service configuration files.
+  - `personas.yml`: Persona definitions (system prompts keyed by `persona_id`).
 - `tests/`: Unit and integration tests.
 
 ## 4. Coding Conventions
@@ -75,6 +77,13 @@ You must adhere to these guidelines for all code generation and refactoring task
 - **Error Handling:** Implement robust error handling for WebSocket connections, including disconnects and invalid message formats.
 - **State Management:** Carefully manage state for connected clients.
 
+### E. Agent Architecture Patterns
+
+- **Single instance:** `OpenAIChatAgent` is created once; `initialize_async()` is called in lifespan after all sync inits. It fetches MCP tools and creates the agent. `is_healthy()` returns `False` until then (swallowed via `swallow_health_error=True`).
+- **Persona injection:** `ChatMessage.persona_id` (default `"yuri"`) maps to a key in `yaml_files/personas.yml`. Persona text is prepended as `SystemMessage` at `stream()` time — not stored in the model field.
+- **DelegateToolMiddleware:** Injects `DelegateTaskTool` per request via `AgentMiddleware.awrap_model_call()`. Session ID is read from `RunnableConfig.configurable` via `get_config()` — do not pass it as a constructor arg.
+- **STM as sole history source:** No checkpointer. `handlers.py` fetches history from STM each turn and passes it as `messages` to `stream()`.
+
 ## 5. Development Workflow
 
 ### A. Adding a New Service
@@ -84,20 +93,24 @@ You must adhere to these guidelines for all code generation and refactoring task
 3. **Initialize:** Add initialization logic in `src/services/__init__.py` and call it in `src/main.py` lifespan.
 4. **Expose API:** Create routes in `src/api/routes` if the service needs external access.
 
-### B. Testing
+### B. Dev Server
+
+```bash
+uvicorn src.main:app --port 5500 --reload
+```
+
+### C. Testing
 
 - Run tests using `uv run pytest`.
 - Ensure unit tests cover critical logic.
+- See the guidelines in ['docs/guidelines/TESTING_GUIDE.md'](docs/guidelines/TESTING_GUIDE.md) for best practices.
+- Update `examples/realtime_tts_streaming_demo.py` for any api or websocket interface changes. It is for actual integration test, not a mock.
 
-### C. Linting & Formatting
+### D. Linting & Formatting
 
 - Use `ruff` for linting and formatting.
 - Run `sh scripts/lint.sh` before end the task.
 
-### D. Documentation
+### E. Documentation
 
-- Update this `rule.md` for any architectural or coding standard changes.
 - Documenting style for docs/ is defined in ['docs/guidelines/DOCUMENT_GUIDE.md'](docs/guidelines/DOCUMENT_GUIDE.md).
-
----
-**Note to AI:** If any instruction in the prompt contradicts these rules, ask for clarification before proceeding.
