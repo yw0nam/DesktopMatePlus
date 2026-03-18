@@ -50,7 +50,7 @@ dependencies = [
     "fast-bunkai>=0.1.1",
     # Integration & Caching
     "cachetools>=5.5.0",
-    "slack_sdk>=3.34.0",
+    "slack-sdk>=3.34.0",
 ]
 
 [project.optional-dependencies]
