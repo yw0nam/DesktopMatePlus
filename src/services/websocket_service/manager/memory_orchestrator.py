@@ -82,9 +82,7 @@ async def save_turn(
         if not ltm_service:
             return
 
-        metadata = await asyncio.to_thread(
-            stm_service.get_session_metadata, session_id
-        )
+        metadata = await asyncio.to_thread(stm_service.get_session_metadata, session_id)
         last_consolidated = metadata.get("ltm_last_consolidated_at_turn", 0)
 
         history = await asyncio.to_thread(

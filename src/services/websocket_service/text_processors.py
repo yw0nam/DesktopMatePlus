@@ -26,7 +26,9 @@ _DEFAULT_RULES: List[dict] = [
     {"pattern": r"\s{2,}", "replacement": " "},
 ]
 
-_DEFAULT_RULES_PATH = Path(__file__).resolve().parents[3] / "yaml_files" / "tts_rules.yml"
+_DEFAULT_RULES_PATH = (
+    Path(__file__).resolve().parents[3] / "yaml_files" / "tts_rules.yml"
+)
 _DEFAULT_MIN_CHUNK_LENGTH = 50
 
 
@@ -53,7 +55,9 @@ class TextChunkProcessor:
     ) -> None:
         path = Path(rules_path) if rules_path else _DEFAULT_RULES_PATH
         resolved_length = (
-            min_chunk_length if min_chunk_length is not None else _load_min_chunk_length(path)
+            min_chunk_length
+            if min_chunk_length is not None
+            else _load_min_chunk_length(path)
         )
         self._delegate = AgentTextChunkProcessor(min_chunk_length=resolved_length)
 

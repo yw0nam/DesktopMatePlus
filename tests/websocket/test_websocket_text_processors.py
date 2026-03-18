@@ -44,7 +44,11 @@ class TestTextChunkProcessor:
     def test_min_chunk_length_merges_short_sentences(self):
         processor = TextChunkProcessor(min_chunk_length=30)
         # Each sentence is short; they should be merged until threshold is met
-        tokens = ["Hi! ", "How are you? ", "I am doing great today and feeling wonderful!"]
+        tokens = [
+            "Hi! ",
+            "How are you? ",
+            "I am doing great today and feeling wonderful!",
+        ]
 
         sentences: List[str] = []
         for token in tokens:
@@ -55,7 +59,9 @@ class TestTextChunkProcessor:
 
         # Short sentences ("Hi!" and "How are you?") should be merged together
         # before the long sentence triggers output
-        assert all(len(s) >= 30 or i == len(sentences) - 1 for i, s in enumerate(sentences))
+        assert all(
+            len(s) >= 30 or i == len(sentences) - 1 for i, s in enumerate(sentences)
+        )
 
     def test_min_chunk_length_loaded_from_yaml(self, tmp_path):
         rules_file = tmp_path / "rules.yml"

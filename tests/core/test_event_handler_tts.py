@@ -158,7 +158,9 @@ async def test_tts_task_registered_in_both_lists():
         # Long enough sentence (>= min_chunk_length) so the chunker yields it immediately
         await handler._process_token_event(
             turn_id,
-            {"chunk": "Hello world, this is a long enough sentence to pass the minimum threshold."},
+            {
+                "chunk": "Hello world, this is a long enough sentence to pass the minimum threshold."
+            },
         )
         # Let the asyncio task actually run
         await asyncio.gather(*turn.tts_tasks)
