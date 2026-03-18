@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ModuleStatus(BaseModel):
     """Status of an individual module."""
 
-    name: str = Field(..., description="Module name (VLM, TTS, or Agent)")
+    name: str = Field(..., description="Module name (TTS, or Agent)")
     ready: bool = Field(..., description="Whether the module is ready")
     error: Optional[str] = Field(
         None, description="Error message if module is not ready"
@@ -31,7 +31,6 @@ class HealthResponse(BaseModel):
                 "status": "healthy",
                 "timestamp": "2025-10-16T12:00:00",
                 "modules": [
-                    {"name": "VLM", "ready": True, "error": None},
                     {"name": "TTS", "ready": True, "error": None},
                     {"name": "Agent", "ready": True, "error": None},
                     {"name": "LTM", "ready": True, "error": None},

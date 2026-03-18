@@ -38,16 +38,18 @@ class RealtimeTTSDemo:
 
     def __init__(
         self,
-        websocket_url: str = "ws://localhost:8000/v1/chat/stream",
+        websocket_url: str = "ws://localhost:5500/v1/chat/stream",
         output_dir: str = "./tts_output",
         token: str = "demo-token",
         reference_id: str = "ナツメ",
+        persona_id: str = "yuri",
         images: list[str] | None = None,
     ):
         self.websocket_url = websocket_url
         self.output_dir = Path(output_dir)
         self.token = token
         self.reference_id = reference_id
+        self.persona_id = persona_id
         self.images = images or []
         self.chunk_count = 0
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -56,6 +58,7 @@ class RealtimeTTSDemo:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         print(f"📁 Output directory: {self.output_dir.absolute()}")
         print(f"🎙️  Reference voice: {self.reference_id}")
+        print(f"🎭  Persona: {self.persona_id}")
         if self.images:
             print(f"🖼️  Images to include: {len(self.images)}")
 
@@ -253,6 +256,7 @@ class RealtimeTTSDemo:
                             "session_id": "c157b220-47c0-4c48-a878-382ba6448cd6",
                             "agent_id": "yuri",
                             "user_id": "nanami",
+                            "persona_id": self.persona_id,
                             "tts_enabled": True,
                             "reference_id": self.reference_id,
                         }
@@ -424,6 +428,11 @@ Example usage:
         default="ナツメ",
         help="Reference voice ID for TTS (default: ナツメ)",
     )
+    parser.add_argument(
+        "--persona-id",
+        default="yuri",
+        help="Persona ID — must match a key in yaml_files/personas.yml (default: yuri)",
+    )
     return parser.parse_args()
 
 
@@ -435,6 +444,7 @@ async def main():
         output_dir=args.output,
         token=args.token,
         reference_id=args.reference_id,
+        persona_id=args.persona_id,
         images=args.images,
     )
 

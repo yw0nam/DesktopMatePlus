@@ -58,16 +58,6 @@ def test_database_clients():
     print("✓ Database clients imported successfully")
 
 
-def test_screen_capture():
-    """Test screen capture libraries."""
-    import mss
-    from PIL import Image
-
-    assert mss is not None
-    assert Image is not None
-    print("✓ Screen capture libraries imported successfully")
-
-
 def test_http_clients():
     """Test HTTP client libraries."""
     import aiohttp
@@ -112,7 +102,6 @@ def test_all_imports():
     test_langgraph_stack()
     test_memory_management()
     test_database_clients()
-    test_screen_capture()
     test_http_clients()
     test_utilities()
 

@@ -183,8 +183,6 @@ class Mem0LTM(LTMService[Memory]):
             #                         item["text"] = prefix + item["text"]
             #                     break  # Only prefix the first text item
 
-            # TODO: Make description using vlm service?
-            # But, in that case, latency can be a concern..
             if (
                 not self.memory_config.llm.config.enable_vision
             ):  # If vision is not enabled, remove image_url items from messages
