@@ -53,8 +53,10 @@ async def _run_process_message_directly(
     """process_message를 직접 실행하여 send_message 호출 여부를 검증한다."""
     from src.services.channel_service import process_message
 
-    with patch(
-        "src.services.channel_service.get_slack_service", return_value=mock_slack_svc
+    with (
+        patch("src.services.channel_service.get_slack_service", return_value=mock_slack_svc),
+        patch("src.services.channel_service.load_context", new=AsyncMock(return_value=[])),
+        patch("src.services.channel_service.save_turn", new=AsyncMock()),
     ):
         await process_message(
             text=text,
