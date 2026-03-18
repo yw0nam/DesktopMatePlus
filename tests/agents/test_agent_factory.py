@@ -54,20 +54,6 @@ class TestAgentFactory:
         assert agent_service.temperature == 0.7
         assert agent_service.top_p == 0.9
 
-    def test_factory_passes_stm_service_to_agent(self):
-        """stm_service kwarg reaches OpenAIChatAgent without OpenAIChatAgentConfig rejecting it."""
-        mock_stm = Mock()
-        configs = OpenAIChatAgentConfig(
-            openai_api_key="test_key",
-            openai_api_base="http://localhost:5580/v1",
-            model_name="test_model",
-            mcp_config={},
-        )
-        agent_service = AgentFactory.get_agent_service(
-            "openai_chat_agent", stm_service=mock_stm, **configs.model_dump()
-        )
-        assert agent_service.stm_service is mock_stm
-
 
 class TestOpenAIChatAgent:
     """Test OpenAI Chat Agent service."""
@@ -156,15 +142,10 @@ class TestOpenAIChatAgent:
 
         messages = [HumanMessage(content="Hello")]
         results = []
-        mock_stm = Mock()
-        mock_ltm = Mock()
-
         async for result in agent_service.stream(
             messages=messages,
             session_id="test_session",
             persona_id="yuri",
-            stm_service=mock_stm,
-            ltm_service=mock_ltm,
         ):
             results.append(result)
 
