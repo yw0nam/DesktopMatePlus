@@ -1,4 +1,4 @@
-"""Tests for LTM consolidation in AgentService.save_memory.
+"""Tests for LTM consolidation in memory_orchestrator.save_turn.
 
 Verifies:
 - Turn counter is computed as count of HumanMessage only (user turns)
@@ -14,25 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from src.services.agent_service.service import AgentService
-
-
-class ConcreteAgentService(AgentService):
-    """Minimal concrete subclass for testing AgentService.save_memory."""
-
-    def initialize_model(self):
-        return MagicMock(), MagicMock()
-
-    async def is_healthy(self):
-        return True, "ok"
-
-    async def stream(self, *args, **kwargs):
-        yield {"type": "stream_end"}
-
-
-@pytest.fixture
-def agent():
-    return ConcreteAgentService()
+from src.services.websocket_service.manager.memory_orchestrator import save_turn
 
 
 def _make_stm(history: list, metadata: dict | None = None):
@@ -57,7 +39,7 @@ def _make_ltm():
 
 
 @pytest.mark.asyncio
-async def test_turn_counter_counts_human_messages_only(agent):
+async def test_turn_counter_counts_human_messages_only():
     """Turn counter = number of HumanMessages in history."""
     # 8 HumanMessages → current_turn = 8
     history = [HumanMessage(content=f"msg {i}") for i in range(8)]
@@ -65,7 +47,7 @@ async def test_turn_counter_counts_human_messages_only(agent):
     ltm = _make_ltm()
 
     # 8 turns < 10 (INTERVAL), so LTM should NOT be called
-    await agent.save_memory(
+    await save_turn(
         new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
@@ -78,14 +60,14 @@ async def test_turn_counter_counts_human_messages_only(agent):
 
 
 @pytest.mark.asyncio
-async def test_turn_counter_exact_human_count(agent):
+async def test_turn_counter_exact_human_count():
     """Turn counter counts all 9 HumanMessages exactly, below threshold."""
     history = [HumanMessage(content=f"msg {i}") for i in range(9)]
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -102,7 +84,7 @@ async def test_turn_counter_exact_human_count(agent):
 
 
 @pytest.mark.asyncio
-async def test_consolidation_triggers_at_interval(agent):
+async def test_consolidation_triggers_at_interval():
     """LTM consolidation fires when current_turn - last_consolidated >= 10."""
     # 20 messages = 10 pairs, last consolidated at 0 → gap = 10 >= 10
     history = []
@@ -113,8 +95,8 @@ async def test_consolidation_triggers_at_interval(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -126,7 +108,7 @@ async def test_consolidation_triggers_at_interval(agent):
 
 
 @pytest.mark.asyncio
-async def test_consolidation_not_triggered_below_interval(agent):
+async def test_consolidation_not_triggered_below_interval():
     """LTM consolidation is NOT triggered when gap < 10 turns."""
     # 18 messages = 9 pairs, last_consolidated = 0 → gap = 9 < 10
     history = []
@@ -137,8 +119,8 @@ async def test_consolidation_not_triggered_below_interval(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -150,7 +132,7 @@ async def test_consolidation_not_triggered_below_interval(agent):
 
 
 @pytest.mark.asyncio
-async def test_consolidation_uses_last_consolidated_offset(agent):
+async def test_consolidation_uses_last_consolidated_offset():
     """Gap is measured from last_consolidated, not from zero."""
     # 12 pairs total, last consolidated at 3 → gap = 9 < 10, no trigger
     history = []
@@ -161,8 +143,8 @@ async def test_consolidation_uses_last_consolidated_offset(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 3})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -174,7 +156,7 @@ async def test_consolidation_uses_last_consolidated_offset(agent):
 
 
 @pytest.mark.asyncio
-async def test_consolidation_triggers_with_correct_offset(agent):
+async def test_consolidation_triggers_with_correct_offset():
     """Consolidation fires when gap exactly reaches threshold from offset."""
     # 13 pairs, last_consolidated = 3 → gap = 10 >= 10, should trigger
     history = []
@@ -185,8 +167,8 @@ async def test_consolidation_triggers_with_correct_offset(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 3})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -203,7 +185,7 @@ async def test_consolidation_triggers_with_correct_offset(agent):
 
 
 @pytest.mark.asyncio
-async def test_consolidation_passes_correct_history_slice(agent):
+async def test_consolidation_passes_correct_history_slice():
     """LTM receives history starting from the last_consolidated-th HumanMessage.
 
     With last_consolidated=0 and a pure H/A history, the slice starts at index 0
@@ -220,8 +202,8 @@ async def test_consolidation_passes_correct_history_slice(agent):
     )
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -236,7 +218,7 @@ async def test_consolidation_passes_correct_history_slice(agent):
 
 
 @pytest.mark.asyncio
-async def test_consolidation_slice_starts_from_offset(agent):
+async def test_consolidation_slice_starts_from_offset():
     """When last_consolidated > 0, slice starts at the last_consolidated-th HumanMessage.
 
     With last_consolidated=3 and a pure H/A history, the 3rd HumanMessage (0-indexed)
@@ -253,8 +235,8 @@ async def test_consolidation_slice_starts_from_offset(agent):
     )
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -270,7 +252,7 @@ async def test_consolidation_slice_starts_from_offset(agent):
 
 
 @pytest.mark.asyncio
-async def test_session_metadata_updated_after_consolidation(agent):
+async def test_session_metadata_updated_after_consolidation():
     """After LTM consolidation, session metadata is updated with current_turn."""
     history = []
     for i in range(10):
@@ -280,8 +262,8 @@ async def test_session_metadata_updated_after_consolidation(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -303,7 +285,7 @@ async def test_session_metadata_updated_after_consolidation(agent):
 
 
 @pytest.mark.asyncio
-async def test_synthetic_messages_included_in_consolidation(agent):
+async def test_synthetic_messages_included_in_consolidation():
     """Synthetic SystemMessages in history are visible to LTM consolidation.
 
     NanoClaw callback injects SystemMessages into STM.  Those messages are
@@ -325,8 +307,8 @@ async def test_synthetic_messages_included_in_consolidation(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -348,7 +330,7 @@ async def test_synthetic_messages_included_in_consolidation(agent):
 
 
 @pytest.mark.asyncio
-async def test_synthetic_only_session_does_not_miscount(agent):
+async def test_synthetic_only_session_does_not_miscount():
     """Pure synthetic messages do not create user turns.
 
     If a session has only synthetic SystemMessages (no HumanMessages),
@@ -361,8 +343,8 @@ async def test_synthetic_only_session_does_not_miscount(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -379,7 +361,7 @@ async def test_synthetic_only_session_does_not_miscount(agent):
 
 
 @pytest.mark.asyncio
-async def test_synthetic_messages_do_not_inflate_turn_counter(agent):
+async def test_synthetic_messages_do_not_inflate_turn_counter():
     """Synthetic (non-HumanMessage) messages must NOT count as turns.
 
     5 H/A pairs + 10 SystemMessages = 20 total messages.
@@ -396,8 +378,8 @@ async def test_synthetic_messages_do_not_inflate_turn_counter(agent):
     stm = _make_stm(history, metadata={"ltm_last_consolidated_at_turn": 0})
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -409,7 +391,7 @@ async def test_synthetic_messages_do_not_inflate_turn_counter(agent):
 
 
 @pytest.mark.asyncio
-async def test_slice_excludes_pre_boundary_synthetic_messages(agent):
+async def test_slice_excludes_pre_boundary_synthetic_messages():
     """Slice must start at the last_consolidated-th HumanMessage, not last_consolidated*2.
 
     Layout: 3 H/A pairs + 5 SystemMessages + 10 H/A pairs, last_consolidated=3.
@@ -436,8 +418,8 @@ async def test_slice_excludes_pre_boundary_synthetic_messages(agent):
     )
     ltm = _make_ltm()
 
-    await agent.save_memory(
-        new_chats=[],
+    await save_turn(
+        new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=ltm,
         user_id="u1",
@@ -462,8 +444,8 @@ async def test_slice_excludes_pre_boundary_synthetic_messages(agent):
 
 
 @pytest.mark.asyncio
-async def test_no_ltm_service_skips_consolidation(agent):
-    """When ltm_service is None, save_memory runs without error."""
+async def test_no_ltm_service_skips_consolidation():
+    """When ltm_service is None, save_turn runs without error."""
     history = []
     for i in range(10):
         history.append(HumanMessage(content=f"user {i}"))
@@ -472,7 +454,7 @@ async def test_no_ltm_service_skips_consolidation(agent):
     stm = _make_stm(history, metadata={})
 
     # Should not raise
-    await agent.save_memory(
+    await save_turn(
         new_chats=[HumanMessage(content="new")],
         stm_service=stm,
         ltm_service=None,

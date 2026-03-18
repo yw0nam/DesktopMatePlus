@@ -45,7 +45,9 @@ async def test_stream_tokens_emit_tts_chunks_before_stream_end(
     # Each sentence is long enough (>= min_chunk_length=50) to be emitted individually
     long_sentence_1 = "Hello world, this is indeed a long enough sentence to emit."
     long_sentence_2 = "How are you doing today on this fine and wonderful afternoon?"
-    long_sentence_3 = "Everything is going well, and I am quite satisfied with the results."
+    long_sentence_3 = (
+        "Everything is going well, and I am quite satisfied with the results."
+    )
 
     async def agent_stream():
         yield {"type": "stream_start"}
@@ -121,9 +123,12 @@ async def test_error_event_flushes_tokens_before_emitting_error(
     types = [e["type"] for e in events]
     assert types[0] == "stream_start"
     assert types[-1] == "error"
-    assert len(tts_events) == 2
+    # "Partial sentence um... still going" is below min_chunk_length (40), so it stays
+    # buffered and is flushed as one chunk. TTSTextProcessor strips the filler "um..."
+    # leaving a single cleaned chunk.
+    assert len(tts_events) == 1
     chunks = [e["text"] for e in tts_events]
-    assert chunks == ["Partial sentence", "still going"]
+    assert chunks == ["Partial sentence still going"]
     assert events[-1]["error"] == "boom"
 
     turn = await processor.get_turn(turn_id)

@@ -1,8 +1,6 @@
-import asyncio
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from uuid import uuid4
 
 import yaml
@@ -26,8 +24,6 @@ from src.services.agent_service.utils.text_processor import (
     load_emotion_keywords,
     load_emotion_prompt_template,
 )
-from src.services.ltm_service import LTMService
-from src.services.stm_service import STMService
 
 load_dotenv()
 
@@ -62,7 +58,6 @@ class OpenAIChatAgent(AgentService):
         openai_api_key: str = None,
         openai_api_base: str = None,
         model_name: str = None,
-        stm_service: Optional[STMService] = None,
         **kwargs,
     ):
         self.temperature = temperature
@@ -70,7 +65,6 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_key = openai_api_key
         self.openai_api_base = openai_api_base
         self.model_name = model_name
-        self.stm_service = stm_service
         self.agent = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
@@ -109,7 +103,7 @@ class OpenAIChatAgent(AgentService):
         self.agent = create_agent(
             model=self.llm,
             tools=self._mcp_tools,
-            middleware=[DelegateToolMiddleware(stm_service=self.stm_service)],
+            middleware=[DelegateToolMiddleware()],
         )
         logger.info("Agent created successfully")
 
@@ -132,8 +126,6 @@ class OpenAIChatAgent(AgentService):
         persona_id: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
-        stm_service: Optional[STMService] = None,
-        ltm_service: Optional[LTMService] = None,
     ):
         """Stream agent response, yielding typed dicts."""
         logger.debug(f"Starting LLM stream: {len(messages)} messages")
@@ -163,25 +155,13 @@ class OpenAIChatAgent(AgentService):
                 else:
                     new_chats = item["data"]
 
-            if stm_service or ltm_service:
-                asyncio.create_task(
-                    self.save_memory(
-                        new_chats=new_chats,
-                        stm_service=stm_service,
-                        ltm_service=ltm_service,
-                        user_id=user_id,
-                        agent_id=agent_id,
-                        session_id=session_id,
-                    ),
-                    name=f"save-memory-{session_id}",
-                )
-
             content = new_chats[-1].content if new_chats else ""
             yield {
                 "type": "stream_end",
                 "turn_id": turn_id,
                 "session_id": session_id,
                 "content": content,
+                "new_chats": new_chats,
             }
         except Exception as e:
             logger.error(f"Error in stream method: {e}")

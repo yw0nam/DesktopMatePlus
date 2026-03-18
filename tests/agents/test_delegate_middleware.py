@@ -8,29 +8,28 @@ from src.services.agent_service.utils.delegate_middleware import DelegateToolMid
 
 
 class TestDelegateToolMiddleware:
-    def test_instantiation_without_stm(self):
-        mw = DelegateToolMiddleware(stm_service=None)
-        assert mw.stm_service is None
-
-    def test_instantiation_with_stm(self):
-        mock_stm = Mock()
-        mw = DelegateToolMiddleware(stm_service=mock_stm)
-        assert mw.stm_service is mock_stm
+    def test_instantiation(self):
+        mw = DelegateToolMiddleware()
+        assert isinstance(mw, DelegateToolMiddleware)
 
     @pytest.mark.asyncio
     async def test_awrap_model_call_no_stm_passes_through(self):
         """Without stm_service, calls handler directly."""
-        mw = DelegateToolMiddleware(stm_service=None)
+        mw = DelegateToolMiddleware()
         mock_request = Mock()
         mock_handler = AsyncMock(return_value="result")
-        result = await mw.awrap_model_call(mock_request, mock_handler)
+        with patch(
+            "src.services.service_manager.get_stm_service",
+            return_value=None,
+        ):
+            result = await mw.awrap_model_call(mock_request, mock_handler)
         mock_handler.assert_called_once_with(mock_request)
         assert result == "result"
 
     @pytest.mark.asyncio
     async def test_awrap_tool_call_non_delegate_passes_through(self):
         """Non-delegate tool calls pass through unchanged."""
-        mw = DelegateToolMiddleware(stm_service=Mock())
+        mw = DelegateToolMiddleware()
         mock_request = Mock()
         mock_request.tool_call = {"name": "some_other_tool"}
         mock_handler = AsyncMock(return_value="tool_result")
