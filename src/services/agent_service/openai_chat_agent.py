@@ -168,6 +168,42 @@ class OpenAIChatAgent(AgentService):
             traceback.print_exc()
             raise
 
+    async def invoke(
+        self,
+        messages: list[BaseMessage],
+        session_id: str = "",
+        persona_id: str = "",
+        user_id: str = "default_user",
+        agent_id: str = "default_agent",
+    ) -> dict:
+        """Invoke agent and return final result without streaming."""
+        logger.debug(f"Starting LLM invoke: {len(messages)} messages")
+        try:
+            persona_text = self._personas.get(persona_id, "")
+            if persona_text:
+                full_persona = (
+                    persona_text
+                    + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
+                )
+                messages = [SystemMessage(content=full_persona)] + list(messages)
+
+            config = {"configurable": {"session_id": session_id}}
+            input_count = len(messages)
+
+            result = await self.agent.ainvoke({"messages": messages}, config=config)
+
+            all_messages: list[BaseMessage] = result.get("messages", [])
+            new_chats = all_messages[input_count:]
+            content = new_chats[-1].content if new_chats else ""
+
+            logger.info(f"Invoke completed: {len(new_chats)} new messages")
+            return {"content": content, "new_chats": new_chats}
+
+        except Exception as e:
+            logger.error(f"Error in invoke method: {e}")
+            traceback.print_exc()
+            raise
+
     @staticmethod
     def _flush_buffer(node: str, buffer: str) -> dict:
         if node == "tools":

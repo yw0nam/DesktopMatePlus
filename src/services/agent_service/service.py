@@ -45,3 +45,19 @@ class AgentService(ABC):
         stream_end payload includes ``new_chats: list[BaseMessage]`` — the new
         messages generated during this turn — so callers can persist them.
         """
+
+    @abstractmethod
+    async def invoke(
+        self,
+        messages: list[BaseMessage],
+        session_id: str = "",
+        persona_id: str = "",
+        user_id: str = "default_user",
+        agent_id: str = "default_agent",
+    ) -> dict:
+        """Invoke agent and return final result without streaming.
+
+        Returns a dict with:
+          content: str — final AI response text
+          new_chats: list[BaseMessage] — new messages generated this turn
+        """
