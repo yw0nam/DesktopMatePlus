@@ -145,3 +145,14 @@ class STMService(ABC, Generic[MemoryClientType]):
         Returns:
             bool: True if update was successful.
         """
+
+    @abstractmethod
+    def upsert_session(self, session_id: str, user_id: str, agent_id: str) -> bool:
+        """Create session if not exists, update user_id/agent_id if changed.
+
+        Unlike add_chat_history, does not insert any messages.
+        Used by channel handlers to ensure session exists before writing metadata.
+
+        Returns:
+            bool: True if successful.
+        """
