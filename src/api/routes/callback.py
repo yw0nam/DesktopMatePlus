@@ -1,11 +1,14 @@
 """NanoClaw callback API routes."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, status
 from langchain_core.messages import SystemMessage
 from loguru import logger
 
 from src.models.callback import NanoClawCallbackRequest, NanoClawCallbackResponse
-from src.services import get_stm_service
+from src.services import get_agent_service, get_ltm_service, get_stm_service
+from src.services.channel_service import process_message
 
 router = APIRouter(prefix="/v1/callback", tags=["Callback"])
 
@@ -70,6 +73,29 @@ async def nanoclaw_callback(session_id: str, payload: NanoClawCallbackRequest):
         session_id=session_id,
         messages=[synthetic_msg],
     )
+
+    # reply_channel이 있으면 Slack 등 외부 채널 세션 — process_message로 최종 응답
+    reply_channel = metadata.get("reply_channel")
+    if reply_channel:
+        agent_svc = get_agent_service()
+        stm_svc = get_stm_service()
+        ltm_svc = get_ltm_service()
+        asyncio.create_task(
+            process_message(
+                text="",  # STM에 TaskResult가 이미 주입된 상태 — HumanMessage 불필요
+                session_id=session_id,
+                provider=reply_channel["provider"],
+                channel_id=reply_channel["channel_id"],
+                user_id=metadata.get("user_id", "default"),
+                agent_id=metadata.get("agent_id", "yuri"),
+                agent_service=agent_svc,
+                stm=stm_svc,
+                ltm=ltm_svc,
+            )
+        )
+        logger.info(
+            f"Callback routing to {reply_channel['provider']} for session {session_id}"
+        )
 
     logger.info(f"Callback processed: task={task_id} status={payload.status}")
 
