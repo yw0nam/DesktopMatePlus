@@ -20,8 +20,8 @@ class TestSessionLock:
         async with lock:
             pass  # Must not raise
 
-    def test_lock_count_bounded_by_maxsize(self):
-        """maxsize를 초과하면 가장 오래된 항목이 자동 evict된다."""
+    def test_locks_cache_has_bounded_maxsize(self):
+        """_locks 캐시의 maxsize가 양수로 설정되어 있는지 확인한다."""
         from src.services.channel_service.session_lock import _locks
-        original_maxsize = _locks.maxsize
-        assert original_maxsize > 0
+
+        assert _locks.maxsize > 0
