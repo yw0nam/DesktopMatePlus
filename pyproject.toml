@@ -48,6 +48,9 @@ dependencies = [
     "numpy>=2.4.2",
     "scikit-learn>=1.8.0",
     "fast-bunkai>=0.1.1",
+    # Integration & Caching
+    "cachetools>=5.5.0",
+    "slack_sdk>=3.34.0",
 ]
 
 [project.optional-dependencies]
