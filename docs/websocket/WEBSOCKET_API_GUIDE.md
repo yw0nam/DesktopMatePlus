@@ -39,14 +39,11 @@ Updated: 2026-03-03
 | `authorize_error` | Auth failed | [AuthorizeError](./WebSocket_AuthorizeError.md) |
 | `ping` | Heartbeat | [Ping](./WebSocket_Ping.md) |
 | `stream_start` | Response begins | [StreamStart](./WebSocket_StreamStart.md) |
-| `stream_token` | Token chunk | [StreamToken](./WebSocket_StreamToken.md) |
 | `stream_end` | Response complete | [StreamEnd](./WebSocket_StreamEnd.md) |
 | `tts_chunk` | TTS audio + motion | [TtsChunk](./WebSocket_TtsChunk.md) |
-| `tool_call` | Tool invocation | [ToolCall](./WebSocket_ToolCall.md) |
-| `tool_result` | Tool response | [ToolResult](./WebSocket_ToolResult.md) |
 | `error` | Error occurred | [ErrorMessage](./WebSocket_ErrorMessage.md) |
 
-- Note: There is a commented-out section above for background and avatar config messages, which is not using for Unity integration currently.
+- Note: `stream_token`, `tool_call`, and `tool_result` events are **server-internal only** — they are processed for TTS and logging respectively, and are never forwarded to the WebSocket client.
 
 ### Configuration
 
@@ -60,7 +57,7 @@ websocket:
   error_backoff_seconds: 0.5      # Delay after recoverable errors
   inactivity_timeout_seconds: 300 # Idle connection timeout
   disconnect_timeout_seconds: 5.0 # Graceful disconnect timeout
-  tts_barrier_timeout_seconds: 30.0 # Per-chunk inactivity timeout for TTS barrier (rolling)
+  tts_barrier_timeout_seconds: 10.0 # Per-chunk inactivity timeout for TTS barrier (rolling)
 ```
 
 ### Connection Lifecycle

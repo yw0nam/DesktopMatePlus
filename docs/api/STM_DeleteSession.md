@@ -1,6 +1,6 @@
 # STM: Delete Session
 
-Updated: 2025-11-28
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
@@ -33,7 +33,7 @@ Updated: 2025-11-28
 { "success": true, "message": "Session deleted successfully" }
 ```
 
-**Errors**: `404` (not found), `401` (unauthorized), `500` (internal)
+**Errors**: `400` (invalid input), `404` (not found), `503` (STM not initialized), `500` (internal)
 
 ## 3. Usage
 

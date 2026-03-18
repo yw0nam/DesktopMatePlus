@@ -1,6 +1,6 @@
 # STM: List Sessions
 
-Updated: 2025-11-28
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
@@ -38,7 +38,7 @@ Updated: 2025-11-28
 }
 ```
 
-**Errors**: `401` (unauthorized), `500` (internal)
+**Errors**: `400` (invalid input), `503` (STM not initialized), `500` (internal)
 
 ## 3. Usage
 

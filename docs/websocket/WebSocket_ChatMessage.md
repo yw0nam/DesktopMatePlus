@@ -33,7 +33,7 @@ Client → Server
 | `content` | string | Yes | User's input text |
 | `agent_id` | string | Yes | Agent identifier |
 | `user_id` | string | Yes | User identifier |
-| `persona` | string | No | Custom persona/system prompt |
+| `persona_id` | string | No | Persona identifier — matches a key in `yaml_files/personas.yml` (default: `"yuri"`) |
 | `images` | array | No | Images in OpenAI-compatible format (see below) |
 | `limit` | integer | No | STM message limit (default: 10) |
 | `session_id` | string | No | Session ID (new if omitted) |
@@ -44,10 +44,10 @@ Client → Server
 ### Response Flow
 
 1. `stream_start` - Response begins
-2. `stream_token` (multiple) - Text chunks
-3. `tool_call` / `tool_result` - If tools used
-4. `tts_chunk` (multiple) - TTS audio + motion per sentence (parallel to tokens)
-5. `stream_end` - Response complete (all `tts_chunk` guaranteed delivered before this)
+2. `tts_chunk` (multiple) - TTS audio + motion per sentence
+3. `stream_end` - Response complete (all `tts_chunk` guaranteed delivered before this)
+
+> **Note**: `stream_token`, `tool_call`, and `tool_result` events are processed **server-internally only** (for TTS synthesis and logging). They are never forwarded to the WebSocket client.
 
 ### Image Format
 

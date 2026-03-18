@@ -28,12 +28,8 @@ sequenceDiagram
     Note right of BE_WS: [Backend Logic]<br>1. packet.session_id 확인<br>2. STM에서 History Load<br>3. LLM Invoke (History + "안녕")
 
     BE_WS-->>FE: stream_start
-    Note over BE_WS, FE: stream_token 과 tts_chunk 는 독립적으로 interleave되어 전송됨
-    loop LLM 토큰 스트림 (토큰 단위)
-        BE_WS-->>FE: stream_token ("반가")
-        BE_WS-->>FE: stream_token ("워요")
-    end
-    Note right of BE_WS: 문장 완성 시 TTS 합성 후<br>비동기로 tts_chunk 전송
+    Note right of BE_WS: stream_token은 서버 내부 TTS 처리용<br>FE로 전달되지 않음
+    Note right of BE_WS: 문장 완성 시 TTS 합성 후 tts_chunk 전송
     BE_WS-->>FE: tts_chunk ({ text, audio_base64, emotion, ... })
     BE_WS-->>FE: stream_end
     deactivate BE_WS
@@ -57,7 +53,7 @@ sequenceDiagram
 
 ## Appendix
 
-- [GetChatHistory API](../../../../backend//docs/api/STM_GetChatHistory.md)
-- [ListChatHistory API](../../../../backend//docs/api/STM_ListChatHistory.md)
+- [GetChatHistory API](../../api/STM_GetChatHistory.md)
+- [ListSessions API](../../api/STM_ListSessions.md)
 - [Session List 데이터 플로우](./LIST_SESSION.md)
 - [API Service](../../feature/service/api-service.md)

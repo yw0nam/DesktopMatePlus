@@ -37,7 +37,7 @@ sequenceDiagram
 
 ## Appendix
 
-- [DeleteSession API](../../../../backend//docs/api/STM_DeleteSession.md)
-- [ListChatHistory API](../../../../backend//docs/api/STM_ListChatHistory.md)
+- [DeleteSession API](../../api/STM_DeleteSession.md)
+- [ListSessions API](../../api/STM_ListSessions.md)
 - [Session List 데이터 플로우](./LIST_SESSION.md)
 - [API Service](../../feature/service/api-service.md)

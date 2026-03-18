@@ -24,5 +24,5 @@ sequenceDiagram
 
 ## Appendix
 
-- [ListChatHistory API](../../../../backend//docs/api/STM_ListChatHistory.md)
+- [ListSessions API](../../api/STM_ListSessions.md)
 - [API Service](../../feature/service/api-service.md)

@@ -1,6 +1,6 @@
 # STM: Update Session Metadata
 
-Updated: 2025-11-28
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
@@ -37,7 +37,7 @@ Updated: 2025-11-28
 { "message": "Metadata updated successfully" }
 ```
 
-**Errors**: `404` (not found), `422` (malformed body), `401` (unauthorized), `500` (internal)
+**Errors**: `400` (invalid input), `404` (not found), `503` (STM not initialized), `500` (internal)
 
 ## 3. Usage
 

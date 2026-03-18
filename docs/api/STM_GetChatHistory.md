@@ -1,6 +1,6 @@
 # STM: Get Chat History
 
-Updated: 2025-12-09
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
@@ -35,7 +35,7 @@ Updated: 2025-12-09
 }
 ```
 
-**Errors**: `503` (STM not initialized), `500` (internal)
+**Errors**: `400` (invalid input), `404` (session not found), `503` (STM not initialized), `500` (internal)
 
 ## 3. Usage
 

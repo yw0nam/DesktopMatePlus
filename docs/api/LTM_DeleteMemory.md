@@ -1,6 +1,6 @@
 # LTM: Delete Memory
 
-Updated: 2025-12-01
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
@@ -33,7 +33,7 @@ Updated: 2025-12-01
 }
 ```
 
-**Errors**: `503` (LTM not initialized), `500` (internal)
+**Errors**: `404` (memory not found), `503` (LTM not initialized), `500` (internal)
 
 ## 3. Usage
 

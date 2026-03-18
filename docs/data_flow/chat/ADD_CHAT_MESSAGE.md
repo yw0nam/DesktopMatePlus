@@ -46,25 +46,16 @@ sequenceDiagram
     loop Streaming Response
         BE-->>FE: stream_start (session_id)
 
-        par Parallel Processing
-            rect rgb(240, 248, 255)
-                note right of FE: Text Stream
-                BE-->>FE: stream_token (chunk)
-                FE->>FE: Append text chunk to AI message
-                FE-->>User: Update AI response in real-time
-            end
-        and
-            rect rgb(255, 245, 238)
-                note right of FE: Audio & VRM Motion (Pre-synthesized by BE)
-                BE-->>FE: tts_chunk (audio_base64, motion_name, blendshape_name, sequence)
-                Note right of FE: audio_base64 is null if tts_enabled=false or synthesis failed
-                FE->>FE: Queue Task (Audio + Motion + Expression)
-                FE-->>User: Play audio with Lip Sync
-                FE-->>User: Play VRM Motion & Expression
-            end
+        Note right of BE: stream_token / tool_call / tool_result 이벤트는<br/>서버 내부 처리 전용 — FE로 전달되지 않음
+        rect rgb(255, 245, 238)
+            note right of FE: Audio & VRM Motion (Pre-synthesized by BE)
+            BE-->>FE: tts_chunk (audio_base64, motion_name, blendshape_name, sequence)
+            Note right of FE: audio_base64 is null if tts_enabled=false or synthesis failed
+            FE->>FE: Queue Task (Audio + Motion + Expression)
+            FE-->>User: Play audio with Lip Sync
+            FE-->>User: Play VRM Motion & Expression
         end
 
-        Note right of BE: tool_call / tool_result 이벤트는<br/>서버 로그에만 기록, FE로 전달되지 않음
         BE->>STM: save_memory(user+assistant messages)<br/>(asyncio.create_task — non-blocking)
         BE-->>FE: stream_end (session_id, content)
         Note right of FE: Guaranteed: all tts_chunk events arrive before stream_end
