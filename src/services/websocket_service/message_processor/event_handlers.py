@@ -56,6 +56,10 @@ class EventHandler:
                     # JSON-serializable and must not reach the WebSocket client.
                     new_chats = event.pop("new_chats", [])
 
+                    # Capture turn metadata before complete_turn() in case the turn
+                    # is removed from the turns dict in the future.
+                    turn = self.processor.turns.get(turn_id)
+
                     await self._signal_token_stream_closed(turn_id)
                     await self._wait_for_token_queue(turn_id)
                     await self.processor._wait_for_tts_tasks(turn_id)
@@ -66,7 +70,6 @@ class EventHandler:
                     await self.processor.complete_turn(turn_id)
 
                     # Fire memory persistence in background using context stored in turn.metadata
-                    turn = self.processor.turns.get(turn_id)
                     if new_chats and turn:
                         meta = turn.metadata
                         asyncio.create_task(

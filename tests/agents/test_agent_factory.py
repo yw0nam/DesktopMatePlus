@@ -218,5 +218,5 @@ class TestOpenAIChatAgent:
     @pytest.mark.asyncio
     async def test_initialize_async_exists(self, agent_service):
         """initialize_async is callable on AgentService."""
-        # Without mcp_config or stm_service, this should be a no-op
+        # Without mcp_config, this should be a no-op
         await agent_service.initialize_async()
