@@ -76,15 +76,15 @@ class TestChatMessageDefaults:
 class TestTtsChunkMessage:
     def test_required_fields(self):
         msg = TtsChunkMessage(
-            sequence=0, text="Hello!", motion_name="idle", blendshape_name="aa"
+            sequence=0,
+            text="Hello!",
+            keyframes=[],
         )
         assert msg.sequence == 0
         assert msg.type == MessageType.TTS_CHUNK
 
     def test_audio_base64_optional_none(self):
-        msg = TtsChunkMessage(
-            sequence=0, text="Hi", motion_name="idle", blendshape_name="aa"
-        )
+        msg = TtsChunkMessage(sequence=0, text="Hi", keyframes=[])
         assert msg.audio_base64 is None
 
     def test_audio_base64_can_be_set(self):
@@ -92,34 +92,51 @@ class TestTtsChunkMessage:
             sequence=1,
             text="Hi",
             audio_base64="SGVsbG8=",
-            motion_name="talking",
-            blendshape_name="oh",
+            keyframes=[{"duration": 0.5, "targets": {"happy": 1.0}}],
         )
         assert msg.audio_base64 == "SGVsbG8="
 
     def test_emotion_optional_none(self):
-        msg = TtsChunkMessage(
-            sequence=0, text="Hi", motion_name="idle", blendshape_name="aa"
-        )
+        msg = TtsChunkMessage(sequence=0, text="Hi", keyframes=[])
         assert msg.emotion is None
 
     def test_sequence_is_required(self):
         with pytest.raises(ValidationError):
-            TtsChunkMessage(text="Hi", motion_name="idle", blendshape_name="aa")
+            TtsChunkMessage(text="Hi", keyframes=[])
 
     def test_type_is_tts_chunk(self):
-        msg = TtsChunkMessage(
-            sequence=0, text="Hi", motion_name="idle", blendshape_name="aa"
-        )
+        msg = TtsChunkMessage(sequence=0, text="Hi", keyframes=[])
         assert msg.type == MessageType.TTS_CHUNK
+
+    def test_keyframes_stores_list(self):
+        kf = [{"duration": 0.3, "targets": {"neutral": 1.0}}]
+        msg = TtsChunkMessage(sequence=0, text="Hi", keyframes=kf)
+        assert msg.keyframes == kf
+
+    def test_keyframes_empty_list(self):
+        msg = TtsChunkMessage(sequence=0, text="Hi", keyframes=[])
+        assert msg.keyframes == []
+
+    def test_no_motion_name_field(self):
+        msg = TtsChunkMessage(sequence=0, text="Hi", keyframes=[])
+        assert not hasattr(msg, "motion_name")
+
+    def test_no_blendshape_name_field(self):
+        msg = TtsChunkMessage(sequence=0, text="Hi", keyframes=[])
+        assert not hasattr(msg, "blendshape_name")
 
     def test_serialization(self):
         msg = TtsChunkMessage(
-            sequence=2, text="Hello.", motion_name="idle", blendshape_name="aa"
+            sequence=2,
+            text="Hello.",
+            keyframes=[{"duration": 0.5, "targets": {"happy": 0.8}}],
         )
         data = msg.model_dump()
         assert data["type"] == "tts_chunk"
         assert data["audio_base64"] is None
+        assert "keyframes" in data
+        assert "motion_name" not in data
+        assert "blendshape_name" not in data
 
 
 class TestImageContentValidation:
