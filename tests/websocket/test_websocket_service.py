@@ -244,7 +244,9 @@ class TestWebSocketManager:
             def list_all_sessions(self):
                 return []
 
-            def upsert_session(self, session_id: str, user_id: str, agent_id: str) -> bool:
+            def upsert_session(
+                self, session_id: str, user_id: str, agent_id: str
+            ) -> bool:
                 return True
 
         class FakeLTMService:

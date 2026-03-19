@@ -107,4 +107,6 @@ async def process_message(
         except Exception as e:
             logger.error(f"process_message failed for session {session_id}: {e}")
             if slack:
-                await slack.send_message(channel_id, "처리 중 오류가 발생했어. 다시 시도해줘")
+                await slack.send_message(
+                    channel_id, "처리 중 오류가 발생했어. 다시 시도해줘"
+                )

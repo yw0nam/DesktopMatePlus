@@ -56,7 +56,7 @@ sequenceDiagram
             FE-->>User: Play VRM Motion & Expression
         end
 
-        BE->>STM: save_memory(user+assistant messages)<br/>(asyncio.create_task — non-blocking)
+        BE->>STM: save_turn(user+assistant messages)<br/>(asyncio.create_task — non-blocking)
         BE-->>FE: stream_end (session_id, content)
         Note right of FE: Guaranteed: all tts_chunk events arrive before stream_end
         deactivate BE
