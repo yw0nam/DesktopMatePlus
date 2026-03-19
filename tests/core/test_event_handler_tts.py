@@ -35,7 +35,7 @@ def _make_processor(turn_id: str, is_closing: bool = False):
 
 @pytest.mark.asyncio
 async def test_synthesize_and_send_success():
-    """Success: _put_event called once with type=='tts_chunk'."""
+    """Success: _put_event called once with type=='tts_chunk' and keyframes."""
     from src.models.websocket import TtsChunkMessage
 
     turn_id = "t1"
@@ -47,8 +47,7 @@ async def test_synthesize_and_send_success():
         text="Hello",
         audio_base64="abc123",
         emotion="joyful",
-        motion_name="happy_idle",
-        blendshape_name="smile",
+        keyframes=[{"duration": 0.3, "targets": {"happy": 1.0}}],
     )
 
     with patch(
@@ -69,11 +68,14 @@ async def test_synthesize_and_send_success():
     assert call_event["type"] == "tts_chunk"
     assert call_event["audio_base64"] == "abc123"
     assert call_event["sequence"] == 0
+    assert call_event["keyframes"] == [{"duration": 0.3, "targets": {"happy": 1.0}}]
+    assert "motion_name" not in call_event
+    assert "blendshape_name" not in call_event
 
 
 @pytest.mark.asyncio
 async def test_synthesize_and_send_tts_failure_still_puts_chunk():
-    """TTS failure: audio_base64=None still puts tts_chunk, no warning."""
+    """TTS failure: audio_base64=None still puts tts_chunk with keyframes."""
     from src.models.websocket import TtsChunkMessage
 
     turn_id = "t2"
@@ -85,8 +87,7 @@ async def test_synthesize_and_send_tts_failure_still_puts_chunk():
         text="Hi",
         audio_base64=None,
         emotion=None,
-        motion_name="neutral_idle",
-        blendshape_name="neutral",
+        keyframes=[{"duration": 0.3, "targets": {"neutral": 1.0}}],
     )
 
     with patch(
@@ -106,6 +107,7 @@ async def test_synthesize_and_send_tts_failure_still_puts_chunk():
     call_event = proc._put_event.call_args[0][1]
     assert call_event["type"] == "tts_chunk"
     assert call_event["audio_base64"] is None
+    assert "keyframes" in call_event
 
 
 @pytest.mark.asyncio
@@ -147,8 +149,7 @@ async def test_tts_task_registered_in_both_lists():
         sequence=0,
         text="Hello world",
         audio_base64=None,
-        motion_name="neutral_idle",
-        blendshape_name="neutral",
+        keyframes=[{"duration": 0.3, "targets": {"neutral": 1.0}}],
     )
 
     with patch(
@@ -183,8 +184,7 @@ async def test_tts_sequence_increments_per_chunk():
             sequence=seq,
             text="text",
             audio_base64=None,
-            motion_name="neutral_idle",
-            blendshape_name="neutral",
+            keyframes=[{"duration": 0.3, "targets": {"neutral": 1.0}}],
         )
 
     with patch(

@@ -305,8 +305,7 @@ class EventHandler:
                 "text": chunk_msg.text,
                 "audio_base64": chunk_msg.audio_base64,
                 "emotion": chunk_msg.emotion,
-                "motion_name": chunk_msg.motion_name,
-                "blendshape_name": chunk_msg.blendshape_name,
+                "keyframes": chunk_msg.keyframes,
             },
         )
 
