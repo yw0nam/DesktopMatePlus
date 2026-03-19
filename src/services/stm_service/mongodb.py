@@ -432,3 +432,27 @@ class MongoDBSTM(STMService[MongoDBClientType]):
         except Exception as e:
             logger.error(f"Error updating session metadata: {e}")
             raise
+
+    def upsert_session(self, session_id: str, user_id: str, agent_id: str) -> bool:
+        """Create session document if not exists. Does not add messages."""
+        try:
+            self._sessions_collection.update_one(
+                {"session_id": session_id},
+                {
+                    "$set": {
+                        "user_id": user_id,
+                        "agent_id": agent_id,
+                        "updated_at": datetime.now(timezone.utc),
+                    },
+                    "$setOnInsert": {
+                        "created_at": datetime.now(timezone.utc),
+                        "metadata": {},
+                    },
+                },
+                upsert=True,
+            )
+            logger.info(f"Upserted session: {session_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error upserting session {session_id}: {e}")
+            raise

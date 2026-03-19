@@ -29,6 +29,7 @@ def test_settings_yaml():
             "agent_service": "openai_chat_agent.yml",
             "stm_service": "mongodb.yml",
             "ltm_service": "mem0.yml",
+            "channel_service": "channel.yml",
         },
         "settings": {
             "host": "127.0.0.1",

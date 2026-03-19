@@ -1,6 +1,6 @@
 # REST API Guide
 
-Updated: 2026-03-15
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
@@ -36,6 +36,13 @@ Updated: 2026-03-15
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/tts/voices` | GET | List available TTS voices |
+
+### Channels
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/channels/slack/events` | POST | [Slack Events Webhook](./Slack_Events.md) |
+| `/callback/nanoclaw/{session_id}` | POST | [NanoClaw Task Callback](./Nanoclaw_Callback.md) |
 
 ## 3. Usage
 

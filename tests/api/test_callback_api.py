@@ -1,6 +1,6 @@
 """Tests for NanoClaw callback endpoint."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -155,3 +155,76 @@ class TestNanoClawCallback:
                 json={"task_id": "task-123"},
             )
         assert response.status_code == 422
+
+
+class TestCallbackSlackRouting:
+    """reply_channel이 있는 Slack 세션에서 콜백이 process_message를 호출하는지 검증."""
+
+    def test_slack_session_triggers_process_message(self, client, mock_stm_service):
+        task_id = "task-slack-1"
+        session_id = "slack:T1:C1:default"
+        pending_tasks = [
+            {"task_id": task_id, "status": "running", "description": "do work"}
+        ]
+        mock_stm_service.get_session_metadata.return_value = {
+            "pending_tasks": pending_tasks,
+            "user_id": "default",
+            "agent_id": "yuri",
+            "reply_channel": {"provider": "slack", "channel_id": "C1"},
+        }
+        mock_stm_service.update_session_metadata.return_value = True
+        mock_stm_service.add_chat_history.return_value = session_id
+
+        with (
+            patch(
+                "src.api.routes.callback.get_stm_service", return_value=mock_stm_service
+            ),
+            patch(
+                "src.api.routes.callback.get_agent_service", return_value=MagicMock()
+            ),
+            patch("src.api.routes.callback.get_ltm_service", return_value=MagicMock()),
+            patch(
+                "src.api.routes.callback.process_message", new=AsyncMock()
+            ) as mock_pm,
+        ):
+            response = client.post(
+                f"/v1/callback/nanoclaw/{session_id}",
+                json={"task_id": task_id, "status": "done", "summary": "Task complete"},
+            )
+
+        assert response.status_code == 200
+        mock_pm.assert_called_once()
+        call_kwargs = mock_pm.call_args[1]
+        assert call_kwargs["text"] == ""
+        assert call_kwargs["provider"] == "slack"
+        assert call_kwargs["channel_id"] == "C1"
+
+    def test_unity_session_skips_process_message(self, client, mock_stm_service):
+        """reply_channel 없는 Unity 세션은 기존 로직만 실행."""
+        task_id = "task-unity-1"
+        session_id = "unity-session-xyz"
+        pending_tasks = [{"task_id": task_id, "status": "running"}]
+        mock_stm_service.get_session_metadata.return_value = {
+            "pending_tasks": pending_tasks,
+            "user_id": "default",
+            "agent_id": "yuri",
+            # reply_channel 없음
+        }
+        mock_stm_service.update_session_metadata.return_value = True
+        mock_stm_service.add_chat_history.return_value = session_id
+
+        with (
+            patch(
+                "src.api.routes.callback.get_stm_service", return_value=mock_stm_service
+            ),
+            patch(
+                "src.api.routes.callback.process_message", new=AsyncMock()
+            ) as mock_pm,
+        ):
+            response = client.post(
+                f"/v1/callback/nanoclaw/{session_id}",
+                json={"task_id": task_id, "status": "done", "summary": "Done"},
+            )
+
+        assert response.status_code == 200
+        mock_pm.assert_not_called()
