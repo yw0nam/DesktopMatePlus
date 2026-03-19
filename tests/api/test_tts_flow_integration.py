@@ -45,8 +45,7 @@ async def _fake_synthesize_and_send(
             "sequence": sequence,
             "text": f"sentence {sequence}",
             "audio_base64": audio_base64,
-            "motion_name": "idle",
-            "blendshape_name": "neutral",
+            "keyframes": [{"duration": 0.3, "targets": {"neutral": 1.0}}],
             "emotion": None,
         },
     )
@@ -107,8 +106,7 @@ async def test_tts_disabled_sends_null_audio(processor: MessageProcessor):
 
     assert len(tts_chunks) >= 1
     assert all(c["audio_base64"] is None for c in tts_chunks)
-    assert all(c.get("motion_name") is not None for c in tts_chunks)
-    assert all(c.get("blendshape_name") is not None for c in tts_chunks)
+    assert all(c.get("keyframes") is not None for c in tts_chunks)
     assert types[-1] == "stream_end"
 
 

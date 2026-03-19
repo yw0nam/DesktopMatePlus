@@ -3,15 +3,9 @@
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
 
 SAMPLE_CONFIG = {
-    "joyful": {
-        "keyframes": [{"duration": 0.3, "targets": {"happy": 1.0}}]
-    },
-    "sad": {
-        "keyframes": [{"duration": 0.4, "targets": {"sad": 0.8}}]
-    },
-    "default": {
-        "keyframes": [{"duration": 0.3, "targets": {"neutral": 1.0}}]
-    },
+    "joyful": {"keyframes": [{"duration": 0.3, "targets": {"happy": 1.0}}]},
+    "sad": {"keyframes": [{"duration": 0.4, "targets": {"sad": 0.8}}]},
+    "default": {"keyframes": [{"duration": 0.3, "targets": {"neutral": 1.0}}]},
 }
 
 
@@ -76,9 +70,7 @@ class TestEmotionMotionMapperFallback:
                     {"duration": 0.3, "targets": {"happy": 1.0}},
                 ]
             },
-            "default": {
-                "keyframes": [{"duration": 0.3, "targets": {"neutral": 1.0}}]
-            },
+            "default": {"keyframes": [{"duration": 0.3, "targets": {"neutral": 1.0}}]},
         }
         mapper = EmotionMotionMapper(config)
         keyframes = mapper.map("excited")

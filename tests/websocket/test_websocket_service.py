@@ -258,8 +258,7 @@ class TestWebSocketManager:
             text="Hello, world!",
             audio_base64=None,
             emotion=None,
-            motion_name="neutral_idle",
-            blendshape_name="neutral",
+            keyframes=[{"duration": 0.3, "targets": {"neutral": 1.0}}],
         )
 
         with (

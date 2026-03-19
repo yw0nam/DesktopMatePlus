@@ -19,8 +19,7 @@ def _make_chunk(text: str, emotion: str | None = None, seq: int = 0) -> TtsChunk
         text=text,
         audio_base64=None,
         emotion=emotion,
-        motion_name="neutral_idle",
-        blendshape_name="neutral",
+        keyframes=[{"duration": 0.3, "targets": {"neutral": 1.0}}],
     )
 
 
