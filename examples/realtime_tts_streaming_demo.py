@@ -282,8 +282,7 @@ class RealtimeTTSDemo:
                         sequence = data.get("sequence", 0)
                         chunk_text = data.get("text", "")
                         emotion = data.get("emotion")
-                        motion = data.get("motion_name")
-                        blendshape = data.get("blendshape_name")
+                        keyframes = data.get("keyframes", [])
                         audio_base64 = data.get("audio_base64")
 
                         print("\n" + "─" * 70)
@@ -292,8 +291,8 @@ class RealtimeTTSDemo:
                         print(f"📝 Text: {chunk_text}")
                         if emotion:
                             print(f"😊 Emotion: {emotion}")
-                        if motion or blendshape:
-                            print(f"🎭 Motion: {motion}, Blendshape: {blendshape}")
+                        if keyframes:
+                            print(f"🎭 Keyframes: {keyframes}")
 
                         # Save the chunk info
                         tts_chunks_received.append(
