@@ -16,8 +16,6 @@ class SlackSettings(BaseModel):
     enabled: bool = False
     bot_token: str = ""
     signing_secret: str = ""
-    app_token: str = ""
-    use_socket_mode: bool = False
 
 
 @dataclass

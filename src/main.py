@@ -144,7 +144,14 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 if channel_config_path and Path(channel_config_path).exists():
                     with open(channel_config_path, "r", encoding="utf-8") as _f:
                         _raw = _yaml.safe_load(_f) or {}
+                    import os as _os
                     slack_cfg_dict = _raw.get("slack", {})
+                    # env var fallback for credentials not set in YAML
+                    if not slack_cfg_dict.get("bot_token"):
+                        slack_cfg_dict["bot_token"] = _os.getenv("SLACK_BOT_TOKEN", "")
+                    if not slack_cfg_dict.get("signing_secret"):
+                        slack_cfg_dict["signing_secret"] = _os.getenv("SLACK_SIGNING_SECRET", "")
+
                     slack_settings = SlackSettings(**slack_cfg_dict)
                 init_channel_service(slack_settings)
                 logger.info("Channel service initialized")
