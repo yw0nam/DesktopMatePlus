@@ -110,17 +110,14 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 print("  - STM config: Using default from settings")
                 initialize_stm_service()
 
-            stm_svc_for_agent = get_stm_service()
-
             if config_paths.get("agent_config_path"):
                 print(f"  - Agent config: {config_paths['agent_config_path']}")
                 initialize_agent_service(
                     config_path=config_paths["agent_config_path"],
-                    stm_service=stm_svc_for_agent,
                 )
             else:
                 print("  - Agent config: Using default")
-                initialize_agent_service(stm_service=stm_svc_for_agent)
+                initialize_agent_service()
 
             if config_paths.get("ltm_config_path"):
                 print(f"  - LTM config: {config_paths['ltm_config_path']}")
