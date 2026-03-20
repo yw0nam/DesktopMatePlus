@@ -206,11 +206,17 @@ class StreamEndMessage(BaseMessage):
     content: str
 
 
-class TtsChunkMessage(BaseMessage):
-    """Server message with TTS synthesis result and motion metadata.
+# TimelineKeyframe matches desktop-homunculus POST /vrm/{entity}/speech/timeline format.
+# { "duration": float, "targets": { "expression_name": weight } }
+TimelineKeyframe = dict[str, float | dict[str, float]]
 
-    Backend → Unity. Sent after TTS synthesis completes for each sentence.
+
+class TtsChunkMessage(BaseMessage):
+    """Server message with TTS synthesis result and keyframe animation metadata.
+
+    Backend → desktop-homunculus. Sent after TTS synthesis completes for each sentence.
     audio_base64 is None when TTS is disabled (tts_enabled=False) or synthesis failed.
+    keyframes drives the VRM expression timeline via POST /vrm/{entity}/speech/timeline.
     """
 
     type: MessageType = MessageType.TTS_CHUNK
@@ -220,11 +226,16 @@ class TtsChunkMessage(BaseMessage):
     text: str = Field(..., description="Text used for TTS synthesis")
     audio_base64: Optional[str] = Field(
         default=None,
-        description="MP3 audio encoded as base64. None means skip audio playback.",
+        description="WAV audio encoded as base64. None means skip audio playback.",
     )
     emotion: Optional[str] = Field(default=None, description="Detected emotion tag")
-    motion_name: str = Field(..., description="Unity AnimationPlayer motion to play")
-    blendshape_name: str = Field(..., description="Unity blendshape to apply")
+    keyframes: list[TimelineKeyframe] = Field(
+        ...,
+        description=(
+            "Expression timeline keyframes for desktop-homunculus VRM animation. "
+            "Each entry: {duration: float, targets: {expression_name: weight}}."
+        ),
+    )
 
 
 class ErrorMessage(BaseMessage):

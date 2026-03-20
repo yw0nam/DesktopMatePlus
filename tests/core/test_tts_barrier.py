@@ -110,8 +110,7 @@ async def test_stream_end_arrives_after_last_tts_chunk(processor: MessageProcess
                 "sequence": seq,
                 "audio_base64": "abc",
                 "text": f"s{seq}",
-                "motion_name": "idle",
-                "blendshape_name": "neutral",
+                "keyframes": [{"duration": 0.3, "targets": {"neutral": 1.0}}],
                 "emotion": None,
             },
         )

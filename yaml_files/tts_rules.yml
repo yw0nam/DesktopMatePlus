@@ -27,23 +27,91 @@ emotion_keywords:
   - hesitating
 
 emotion_motion_map:
-  joyful:        { motion: "happy_idle",     blendshape: "smile" }
-  sad:           { motion: "sad_idle",       blendshape: "sad" }
-  angry:         { motion: "angry_idle",     blendshape: "angry" }
-  surprised:     { motion: "surprised_idle", blendshape: "surprised" }
-  scared:        { motion: "scared_idle",    blendshape: "scared" }
-  disgusted:     { motion: "disgusted_idle", blendshape: "disgusted" }
-  confused:      { motion: "confused_idle",  blendshape: "confused" }
-  curious:       { motion: "curious_idle",   blendshape: "curious" }
-  worried:       { motion: "worried_idle",   blendshape: "worried" }
-  satisfied:     { motion: "satisfied_idle", blendshape: "smile" }
-  sarcastic:     { motion: "neutral_idle",   blendshape: "smirk" }
-  laughing:      { motion: "laughing_idle",  blendshape: "laugh" }
-  crying loudly: { motion: "crying_idle",    blendshape: "cry" }
-  sighing:       { motion: "sigh_idle",      blendshape: "tired" }
-  whispering:    { motion: "whisper_idle",   blendshape: "neutral" }
-  hesitating:    { motion: "hesitate_idle",  blendshape: "nervous" }
-  default:       { motion: "neutral_idle",   blendshape: "neutral" }
+  joyful:
+    keyframes:
+      - duration: 0.3
+        targets:
+          happy: 1.0
+  sad:
+    keyframes:
+      - duration: 0.3
+        targets:
+          sad: 0.8
+  angry:
+    keyframes:
+      - duration: 0.3
+        targets:
+          angry: 0.8
+  surprised:
+    keyframes:
+      - duration: 0.3
+        targets:
+          surprised: 0.9
+  scared:
+    keyframes:
+      - duration: 0.3
+        targets:
+          surprised: 0.7
+  disgusted:
+    keyframes:
+      - duration: 0.3
+        targets:
+          angry: 0.5
+  confused:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.7
+  curious:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.8
+  worried:
+    keyframes:
+      - duration: 0.3
+        targets:
+          sad: 0.5
+  satisfied:
+    keyframes:
+      - duration: 0.3
+        targets:
+          happy: 0.8
+  sarcastic:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.6
+  laughing:
+    keyframes:
+      - duration: 0.3
+        targets:
+          happy: 1.0
+  crying loudly:
+    keyframes:
+      - duration: 0.3
+        targets:
+          sad: 1.0
+  sighing:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.5
+  whispering:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 1.0
+  hesitating:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.6
+  default:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 1.0
 
 emotion_prompt_template: |
 

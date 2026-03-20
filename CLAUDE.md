@@ -3,6 +3,11 @@
 This document outlines the fundamental rules, architectural patterns, and conventions for the **DesktopMate+ Backend** repository.
 You must adhere to these guidelines for all code generation and refactoring tasks.
 
+Keep this document lean but contain all critical information for capturing the architectural vision and coding standards of the project.
+
+- If there is too much detail, split to seperate files in `docs/guidelines/` (e.g., `TESTING_GUIDE.md`, `DOCUMENT_GUIDE.md`, `LOGGING_GUIDE.md`) and reference them here.
+- But, this document must contain the information for capturing the overall architecture, design patterns, and coding conventions that are critical for maintaining consistency across the codebase.
+
 ## Core Philosophy
 
 - Question every requirement. Is it really necessary? Is there a simpler way?
@@ -37,9 +42,11 @@ You must adhere to these guidelines for all code generation and refactoring task
 - `src/models`: Pydantic data models and schemas.
 - `src/services`: Business logic and Service implementations.
   - `agent_service/`: LLM Agent logic (`create_agent`, single instance). Supports text + image (OpenAI-compatible).
-  - `stm_service/`: Short-Term Memory services.
+  - `stm_service/`: Short-Term Memory services (MongoDB).
   - `ltm_service/`: Long-Term Memory (Mem0/Qdrant) services.
   - `tts_service/`: Text-to-Speech services.
+    - `tts_pipeline.py`: `synthesize_chunk()` — emotion → keyframes + WAV audio synthesis.
+    - `emotion_motion_mapper.py`: `EmotionMotionMapper` — maps emotion string → `list[TimelineKeyframe]`.
   - `websocket_service/`: WebSocket communication services.
     - `manager/memory_orchestrator.py`: STM/LTM I/O — `load_context()` and `save_turn()`.
   - `knowledge_base_service/`: Knowledge base (RAG) services.
@@ -51,6 +58,7 @@ You must adhere to these guidelines for all code generation and refactoring task
 - `src/main.py`: Application entry point and lifespan management.
 - `yaml_files/`: Service configuration files.
   - `personas.yml`: Persona definitions (system prompts keyed by `persona_id`).
+  - `tts_rules.yml`: TTS text chunking rules, emotion keywords, and `emotion_motion_map` (emotion → keyframes).
 - `tests/`: Unit and integration tests.
 
 ## 4. Coding Conventions
@@ -82,6 +90,14 @@ You must adhere to these guidelines for all code generation and refactoring task
 - **Error Handling:** Implement robust error handling for WebSocket connections, including disconnects and invalid message formats.
 - **State Management:** Carefully manage state for connected clients.
 
+### E. TTS & Keyframes Patterns
+
+- **`EmotionMotionMapper`** is a standalone service initialized in lifespan via `initialize_emotion_motion_mapper()`. It reads `emotion_motion_map` from `yaml_files/tts_rules.yml` and maps emotion strings → `list[TimelineKeyframe]`.
+- **`TimelineKeyframe` type:** `dict[str, float | dict[str, float]]` — e.g., `{"duration": 0.3, "targets": {"happy": 1.0}}`. Replaces the old `motion_name`/`blendshape_name` fields.
+- **`synthesize_chunk()`** in `tts_pipeline.py`: always returns a `TtsChunkMessage` (never raises). If TTS fails or is disabled, `audio_base64=None`; `keyframes` is always populated from the mapper.
+- **Audio format:** TTS service is called with `audio_format="wav"`. Encoded as base64 in `TtsChunkMessage.audio_base64`.
+- **Service init order in lifespan:** TTS → EmotionMotionMapper → STM → Agent → LTM → Channel → Sweep.
+
 ### F. Channel Service Patterns
 
 - **`process_message()` 공통 진입점:** Webhook 라우트(text 있음)와 Callback 핸들러(text="") 양쪽에서 호출. `text=""`이면 STM에 TaskResult가 이미 주입된 상태이므로 `HumanMessage` 추가하지 않음.
@@ -92,7 +108,7 @@ You must adhere to these guidelines for all code generation and refactoring task
 - **`upsert_session`:** filter는 `session_id`만 사용, `user_id`/`agent_id`는 `$set`으로 업데이트. `add_chat_history`와 달리 메시지 미삽입.
 - **`BackgroundSweepService`:** `slack_service_fn: Callable[[], SlackService | None]` lazy 주입으로 초기화 순서 의존 없음.
 
-### E. Agent Architecture Patterns
+### G. Agent Architecture Patterns
 
 - **Single instance:** `OpenAIChatAgent` is created once; `initialize_async()` is called in lifespan after all sync inits. It fetches MCP tools and creates the agent. `is_healthy()` returns `False` until then (swallowed via `swallow_health_error=True`).
 - **Persona injection:** `ChatMessage.persona_id` (default `"yuri"`) maps to a key in `yaml_files/personas.yml`. Persona text is prepended as `SystemMessage` at `stream()` time — not stored in the model field.

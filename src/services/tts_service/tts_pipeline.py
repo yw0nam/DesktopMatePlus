@@ -6,7 +6,7 @@ synthesize_chunk() never raises. All errors are logged to backend only.
 from asyncio import to_thread
 
 from src.core.logger import logger
-from src.models.websocket import TtsChunkMessage
+from src.models.websocket import TimelineKeyframe, TtsChunkMessage
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
 from src.services.tts_service.service import TTSService
 
@@ -30,7 +30,7 @@ async def synthesize_chunk(
 
     Args:
         tts_service: TTS engine instance (TTSService ABC)
-        mapper: EmotionMotionMapper for emotion → motion/blendshape
+        mapper: EmotionMotionMapper for emotion → keyframes
         text: Text to synthesize
         emotion: Detected emotion tag (None → mapper returns default)
         sequence: Chunk order within turn (starts at 0)
@@ -39,9 +39,9 @@ async def synthesize_chunk(
 
     Returns:
         TtsChunkMessage with audio_base64=None on failure/disabled,
-        motion/blendshape always populated.
+        keyframes always populated.
     """
-    motion_name, blendshape_name = mapper.map(emotion)
+    keyframes: list[TimelineKeyframe] = mapper.map(emotion)
     audio: str | None = None
 
     if tts_enabled:
@@ -51,7 +51,7 @@ async def synthesize_chunk(
                 text,
                 reference_id,
                 "base64",
-                "mp3",
+                "wav",
             )
             if result is None:
                 logger.error(f"TTS synthesis returned None for sequence {sequence}")
@@ -67,6 +67,5 @@ async def synthesize_chunk(
         text=text,
         audio_base64=audio,
         emotion=emotion,
-        motion_name=motion_name,
-        blendshape_name=blendshape_name,
+        keyframes=keyframes,
     )
