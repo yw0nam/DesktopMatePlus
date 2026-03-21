@@ -245,20 +245,23 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 # Global app instance (initialized on first import or when config is loaded)
 app = None
 
+DEFAULT_YAML_FILE = "yaml_files/main.yml"
+
 
 def get_app():
     """Get or create the FastAPI application instance.
 
-    This is called by uvicorn when using the string import path.
-    Settings must be initialized before this is called.
+    Self-sufficient factory for uvicorn string import:
+      uvicorn "src.main:get_app" --factory --reload
+      uvicorn "src.main:get_app" --factory --workers 4
+
+    Reads YAML_FILE env var (default: yaml_files/main.yml) for config path.
     """
     global app
     if app is None:
-        try:
-            get_settings()
-            app = create_app()
-        except RuntimeError:
-            pass
+        yaml_file = os.getenv("YAML_FILE", DEFAULT_YAML_FILE)
+        config_paths = load_main_config(yaml_file)
+        app = create_app(config_paths)
     return app
 
 
@@ -317,20 +320,21 @@ Example usage:
         traceback.print_exc()
         exit(1)
 
+    # Export YAML_FILE so get_app() factory can pick it up on (re)import
+    os.environ["YAML_FILE"] = args.yaml_file
+
     # Get settings after initialization
     settings = get_settings()
-
-    # Create app with config paths captured by closure
-    app = create_app(config_paths)
 
     # Determine server settings
     host = args.host or settings.host
     port = args.port or settings.port
     reload = args.reload or settings.debug
 
-    # Run the server
+    # Run the server via string import + factory so --reload and --workers work correctly
     uvicorn.run(
-        app,
+        "src.main:get_app",
+        factory=True,
         host=host,
         port=port,
         reload=reload,
