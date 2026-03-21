@@ -51,7 +51,7 @@ async def synthesize_chunk(
                 text,
                 reference_id,
                 "base64",
-                "wav",
+                audio_format="wav",
             )
             if result is None:
                 logger.error(f"TTS synthesis returned None for sequence {sequence}")
