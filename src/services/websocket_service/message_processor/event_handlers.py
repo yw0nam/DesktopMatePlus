@@ -77,7 +77,7 @@ class EventHandler:
                                 new_chats=new_chats,
                                 stm_service=meta.get("stm_service"),
                                 ltm_service=meta.get("ltm_service"),
-                                user_id=self.processor.user_id,
+                                user_id=meta.get("user_id", self.processor.user_id),
                                 agent_id=meta.get("agent_id", ""),
                                 session_id=turn.session_id,
                             ),

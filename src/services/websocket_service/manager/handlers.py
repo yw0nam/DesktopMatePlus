@@ -212,6 +212,7 @@ class MessageHandler:
 
             message_history.append(HumanMessage(content=content))
 
+            metadata["user_id"] = user_id
             metadata["agent_id"] = agent_id
             metadata["stm_service"] = stm_service
             metadata["ltm_service"] = ltm_service
