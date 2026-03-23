@@ -53,11 +53,17 @@ curl "http://127.0.0.1:5500/v1/tts/voices"
 # Returns 503 if TTS service is not initialized
 ```
 
+## 4. Non-Obvious Patterns
+
+- **No auth on REST endpoints** — `/v1/stm/`, `/v1/ltm/`, `/v1/tts/`, `/v1/callback/` are internal-only (bound to `127.0.0.1`). Do not expose externally or add auth middleware.
+- **503 = service not initialized** — All endpoints return `503` when their backing service hasn't completed lifespan init. Not a network error; wait for startup.
+- **Slack `/events` is the exception** — Uses HMAC-SHA256 signature verification via `x-slack-signature` + `x-slack-request-timestamp` headers. See `src/services/channel_service/slack_service.py`.
+
 ---
 
 ## Appendix
 
 ### A. Related Documents
 
-- [WebSocket API Guide](../websocket/WEBSOCKET_API_GUIDE.md)
+- [WebSocket API Guide](../websocket/CLAUDE.md)
 - [Service Layer](../feature/service/README.md)
