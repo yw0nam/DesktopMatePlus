@@ -1,4 +1,6 @@
-# DesktopMate+ Backend Development Guidelines
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Updated: 2026-03-23
 
@@ -127,19 +129,36 @@ Keep this document lean but contain all critical information for capturing the a
 3. **Initialize:** Add initialization logic in `src/services/__init__.py` and call it in `src/main.py` lifespan.
 4. **Expose API:** Create routes in `src/api/routes` if the service needs external access.
 
-### B. Dev Server
+### B. Setup
 
 ```bash
-uvicorn src.main:app --port 5500 --reload
+uv sync --all-extras        # install all dependencies
+uv run pre-commit install   # install pre-commit hooks
 ```
 
-### C. Testing
+### C. Dev Server
 
-- Run tests using `uv run pytest`.
-- Ensure unit tests cover critical logic.
-- Update `examples/realtime_tts_streaming_demo.py` for any api or websocket interface changes. It is for actual integration test, not a mock.
+```bash
+uv run uvicorn src.main:app --port 5500 --reload
+# Override YAML config: YAML_FILE=yaml_files/custom.yml uv run uvicorn ...
+```
 
-### D. Linting & Formatting
+### D. Testing
 
-- Use `ruff` for linting and formatting.
-- Run `sh scripts/lint.sh` before end the task.
+```bash
+uv run pytest                                              # all tests
+uv run pytest tests/path/test_file.py                     # specific file
+uv run pytest tests/path/test_file.py::TestClass::test_name  # single test
+uv run pytest -m slow                                     # E2E tests (requires real services)
+uv run pytest --cov=src                                   # with coverage
+```
+
+- `asyncio_mode = "auto"` in `pyproject.toml` — no `@pytest.mark.asyncio` decorator needed.
+- `slow` tests hit real MongoDB/Qdrant/LLM — skip in CI unless services are available.
+- Update `examples/realtime_tts_streaming_demo.py` for any API or WebSocket interface changes.
+
+### E. Linting & Formatting
+
+```bash
+sh scripts/lint.sh   # ruff lint + format check — run before ending any task
+```
