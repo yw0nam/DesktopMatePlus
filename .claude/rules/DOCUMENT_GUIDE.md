@@ -1,4 +1,12 @@
+---
+paths:
+  - "docs/**/*.md"
+  - ".claude/**/*.md"
+---
+
 # Document Authoring Guide
+
+Updated: 2026-03-23
 
 All documents focus on **Actionability** and **Modularity**.
 

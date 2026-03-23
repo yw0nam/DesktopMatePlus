@@ -1,6 +1,6 @@
 # WebSocket API Guide
 
-Updated: 2026-03-03
+Updated: 2026-03-23
 
 ## 1. Synopsis
 

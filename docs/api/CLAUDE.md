@@ -1,6 +1,6 @@
 # REST API Guide
 
-Updated: 2026-03-18
+Updated: 2026-03-23
 
 ## 1. Synopsis
 

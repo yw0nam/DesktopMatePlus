@@ -1,11 +1,13 @@
 # DesktopMate+ Backend Development Guidelines
 
+Updated: 2026-03-23
+
 This document outlines the fundamental rules, architectural patterns, and conventions for the **DesktopMate+ Backend** repository.
 You must adhere to these guidelines for all code generation and refactoring tasks.
 
 Keep this document lean but contain all critical information for capturing the architectural vision and coding standards of the project.
 
-- If there is too much detail, split to seperate files in `docs/guidelines/` (e.g., `TESTING_GUIDE.md`, `DOCUMENT_GUIDE.md`, `LOGGING_GUIDE.md`) and reference them here.
+- If there is too much detail, split to separate files in `.claude/rules/` (e.g., `TESTING_GUIDE.md`, `DOCUMENT_GUIDE.md`, `LOGGING_GUIDE.md`) — Claude Code auto-loads these as context.
 - But, this document must contain the information for capturing the overall architecture, design patterns, and coding conventions that are critical for maintaining consistency across the codebase.
 
 ## Core Philosophy
@@ -81,7 +83,7 @@ Keep this document lean but contain all critical information for capturing the a
 
 - Use custom exception classes where possible.
 - Let FastAPI's exception handlers manage HTTP error responses.
-- Log errors using the `src/core/logger` module (Loguru wrapped). See ['docs/guidelines/LOGGING_GUIDE.md'](docs/guidelines/LOGGING_GUIDE.md) for details.
+- Log errors using the `src/core/logger` module (Loguru wrapped). See `.claude/rules/LOGGING_GUIDE.md` for details.
 
 ### D. WebSocket Communication
 
@@ -135,14 +137,9 @@ uvicorn src.main:app --port 5500 --reload
 
 - Run tests using `uv run pytest`.
 - Ensure unit tests cover critical logic.
-- See the guidelines in ['docs/guidelines/TESTING_GUIDE.md'](docs/guidelines/TESTING_GUIDE.md) for best practices.
 - Update `examples/realtime_tts_streaming_demo.py` for any api or websocket interface changes. It is for actual integration test, not a mock.
 
 ### D. Linting & Formatting
 
 - Use `ruff` for linting and formatting.
 - Run `sh scripts/lint.sh` before end the task.
-
-### E. Documentation
-
-- Documenting style for docs/ is defined in ['docs/guidelines/DOCUMENT_GUIDE.md'](docs/guidelines/DOCUMENT_GUIDE.md).
