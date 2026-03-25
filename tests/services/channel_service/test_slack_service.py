@@ -117,7 +117,7 @@ class TestParseEvent:
         }
         result = await svc.parse_event(payload)
         assert result is not None
-        assert result.text == "hello"         # mention stripped
+        assert result.text == "hello"  # mention stripped
         assert result.channel_id == "C1"
         assert result.session_id == "slack:T1:C1:default"
         assert result.provider == "slack"
@@ -129,7 +129,7 @@ class TestParseEvent:
             "team_id": "T1",
             "event": {
                 "type": "message",
-                "text": "hello yuri",         # bare name — not a mention
+                "text": "hello yuri",  # bare name — not a mention
                 "channel": "C1",
                 "user": "U1",
             },
@@ -145,13 +145,13 @@ class TestParseEvent:
             "event": {
                 "type": "message",
                 "text": "hello there",
-                "channel": "D012ABC",         # DM channel
+                "channel": "D012ABC",  # DM channel
                 "user": "U1",
             },
         }
         result = await svc.parse_event(payload)
         assert result is not None
-        assert result.text == "hello there"   # text unchanged in DMs
+        assert result.text == "hello there"  # text unchanged in DMs
 
     async def test_returns_slack_message_for_native_user_id_mention(self):
         svc = SlackService(_make_settings())
