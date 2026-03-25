@@ -140,6 +140,8 @@ uv run pre-commit install   # install pre-commit hooks
 
 ```bash
 uv run uvicorn src.main:app --port 5500 --reload
+
+# For use slack, you need to run `ngrok http 5500`
 # Override YAML config: YAML_FILE=yaml_files/custom.yml uv run uvicorn ...
 ```
 

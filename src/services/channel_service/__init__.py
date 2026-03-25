@@ -12,6 +12,9 @@ from src.services.websocket_service.manager.memory_orchestrator import (
     load_context,
     save_turn,
 )
+from src.services.websocket_service.text_processors import TTSTextProcessor
+
+_tts_processor = TTSTextProcessor()
 
 _slack_service: SlackService | None = None
 
@@ -82,7 +85,7 @@ async def process_message(
                 user_id=user_id,
                 agent_id=agent_id,
             )
-            final_text = result["content"]
+            final_text = _tts_processor.process(result["content"]).filtered_text
             # new_chats에는 AgentService가 생성한 AIMessage(+tool messages)가 담겨 있다.
             # HumanMessage는 agent가 반환하지 않으므로 save_turn 시 별도로 prepend한다.
             new_chats = result["new_chats"]

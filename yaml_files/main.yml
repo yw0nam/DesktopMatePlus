@@ -33,4 +33,4 @@ settings:
     error_backoff_seconds: 0.5
     inactivity_timeout_seconds: 300
     disconnect_timeout_seconds: 5.0
-    tts_barrier_timeout_seconds: 10.0
+    tts_barrier_timeout_seconds: 30.0
