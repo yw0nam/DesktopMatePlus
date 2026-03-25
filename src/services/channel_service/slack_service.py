@@ -16,6 +16,7 @@ class SlackSettings(BaseModel):
     enabled: bool = False
     bot_token: str = ""
     signing_secret: str = ""
+    bot_name: str = "yuri"
 
 
 @dataclass
@@ -32,6 +33,8 @@ class SlackService:
     def __init__(self, settings: SlackSettings) -> None:
         self._signing_secret = settings.signing_secret
         self._client = AsyncWebClient(token=settings.bot_token)
+        self._bot_user_id: str | None = None
+        self._bot_name: str = settings.bot_name
 
     def verify_signature(self, *, body: str, timestamp: str, signature: str) -> bool:
         """Slack request signature를 검증한다. Replay attack 방지를 위해 5분 이상 오래된 요청은 거부."""

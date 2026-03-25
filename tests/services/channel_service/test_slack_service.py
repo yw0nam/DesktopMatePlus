@@ -17,8 +17,6 @@ def _make_settings(**kwargs):
         "enabled": True,
         "bot_token": "xoxb-test",
         "signing_secret": "test-secret",
-        "app_token": "",
-        "use_socket_mode": False,
     }
     return SlackSettings(**(defaults | kwargs))
 
@@ -26,6 +24,24 @@ def _make_settings(**kwargs):
 def _make_signature(secret: str, body: str, timestamp: str) -> str:
     base = f"v0:{timestamp}:{body}"
     return "v0=" + hmac.new(secret.encode(), base.encode(), hashlib.sha256).hexdigest()
+
+
+class TestSlackServiceInit:
+    def test_bot_name_default_is_yuri(self):
+        settings = _make_settings()
+        assert settings.bot_name == "yuri"
+
+    def test_bot_name_can_be_overridden(self):
+        settings = _make_settings(bot_name="nari")
+        assert settings.bot_name == "nari"
+
+    def test_initial_bot_user_id_is_none(self):
+        svc = SlackService(_make_settings())
+        assert svc._bot_user_id is None
+
+    def test_bot_name_stored_from_settings(self):
+        svc = SlackService(_make_settings(bot_name="nari"))
+        assert svc._bot_name == "nari"
 
 
 class TestSlackServiceSignature:
