@@ -14,28 +14,28 @@ def _make_deps(invoke_content="응답"):
             "new_chats": [AIMessage(invoke_content)],
         }
     )
-    stm = MagicMock()
-    stm.upsert_session = MagicMock(return_value=True)
-    stm.update_session_metadata = MagicMock(return_value=True)
     ltm = MagicMock()
-    return agent_service, stm, ltm
+    return agent_service, ltm
 
 
 class TestProcessMessage:
     @pytest.mark.asyncio
     async def test_calls_agent_invoke_with_human_message_when_text_provided(self):
-        agent, stm, ltm = _make_deps()
+        agent, ltm = _make_deps()
         mock_slack = AsyncMock()
 
         with (
             patch(
-                "src.services.channel_service.load_context",
+                "src.services.channel_service.load_ltm_prefix",
                 new=AsyncMock(return_value=[]),
             ),
-            patch("src.services.channel_service.save_turn", new=AsyncMock()),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
+            ),
+            patch(
+                "src.services.channel_service.get_session_registry",
+                return_value=None,
             ),
         ):
             await process_message(
@@ -44,7 +44,6 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                stm=stm,
                 ltm=ltm,
             )
 
@@ -56,18 +55,21 @@ class TestProcessMessage:
     @pytest.mark.asyncio
     async def test_does_not_add_human_message_when_text_empty(self):
         """콜백 경로: text=""이면 HumanMessage를 context에 추가하지 않는다."""
-        agent, stm, ltm = _make_deps()
+        agent, ltm = _make_deps()
         mock_slack = AsyncMock()
 
         with (
             patch(
-                "src.services.channel_service.load_context",
+                "src.services.channel_service.load_ltm_prefix",
                 new=AsyncMock(return_value=[]),
             ),
-            patch("src.services.channel_service.save_turn", new=AsyncMock()),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
+            ),
+            patch(
+                "src.services.channel_service.get_session_registry",
+                return_value=None,
             ),
         ):
             await process_message(
@@ -76,7 +78,6 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                stm=stm,
                 ltm=ltm,
             )
 
@@ -85,18 +86,21 @@ class TestProcessMessage:
 
     @pytest.mark.asyncio
     async def test_sends_response_to_slack(self):
-        agent, stm, ltm = _make_deps("Yuri 응답")
+        agent, ltm = _make_deps("Yuri 응답")
         mock_slack = AsyncMock()
 
         with (
             patch(
-                "src.services.channel_service.load_context",
+                "src.services.channel_service.load_ltm_prefix",
                 new=AsyncMock(return_value=[]),
             ),
-            patch("src.services.channel_service.save_turn", new=AsyncMock()),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
+            ),
+            patch(
+                "src.services.channel_service.get_session_registry",
+                return_value=None,
             ),
         ):
             await process_message(
@@ -105,7 +109,6 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                stm=stm,
                 ltm=ltm,
             )
 
@@ -113,19 +116,22 @@ class TestProcessMessage:
 
     @pytest.mark.asyncio
     async def test_sends_error_message_on_invoke_failure(self):
-        agent, stm, ltm = _make_deps()
+        agent, ltm = _make_deps()
         agent.invoke = AsyncMock(side_effect=RuntimeError("LLM 오류"))
         mock_slack = AsyncMock()
 
         with (
             patch(
-                "src.services.channel_service.load_context",
+                "src.services.channel_service.load_ltm_prefix",
                 new=AsyncMock(return_value=[]),
             ),
-            patch("src.services.channel_service.save_turn", new=AsyncMock()),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
+            ),
+            patch(
+                "src.services.channel_service.get_session_registry",
+                return_value=None,
             ),
         ):
             await process_message(
@@ -134,7 +140,6 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                stm=stm,
                 ltm=ltm,
             )
 

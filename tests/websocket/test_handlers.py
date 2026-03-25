@@ -39,9 +39,6 @@ class TestHandlerPersonaId:
 
         mock_agent.stream = fake_stream
 
-        mock_stm = MagicMock()
-        mock_stm.get_chat_history = MagicMock(return_value=[])
-
         msg = MagicMock()
         msg.get = lambda k, d=None: {
             "content": "hello",
@@ -64,11 +61,11 @@ class TestHandlerPersonaId:
                 return_value=mock_agent,
             ),
             patch(
-                "src.services.websocket_service.manager.handlers.get_stm_service",
-                return_value=mock_stm,
+                "src.services.websocket_service.manager.handlers.get_ltm_service",
+                return_value=None,
             ),
             patch(
-                "src.services.websocket_service.manager.handlers.get_ltm_service",
+                "src.services.websocket_service.manager.handlers.get_session_registry",
                 return_value=None,
             ),
         ):
