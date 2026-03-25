@@ -4,7 +4,6 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 from src.services.channel_service.slack_service import (
-    SlackMessage,
     SlackService,
     SlackSettings,
 )
@@ -104,25 +103,72 @@ class TestParseEvent:
         result = await svc.parse_event(payload)
         assert result is None
 
-    async def test_returns_slack_message_for_valid_event(self):
-        svc = SlackService(_make_settings())
+    async def test_returns_slack_message_for_public_channel_with_name_mention(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
         payload = {
             "type": "event_callback",
             "team_id": "T1",
             "event": {
                 "type": "message",
-                "text": "hello yuri",
+                "text": "@yuri hello",
                 "channel": "C1",
                 "user": "U1",
             },
         }
         result = await svc.parse_event(payload)
         assert result is not None
-        assert isinstance(result, SlackMessage)
-        assert result.text == "hello yuri"
+        assert result.text == "hello"         # mention stripped
         assert result.channel_id == "C1"
         assert result.session_id == "slack:T1:C1:default"
         assert result.provider == "slack"
+
+    async def test_returns_none_for_public_channel_without_mention(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        payload = {
+            "type": "event_callback",
+            "team_id": "T1",
+            "event": {
+                "type": "message",
+                "text": "hello yuri",         # bare name — not a mention
+                "channel": "C1",
+                "user": "U1",
+            },
+        }
+        result = await svc.parse_event(payload)
+        assert result is None
+
+    async def test_returns_slack_message_for_dm_without_mention(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        payload = {
+            "type": "event_callback",
+            "team_id": "T1",
+            "event": {
+                "type": "message",
+                "text": "hello there",
+                "channel": "D012ABC",         # DM channel
+                "user": "U1",
+            },
+        }
+        result = await svc.parse_event(payload)
+        assert result is not None
+        assert result.text == "hello there"   # text unchanged in DMs
+
+    async def test_returns_slack_message_for_native_user_id_mention(self):
+        svc = SlackService(_make_settings())
+        svc._bot_user_id = "UBOTID"
+        payload = {
+            "type": "event_callback",
+            "team_id": "T1",
+            "event": {
+                "type": "message",
+                "text": "<@UBOTID> what's the weather?",
+                "channel": "C1",
+                "user": "U1",
+            },
+        }
+        result = await svc.parse_event(payload)
+        assert result is not None
+        assert result.text == "what's the weather?"
 
     async def test_returns_none_for_non_message_event(self):
         svc = SlackService(_make_settings())
@@ -157,6 +203,10 @@ class TestSlackServiceHelpers:
     def test_is_dm_false_for_c_channel(self):
         svc = SlackService(_make_settings())
         assert svc._is_dm("C012AB3CD") is False
+
+    def test_is_dm_false_for_g_channel(self):
+        svc = SlackService(_make_settings())
+        assert svc._is_dm("G012AB3CD") is False
 
     # _is_mentioned — user_id match
     def test_is_mentioned_true_for_native_user_id(self):
@@ -195,6 +245,12 @@ class TestSlackServiceHelpers:
     def test_clean_text_removes_name_mention_case_insensitive(self):
         svc = SlackService(_make_settings(bot_name="yuri"))
         assert svc._clean_text("@YURI hello") == "hello"
+
+    def test_is_mentioned_true_for_name_when_user_id_set(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        svc._bot_user_id = "U12345"
+        # name-only mention still satisfies check when user_id is also set
+        assert svc._is_mentioned("@yuri hello") is True
 
     def test_clean_text_normalizes_extra_whitespace(self):
         svc = SlackService(_make_settings(bot_name="yuri"))

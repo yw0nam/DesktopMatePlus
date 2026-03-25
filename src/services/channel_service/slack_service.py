@@ -88,7 +88,9 @@ class SlackService:
     async def parse_event(self, payload: dict) -> SlackMessage | None:
         """Webhook payload에서 메시지를 추출한다.
 
-        무시할 이벤트(봇 메시지, 비메시지 이벤트 등)는 None을 반환한다.
+        - DM 채널: 항상 응답
+        - 공개/그룹 채널: mention 있을 때만 응답
+        - 무시할 이벤트(봇 메시지, 비메시지 이벤트 등): None 반환
         """
         event = payload.get("event", {})
         if event.get("type") != "message":
@@ -97,11 +99,21 @@ class SlackService:
             return None
         if event.get("subtype"):
             return None
+
         text = event.get("text", "").strip()
         channel_id = event.get("channel", "")
         team_id = payload.get("team_id", "")
         if not text or not channel_id or not team_id:
             return None
+
+        # DM은 mention 없이도 항상 응답; 공개 채널은 mention 필요
+        if not self._is_dm(channel_id):
+            if not self._is_mentioned(text):
+                return None
+            text = self._clean_text(text)
+            if not text:
+                return None
+
         session_id = f"slack:{team_id}:{channel_id}:{STM_USER_ID}"
         return SlackMessage(
             session_id=session_id,
