@@ -9,10 +9,12 @@ import threading
 from pathlib import Path
 from typing import Awaitable, Callable, Optional, TypeVar
 
+import pymongo as _pymongo
 import yaml
 from loguru import logger
 
 from src.services.agent_service import AgentFactory, AgentService
+from src.services.agent_service.session_registry import SessionRegistry
 from src.services.ltm_service import LTMFactory, LTMService
 from src.services.stm_service import STMFactory, STMService
 from src.services.tts_service import TTSFactory, TTSService
@@ -24,6 +26,8 @@ _agent_service_instance: Optional[AgentService] = None
 _stm_service_instance: Optional[STMService] = None
 _ltm_service_instance: Optional[LTMService] = None
 _emotion_motion_mapper_instance: Optional[EmotionMotionMapper] = None
+_mongo_client: "_pymongo.MongoClient | None" = None
+_session_registry_instance: "SessionRegistry | None" = None
 
 T = TypeVar("T")
 
@@ -142,6 +146,48 @@ def _initialize_service(
 
 
 _BASE_YAML = Path(__file__).parent.parent.parent / "yaml_files"
+
+
+def initialize_mongodb_client(
+    config_path: Optional[str | Path] = None, force_reinit: bool = False
+) -> "_pymongo.MongoClient":
+    """Initialize shared MongoDB client for checkpointer and session_registry."""
+    global _mongo_client, _session_registry_instance
+    if _mongo_client is not None and not force_reinit:
+        logger.debug("MongoDB client already initialized, skipping")
+        return _mongo_client
+
+    resolved = (
+        Path(config_path)
+        if config_path
+        else _BASE_YAML / "services" / "checkpointer.yml"
+    )
+    cfg = _load_yaml_config(resolved).get("checkpointer_config", {})
+    connection_string: str = cfg["connection_string"]
+    db_name: str = cfg["db_name"]
+
+    _mongo_client = _pymongo.MongoClient(
+        connection_string, uuidRepresentation="standard"
+    )
+    try:
+        _mongo_client.admin.command("ping")
+    except Exception as e:
+        logger.error(f"❌ MongoDB client ping failed: {e}")
+        raise
+    db = _mongo_client[db_name]
+    _session_registry_instance = SessionRegistry(db["session_registry"])
+    logger.info(f"MongoDB client initialized (db={db_name})")
+    return _mongo_client
+
+
+def get_mongo_client() -> "_pymongo.MongoClient | None":
+    """Get the initialized MongoDB client instance."""
+    return _mongo_client
+
+
+def get_session_registry() -> "SessionRegistry | None":
+    """Get the initialized SessionRegistry instance."""
+    return _session_registry_instance
 
 
 def initialize_tts_service(
@@ -401,9 +447,12 @@ __all__ = [
     "initialize_stm_service",
     "initialize_ltm_service",
     "initialize_emotion_motion_mapper",
+    "initialize_mongodb_client",
     "get_tts_service",
     "get_agent_service",
     "get_stm_service",
     "get_ltm_service",
     "get_emotion_motion_mapper",
+    "get_mongo_client",
+    "get_session_registry",
 ]
