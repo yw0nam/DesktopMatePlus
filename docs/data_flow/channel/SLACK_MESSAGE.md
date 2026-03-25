@@ -1,6 +1,6 @@
 # SLACK_MESSAGE Data Flow
 
-Updated: 2026-03-19
+Updated: 2026-03-25
 
 ## Overview
 
@@ -35,6 +35,10 @@ sequenceDiagram
     end
 
     BE->>BE: Parse event<br/>(skip: bot message, subtype, non-message type)
+    BE->>BE: Mention filter<br/>DM('D'로 시작): 통과 / 공개채널: @mention 없으면 무시<br/>mention 있으면 텍스트에서 제거
+    alt No mention in public channel
+        BE-->>Slack: 200 {"ok": true}  ← silently ignored
+    end
     BE-->>Slack: 200 {"ok": true}  ← immediate return
 
     Note over BE: asyncio.create_task(process_message(...))
@@ -77,7 +81,7 @@ sequenceDiagram
 
     User->>Slack: Send message in channel
     Slack->>BE: POST /v1/channels/slack/events
-    BE->>BE: Verify signature, parse event
+    BE->>BE: Verify signature, parse event, mention filter
     BE-->>Slack: 200 {"ok": true}  ← immediate return
 
     activate BE
@@ -154,6 +158,13 @@ sequenceDiagram
 - Timestamp tolerance: ±5 minutes (replay attack prevention)
 - Comparison: `hmac.compare_digest` (timing-safe)
 
+### Mention Filtering (`parse_event`)
+
+- **DM 채널** (`channel_id`가 `'D'`로 시작): mention 없이도 항상 응답
+- **공개/그룹 채널**: `<@BOT_USER_ID>` 또는 `(?i)@bot_name` 패턴 없으면 `None` 반환 → 무시
+- **텍스트 정리**: mention 태그 제거 후 공백 정규화 — 에이전트에는 순수 텍스트만 전달
+- **bot_user_id 조회**: 서비스 시작 시 `SlackService.initialize()`가 `auth.test`로 자동 조회. 실패 시 이름 기반 매칭으로 폴백
+
 ### Session Lock
 
 - `session_lock(session_id)`: `cachetools.TTLCache` 기반 async context manager
@@ -163,9 +174,11 @@ sequenceDiagram
 ### reply_channel Metadata
 
 - `process_message()` 최초 호출 시 STM session metadata에 저장됨:
+
   ```json
   {"provider": "slack", "channel_id": "C5678"}
   ```
+
 - Callback 핸들러가 이 값을 확인해 Slack 라우팅 결정
 - WebSocket 세션에는 `reply_channel`이 없으므로 콜백 시 외부 전송 없음
 

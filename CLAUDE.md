@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Updated: 2026-03-23
+Updated: 2026-03-25
 
 This document outlines the fundamental rules, architectural patterns, and conventions for the **DesktopMate+ Backend** repository.
 You must adhere to these guidelines for all code generation and refactoring tasks.
@@ -56,8 +56,8 @@ Keep this document lean but contain all critical information for capturing the a
   - `knowledge_base_service/`: Knowledge base (RAG) services.
   - `task_sweep_service/`: Background expired task cleanup.
   - `channel_service/`: External channel integrations (Slack 등).
-    - `__init__.py`: `init_channel_service()`, `get_slack_service()`, `process_message()` — 공통 진입점.
-    - `slack_service.py`: `SlackService` (서명 검증, 이벤트 파싱, 메시지 전송), `SlackSettings`, `SlackMessage`.
+    - `__init__.py`: `init_channel_service()` (**async**), `get_slack_service()`, `process_message()` — 공통 진입점.
+    - `slack_service.py`: `SlackService` (서명 검증, 이벤트 파싱, 메시지 전송), `SlackSettings` (`bot_name` 포함), `SlackMessage`.
     - `session_lock.py`: TTLCache 기반 `session_lock()` — 채널 세션 concurrency control.
 - `src/main.py`: Application entry point and lifespan management.
 - `yaml_files/`: Service configuration files.
@@ -94,31 +94,13 @@ Keep this document lean but contain all critical information for capturing the a
 - **Error Handling:** Implement robust error handling for WebSocket connections, including disconnects and invalid message formats.
 - **State Management:** Carefully manage state for connected clients.
 
-### E. TTS & Keyframes Patterns
+### E. Service-Specific Patterns
 
-- **`EmotionMotionMapper`** is a standalone service initialized in lifespan via `initialize_emotion_motion_mapper()`. It reads `emotion_motion_map` from `yaml_files/tts_rules.yml` and maps emotion strings → `list[TimelineKeyframe]`.
-- **`TimelineKeyframe` type:** `dict[str, float | dict[str, float]]` — e.g., `{"duration": 0.3, "targets": {"happy": 1.0}}`. Replaces the old `motion_name`/`blendshape_name` fields.
-- **`synthesize_chunk()`** in `tts_pipeline.py`: always returns a `TtsChunkMessage` (never raises). If TTS fails or is disabled, `audio_base64=None`; `keyframes` is always populated from the mapper.
-- **Audio format:** TTS service is called with `audio_format="wav"`. Encoded as base64 in `TtsChunkMessage.audio_base64`.
-- **Service init order in lifespan:** TTS → EmotionMotionMapper → STM → Agent → LTM → Channel → Sweep.
+Service implementation details live in context-sensitive subdirectory files (auto-loaded when working in that service):
 
-### F. Channel Service Patterns
-
-- **`process_message()` 공통 진입점:** Webhook 라우트(text 있음)와 Callback 핸들러(text="") 양쪽에서 호출. `text=""`이면 STM에 TaskResult가 이미 주입된 상태이므로 `HumanMessage` 추가하지 않음.
-- **`session_lock`:** `cachetools.TTLCache` 기반, 10분 TTL, maxsize 1024. 동일 세션의 동시 처리 방지.
-- **`reply_channel` 메타데이터:** `process_message()`가 STM session metadata에 `{"provider": "slack", "channel_id": "..."}` 형태로 저장. `callback.py`는 이 값을 읽어 Slack 라우팅 결정.
-- **`SlackService` 서명 검증:** HMAC-SHA256, 5분 타임스탬프 tolerance, `hmac.compare_digest` 사용.
-- **session_id 형식:** `"slack:{team_id}:{channel_id}:{user_id}"` (현재 user_id는 `"default"` 상수).
-- **`upsert_session`:** filter는 `session_id`만 사용, `user_id`/`agent_id`는 `$set`으로 업데이트. `add_chat_history`와 달리 메시지 미삽입.
-- **`BackgroundSweepService`:** `slack_service_fn: Callable[[], SlackService | None]` lazy 주입으로 초기화 순서 의존 없음.
-
-### G. Agent Architecture Patterns
-
-- **Single instance:** `OpenAIChatAgent` is created once; `initialize_async()` is called in lifespan after all sync inits. It fetches MCP tools and creates the agent. `is_healthy()` returns `False` until then (swallowed via `swallow_health_error=True`).
-- **Persona injection:** `ChatMessage.persona_id` (default `"yuri"`) maps to a key in `yaml_files/personas.yml`. Persona text is prepended as `SystemMessage` at `stream()` time — not stored in the model field.
-- **DelegateToolMiddleware:** Injects `DelegateTaskTool` per request via `AgentMiddleware.awrap_model_call()`. Session ID is read from `RunnableConfig.configurable` via `get_config()` — do not pass it as a constructor arg.
-- **AgentService is a pure inference engine:** No STM/LTM dependency. `stream()` yields a `stream_end` event with `new_chats: list[BaseMessage]` — the messages generated this turn — for the caller to persist.
-- **Memory I/O via `memory_orchestrator`:** `handlers.py` calls `memory_orchestrator.load_context()` (LTM prefix + STM history) before each turn. After `stream_end`, `event_handlers.py` fires `asyncio.create_task(save_turn(...))` as a background task. `stm_service`/`ltm_service` are passed via `turn.metadata` — not injected into AgentService.
+- [TTS & Keyframes](src/services/tts_service/CLAUDE.md)
+- [Channel Service (Slack)](src/services/channel_service/CLAUDE.md)
+- [Agent Architecture](src/services/agent_service/CLAUDE.md)
 
 ## 5. Development Workflow
 
