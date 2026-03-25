@@ -83,11 +83,10 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         try:
             from src.services import (
                 get_agent_service,
-                get_stm_service,
                 initialize_agent_service,
                 initialize_emotion_motion_mapper,
                 initialize_ltm_service,
-                initialize_stm_service,
+                initialize_mongodb_client,
                 initialize_tts_service,
             )
 
@@ -102,13 +101,13 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
             initialize_emotion_motion_mapper()
 
-            # STM before agent so stm_service can be injected
-            if config_paths.get("stm_config_path"):
-                print(f"  - STM config: {config_paths['stm_config_path']}")
-                initialize_stm_service(config_path=config_paths["stm_config_path"])
+            # MongoDB client for checkpointer + session_registry (before agent)
+            if config_paths.get("checkpointer_config_path"):
+                initialize_mongodb_client(
+                    config_path=config_paths["checkpointer_config_path"]
+                )
             else:
-                print("  - STM config: Using default from settings")
-                initialize_stm_service()
+                initialize_mongodb_client()
 
             if config_paths.get("agent_config_path"):
                 print(f"  - Agent config: {config_paths['agent_config_path']}")
@@ -178,11 +177,14 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 sweep_cfg = SweepConfig(**sweep_cfg_dict)
 
                 from src.services.channel_service import get_slack_service
+                from src.services.service_manager import get_session_registry
 
-                stm_svc = get_stm_service()
-                if stm_svc is not None:
+                registry = get_session_registry()
+                agent_for_sweep = get_agent_service()
+                if registry is not None and agent_for_sweep is not None:
                     sweep_service = BackgroundSweepService(
-                        stm_service=stm_svc,
+                        agent_service=agent_for_sweep,
+                        session_registry=registry,
                         config=sweep_cfg,
                         slack_service_fn=get_slack_service,
                     )
@@ -193,7 +195,9 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                         f"ttl={sweep_cfg.task_ttl_seconds}s)"
                     )
                 else:
-                    logger.warning("Task sweep skipped: STM service not available")
+                    logger.warning(
+                        "Task sweep skipped: agent or session registry not available"
+                    )
             except Exception:
                 logger.exception("Failed to start background sweep service")
 

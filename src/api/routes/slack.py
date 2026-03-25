@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from src.services import get_agent_service, get_ltm_service, get_stm_service
+from src.services import get_agent_service, get_ltm_service
 from src.services.channel_service import get_slack_service, process_message
 
 router = APIRouter(prefix="/v1/channels/slack", tags=["Slack"])
@@ -59,7 +59,6 @@ async def slack_events(request: Request) -> JSONResponse:
 
     # 즉시 200 반환, 실제 처리는 백그라운드
     agent_service = get_agent_service()
-    stm = get_stm_service()
     ltm = get_ltm_service()
 
     asyncio.create_task(
@@ -69,7 +68,6 @@ async def slack_events(request: Request) -> JSONResponse:
             provider=msg.provider,
             channel_id=msg.channel_id,
             agent_service=agent_service,
-            stm=stm,
             ltm=ltm,
         )
     )
