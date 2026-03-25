@@ -21,7 +21,7 @@ class TestHealthEndpoint:
                 ModuleStatus(name="TTS", ready=True, error=None),
                 ModuleStatus(name="Agent", ready=True, error=None),
                 ModuleStatus(name="LTM", ready=True, error=None),
-                ModuleStatus(name="STM", ready=True, error=None),
+                ModuleStatus(name="MongoDB", ready=True, error=None),
             ],
         )
 
@@ -49,7 +49,9 @@ class TestHealthEndpoint:
                     name="Agent", ready=False, error="Agent initialization failed"
                 ),
                 ModuleStatus(name="LTM", ready=False, error="LTM service unavailable"),
-                ModuleStatus(name="STM", ready=False, error="STM service unavailable"),
+                ModuleStatus(
+                    name="MongoDB", ready=False, error="MongoDB service unavailable"
+                ),
             ],
         )
 
@@ -75,7 +77,7 @@ class TestHealthEndpoint:
                 ModuleStatus(name="TTS", ready=True, error=None),
                 ModuleStatus(name="Agent", ready=True, error=None),
                 ModuleStatus(name="LTM", ready=True, error=None),
-                ModuleStatus(name="STM", ready=True, error=None),
+                ModuleStatus(name="MongoDB", ready=True, error=None),
             ],
         )
 
@@ -146,16 +148,16 @@ class TestHealthService:
             assert error is None
 
     @pytest.mark.asyncio
-    async def test_check_stm_success(self):
-        """Test STM health check with successful response."""
+    async def test_check_mongodb_success(self):
+        """Test MongoDB health check with successful response."""
         service = HealthService(timeout=5)
 
-        with patch("src.services.get_stm_service") as mock_get_stm:
-            mock_stm_engine = MagicMock()
-            mock_stm_engine.is_healthy.return_value = (True, "STM is healthy")
-            mock_get_stm.return_value = mock_stm_engine
+        with patch("src.services.service_manager.get_mongo_client") as mock_get_mongo:
+            mock_client = MagicMock()
+            mock_client.admin.command.return_value = {"ok": 1}
+            mock_get_mongo.return_value = mock_client
 
-            ready, error = await service.check_stm()
+            ready, error = await service.check_mongodb()
 
             assert ready is True
             assert error is None
@@ -169,7 +171,7 @@ class TestHealthService:
             patch.object(service, "check_tts", return_value=(True, None)),
             patch.object(service, "check_agent", return_value=(True, None)),
             patch.object(service, "check_ltm", return_value=(True, None)),
-            patch.object(service, "check_stm", return_value=(True, None)),
+            patch.object(service, "check_mongodb", return_value=(True, None)),
         ):
             health = await service.get_system_health()
 
@@ -189,7 +191,9 @@ class TestHealthService:
                 service, "check_ltm", return_value=(False, "LTM service unavailable")
             ),
             patch.object(
-                service, "check_stm", return_value=(False, "STM service unavailable")
+                service,
+                "check_mongodb",
+                return_value=(False, "MongoDB service unavailable"),
             ),
         ):
             health = await service.get_system_health()
@@ -201,6 +205,6 @@ class TestHealthService:
             assert ltm_module.ready is False
             assert ltm_module.error == "LTM service unavailable"
 
-            stm_module = next(m for m in health.modules if m.name == "STM")
-            assert stm_module.ready is False
-            assert stm_module.error == "STM service unavailable"
+            mongodb_module = next(m for m in health.modules if m.name == "MongoDB")
+            assert mongodb_module.ready is False
+            assert mongodb_module.error == "MongoDB service unavailable"
