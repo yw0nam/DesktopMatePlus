@@ -64,6 +64,7 @@ class CustomAgentState(AgentState):
     agent_id: str
     pending_tasks: list[PendingTask]
     ltm_last_consolidated_at_turn: int
+    knowledge_saved: bool  # disconnect 시 knowledge summary 중복 방지
 ```
 
 **설계 결정 — `reply_channel`을 task 레벨로:**
@@ -322,7 +323,35 @@ class BackgroundSweepService:
 | `DELETE /sessions/{id}` | checkpointer thread 삭제 + `session_registry` row 삭제 |
 | `PATCH /sessions/{id}/metadata` | `agent.update_state({custom fields})` |
 
-### 5-11. event_handlers.py
+### 5-11. disconnect_handler.py
+
+`stm_service` 제거. `agent.get_state()`로 messages 및 `knowledge_saved` 플래그 조회.
+`agent.update_state()`로 `knowledge_saved = True` 기록.
+
+```python
+async def on_disconnect_handler(session_id, user_id, agent_id, agent_service, delegate):
+    config = {"configurable": {"thread_id": session_id}}
+    state = (await agent_service.agent.aget_state(config)).values
+
+    if state.get("knowledge_saved"):
+        return
+
+    messages = state.get("messages", [])
+    human_count = sum(1 for m in messages if isinstance(m, HumanMessage))
+    if human_count < MIN_TURNS_FOR_SUMMARY:
+        return
+
+    payload = build_delegate_payload(session_id, user_id, agent_id, messages=messages)
+    await delegate(payload)
+    await agent_service.agent.aupdate_state(config, {"knowledge_saved": True})
+```
+
+**Option B (stm_fetch_url) 처리:**
+`build_delegate_payload()`의 Option B 경로(`stm_fetch_url`)는 `/v1/stm/{session_id}/messages`를
+NanoClaw에게 전달한다. 이 엔드포인트는 §5-10에서 재작성되는 `/v1/stm` 라우트의 일부로
+`agent.get_state()` 기반으로 유지되어야 한다.
+
+### 5-12. event_handlers.py
 
 `save_turn()` 호출 제거. checkpointer 자동 저장. `turn.metadata`에서 `stm_service` 키 참조 제거.
 
@@ -380,6 +409,7 @@ BackgroundSweepService._sweep_once()
 - `load_context()` → `load_ltm_prefix()`로 교체
 - `handlers.py`의 `stm_service` 참조 및 `metadata["stm_service"]`
 - `BackgroundSweepService` 생성자의 `stm_service` 인자
+- `disconnect_handler.py`의 `STMService` 의존성 (`on_disconnect_handler`, `build_delegate_payload`)
 
 ---
 
@@ -392,4 +422,5 @@ BackgroundSweepService._sweep_once()
 - `BackgroundSweepService` — `session_registry` 순회, `aget_state` / `aupdate_state`, Slack 알림 분기 검증
 - `handlers.py` — `stm_service` 미참조 확인, `session_registry` upsert 검증
 - `GET /sessions` — `session_registry` 쿼리 + `updated_at` 정렬 검증
+- `disconnect_handler.py` — `aget_state` 기반 messages/knowledge_saved 조회, `aupdate_state` 호출 검증
 - 채널 전환 시나리오 통합 테스트: Slack → WebSocket 전환 후 NanoClaw 콜백이 Slack으로 정확히 라우팅되는지 확인
