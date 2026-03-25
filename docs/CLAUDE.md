@@ -1,6 +1,6 @@
 # backend/docs/ — Backend Documentation Index
 
-Updated: 2026-03-25
+Updated: 2026-03-26
 
 FastAPI 백엔드의 API 스펙, WebSocket 프로토콜, 데이터 흐름, 개발 가이드를 보관한다.
 코드는 없으며, 읽기·참조 전용.
@@ -95,3 +95,4 @@ YYYY-MM-DD: What changed and why
 
 2026-03-23: Initial version as directory index.
 2026-03-25: Merged Document Authoring Guide content in (moved from `.claude/rules/DOCUMENT_GUIDE.md`). Updated directory map to reflect new guide locations.
+2026-03-26: Updated directory map — `stm_service/` removed, checkpointer-based architecture.

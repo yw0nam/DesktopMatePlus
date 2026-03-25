@@ -1,6 +1,6 @@
 # REST API Guide
 
-Updated: 2026-03-23
+Updated: 2026-03-26
 
 ## 1. Synopsis
 
@@ -13,7 +13,9 @@ Updated: 2026-03-23
 
 - **Development**: `http://127.0.0.1:5500/v1`
 
-### Short-Term Memory (STM)
+### Short-Term Memory (STM) / Checkpointer
+
+> **Note:** STM routes are now backed by the LangGraph `MongoDBSaver` checkpointer + `SessionRegistry`. There is no longer a separate `STMService`; history is persisted automatically by the agent.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -22,6 +24,7 @@ Updated: 2026-03-23
 | `/stm/add-chat-history` | POST | [Add Chat History](./STM_AddChatHistory.md) |
 | `/stm/sessions/{session_id}/metadata` | PATCH | [Update Metadata](./STM_UpdateSessionMetadata.md) |
 | `/stm/sessions/{session_id}` | DELETE | [Delete Session](./STM_DeleteSession.md) |
+| `/stm/{session_id}/messages` | GET | Fetch all messages (NanoClaw Option B fetch endpoint) |
 
 ### Long-Term Memory (LTM)
 
