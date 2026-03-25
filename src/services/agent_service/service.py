@@ -36,6 +36,7 @@ class AgentService(ABC):
         persona_id: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
+        context: dict | None = None,
     ):
         """Stream agent response.
 
@@ -54,6 +55,7 @@ class AgentService(ABC):
         persona_id: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
+        context: dict | None = None,
     ) -> dict:
         """Invoke agent and return final result without streaming.
 
