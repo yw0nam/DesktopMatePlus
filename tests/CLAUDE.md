@@ -1,9 +1,3 @@
----
-paths:
-  - "tests/**/*.py"
-  - "src/**/*.py"
----
-
 # Testing Guide
 
 Updated: 2026-03-23
@@ -72,10 +66,9 @@ All tests should follow the AAA structure:
 ### 2.3 Async Testing & Mocking
 
 **Async Tests:**
-Use `@pytest.mark.asyncio` for all asynchronous test functions.
+`asyncio_mode = "auto"` in `pyproject.toml` — no `@pytest.mark.asyncio` decorator needed.
 
 ```python
-@pytest.mark.asyncio
 async def test_service_initialization():
     service = MyService()
     result = await service.initialize()
@@ -88,7 +81,6 @@ Use `unittest.mock` (`patch`, `AsyncMock`, `MagicMock`) to isolate the code unde
 ```python
 from unittest.mock import AsyncMock, patch
 
-@pytest.mark.asyncio
 async def test_api_with_mock_service(client):
     with patch("src.services.my_service.get_data", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = {"status": "success"}
@@ -107,45 +99,19 @@ Common fixtures are defined in `tests/conftest.py`:
 
 ### 2.5 Running Tests
 
-The project uses `uv` for dependency management and running tests.
-
-**Run All Tests:**
-
 ```bash
-uv run pytest
-```
-
-**Run with Coverage:**
-
-```bash
-uv run pytest --cov=src
-```
-
-**Run Specific Module:**
-
-```bash
-uv run pytest tests/services/test_tts_synthesis.py
-```
-
-**Run Single Test:**
-
-```bash
-uv run pytest tests/api/test_health_endpoint.py::TestHealthEndpoint::test_health_check_all_services_healthy
-```
-
-**Run Slow E2E Tests:**
-
-```bash
-uv run pytest -m slow
+uv run pytest                                                          # all tests
+uv run pytest tests/services/test_tts_synthesis.py                    # specific file
+uv run pytest tests/api/test_health.py::TestHealth::test_check        # single test
+uv run pytest -m slow                                                  # E2E (real services)
+uv run pytest --cov=src                                                # with coverage
 ```
 
 ### 2.6 Constraints & Standards
 
 - **Isolation**: Tests must not depend on each other. Use fresh instances or reset state in fixtures.
 - **No External Side Effects**: Unit tests should not write to production databases or call real AI APIs.
-- **Documentation**: Use docstrings for complex tests to explain the scenario being verified.
-- **Type Hints**: Use type hints in test functions where it improves clarity.
-- **Clean Code**: Follow the same linting standards (Ruff/Black) as the source code.
+- `slow` tests hit real MongoDB/Qdrant/LLM — skip in CI unless services are available.
 
 ## 3. Usage Examples
 
@@ -161,9 +127,7 @@ def test_normalize_tags_dedup():
 ### API Test Example
 
 ```python
-@pytest.mark.asyncio
 async def test_health_check(client):
-    """Verify the health check endpoint returns 200 OK."""
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
@@ -171,8 +135,9 @@ async def test_health_check(client):
 
 ---
 
-## Related Documents
+## Appendix
 
-- [CLAUDE.md](../../CLAUDE.md): General project guidelines and commands.
-- [LOGGING_GUIDE.md](LOGGING_GUIDE.md): Logging conventions.
-- [ENVIRONMENT.md](../setup/ENVIRONMENT.md): Test environment setup.
+### PatchNote
+
+2026-03-23: Initial version.
+2026-03-25: Moved from `.claude/rules/TESTING_GUIDE.md` → `tests/CLAUDE.md`. Removed redundant `@pytest.mark.asyncio` note (covered by pyproject.toml asyncio_mode=auto).

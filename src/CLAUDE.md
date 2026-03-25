@@ -1,8 +1,3 @@
----
-paths:
-  - "src/**/*.py"
----
-
 # Logging Guide
 
 Updated: 2026-03-23
@@ -94,3 +89,4 @@ logger.add("logs/app_{time:YYYY-MM-DD}.log", rotation="00:00", retention="30 day
 ### B. PatchNote
 
 2026-03-23: Trimmed Appendix — removed redundant service-specific examples and best-practices table; consolidated into core constraints.
+2026-03-25: Moved from `.claude/rules/LOGGING_GUIDE.md` → `src/CLAUDE.md` for context-sensitive auto-loading.

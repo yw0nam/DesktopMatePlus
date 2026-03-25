@@ -9,7 +9,7 @@ You must adhere to these guidelines for all code generation and refactoring task
 
 Keep this document lean but contain all critical information for capturing the architectural vision and coding standards of the project.
 
-- If there is too much detail, split to separate files in `.claude/rules/` (e.g., `TESTING_GUIDE.md`, `DOCUMENT_GUIDE.md`, `LOGGING_GUIDE.md`) — Claude Code auto-loads these as context.
+- If there is too much detail, split into subdirectory `CLAUDE.md` files (e.g., `src/CLAUDE.md`, `tests/CLAUDE.md`, `docs/CLAUDE.md`) — Claude Code auto-loads these context-sensitively when entering that directory.
 - But, this document must contain the information for capturing the overall architecture, design patterns, and coding conventions that are critical for maintaining consistency across the codebase.
 
 ## Core Philosophy
