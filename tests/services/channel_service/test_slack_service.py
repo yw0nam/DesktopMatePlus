@@ -146,3 +146,57 @@ class TestSendMessage:
         mock_client.chat_postMessage.assert_called_once_with(
             channel="C123", text="hello!"
         )
+
+
+class TestSlackServiceHelpers:
+    # _is_dm
+    def test_is_dm_true_for_d_channel(self):
+        svc = SlackService(_make_settings())
+        assert svc._is_dm("D012AB3CD") is True
+
+    def test_is_dm_false_for_c_channel(self):
+        svc = SlackService(_make_settings())
+        assert svc._is_dm("C012AB3CD") is False
+
+    # _is_mentioned — user_id match
+    def test_is_mentioned_true_for_native_user_id(self):
+        svc = SlackService(_make_settings())
+        svc._bot_user_id = "U12345"
+        assert svc._is_mentioned("<@U12345> hello") is True
+
+    def test_is_mentioned_false_for_other_user_id(self):
+        svc = SlackService(_make_settings())
+        svc._bot_user_id = "U12345"
+        assert svc._is_mentioned("<@UOTHER> hello") is False
+
+    # _is_mentioned — name match (case insensitive)
+    def test_is_mentioned_true_for_at_name(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        assert svc._is_mentioned("hey @yuri what's up") is True
+
+    def test_is_mentioned_true_for_at_name_uppercase(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        assert svc._is_mentioned("@YURI hello") is True
+
+    def test_is_mentioned_false_for_bare_name(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        assert svc._is_mentioned("hello yuri") is False
+
+    # _clean_text
+    def test_clean_text_removes_native_mention(self):
+        svc = SlackService(_make_settings())
+        svc._bot_user_id = "U12345"
+        assert svc._clean_text("<@U12345> please help") == "please help"
+
+    def test_clean_text_removes_name_mention(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        assert svc._clean_text("@yuri what time is it") == "what time is it"
+
+    def test_clean_text_removes_name_mention_case_insensitive(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        assert svc._clean_text("@YURI hello") == "hello"
+
+    def test_clean_text_normalizes_extra_whitespace(self):
+        svc = SlackService(_make_settings(bot_name="yuri"))
+        svc._bot_user_id = "U12345"
+        assert svc._clean_text("  <@U12345>   tell me  ") == "tell me"

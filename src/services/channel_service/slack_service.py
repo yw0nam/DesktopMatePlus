@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import re
 import time
 from dataclasses import dataclass
 
@@ -66,6 +67,23 @@ class SlackService:
             return hmac.compare_digest(expected, signature)
         except Exception:
             return False
+
+    def _is_dm(self, channel_id: str) -> bool:
+        """Slack DM channel ID는 'D'로 시작한다."""
+        return channel_id.startswith("D")
+
+    def _is_mentioned(self, text: str) -> bool:
+        """텍스트에 봇에 대한 mention이 포함되어 있는지 확인한다."""
+        if self._bot_user_id and re.search(rf"<@{re.escape(self._bot_user_id)}>", text):
+            return True
+        return bool(re.search(rf"(?i)@{re.escape(self._bot_name)}", text))
+
+    def _clean_text(self, text: str) -> str:
+        """mention 태그를 제거하고 공백을 정규화한다."""
+        if self._bot_user_id:
+            text = re.sub(rf"<@{re.escape(self._bot_user_id)}>", "", text)
+        text = re.sub(rf"(?i)@{re.escape(self._bot_name)}", "", text)
+        return " ".join(text.split())
 
     async def parse_event(self, payload: dict) -> SlackMessage | None:
         """Webhook payload에서 메시지를 추출한다.
