@@ -351,7 +351,23 @@ async def on_disconnect_handler(session_id, user_id, agent_id, agent_service, de
 NanoClaw에게 전달한다. 이 엔드포인트는 §5-10에서 재작성되는 `/v1/stm` 라우트의 일부로
 `agent.get_state()` 기반으로 유지되어야 한다.
 
-### 5-12. event_handlers.py
+### 5-12. health.py
+
+`check_stm()` 메서드 제거. MongoDB checkpointer 연결 ping으로 교체.
+
+```python
+async def check_mongodb(self) -> tuple[bool, str | None]:
+    """Check MongoDB checkpointer connectivity."""
+    try:
+        mongo_client.admin.command("ping")
+        return True, None
+    except Exception as e:
+        return False, f"MongoDB checkpointer ping failed: {str(e)}"
+```
+
+`overall_status` 집계에서 `stm_ready` → `mongodb_ready`로 교체.
+
+### 5-13. event_handlers.py
 
 `save_turn()` 호출 제거. checkpointer 자동 저장. `turn.metadata`에서 `stm_service` 키 참조 제거.
 
