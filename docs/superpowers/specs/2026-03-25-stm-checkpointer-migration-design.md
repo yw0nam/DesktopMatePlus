@@ -102,11 +102,17 @@ agent.stream(
 )
 ```
 
-**주의 — configurable 키 전면 통일:**
-현재 `AgentService.stream()`은 `"session_id"` 키를 configurable로 사용하고,
-`DelegateToolMiddleware`는 `get_config()["configurable"].get("session_id", "")`로 읽는다.
-`handlers.py`, `channel_service/__init__.py`, `callback.py`, `AgentService` 내부 모두
-`"session_id"` → `"thread_id"` 키로 통일해야 한다.
+**`session_id` / `thread_id` 경계 정책:**
+- **외부 인터페이스** (API 파라미터, WebSocket 메시지, NanoClaw payload): `session_id` 유지 — 클라이언트 breaking change 없음
+- **LangGraph 내부 configurable 키**: `thread_id` 사용 — LangGraph 표준 준수
+- **매핑**: `AgentService` 내부에서 `session_id` → `thread_id`로 변환 후 `config`에 주입
+
+```python
+# AgentService 내부에서만 변환
+config = {"configurable": {"thread_id": session_id}}
+```
+
+`DelegateToolMiddleware`는 `get_config()["configurable"].get("thread_id", "")`로 읽음 (내부 전용).
 
 ### 5-2. DelegateTaskTool
 
@@ -162,7 +168,7 @@ def ltm_consolidation(state: CustomAgentState, runtime: Runtime) -> dict | None:
         return None
 
     asyncio.create_task(
-        _consolidate_ltm(
+        _safe_consolidate_ltm(  # 예외 로깅 래퍼
             history=list(state["messages"]),
             user_id=state.get("user_id", ""),
             agent_id=state.get("agent_id", ""),
@@ -170,11 +176,19 @@ def ltm_consolidation(state: CustomAgentState, runtime: Runtime) -> dict | None:
         )
     )
     return {"ltm_last_consolidated_at_turn": current_turn}
+
+
+async def _safe_consolidate_ltm(*args, **kwargs):
+    """asyncio.create_task silent failure 방지 — 예외는 반드시 로깅."""
+    try:
+        await _consolidate_ltm(*args, **kwargs)
+    except Exception as e:
+        logger.error(f"LTM consolidation failed: {e}")
 ```
 
 `@after_model`은 단일 turn 내 여러 번 발생할 수 있으나(tool 호출 후 재진입),
 `ltm_last_consolidated_at_turn`을 즉시 업데이트해 state에 반영하므로 중복 트리거는 threshold 조건이 차단한다.
-`asyncio.create_task()`로 LTM 저장은 논블로킹.
+`asyncio.create_task()`로 LTM 저장은 논블로킹. 모든 background task는 예외 로깅 래퍼를 통해 실행.
 
 ### 5-5. callback.py
 
@@ -195,10 +209,14 @@ async def nanoclaw_callback(session_id: str, payload: NanoClawCallbackRequest):
     prefix = "TaskResult" if payload.status == "done" else "TaskFailed"
     synthetic_msg = SystemMessage(content=f"[{prefix}:{payload.task_id}] {payload.summary}")
 
-    await agent_svc.agent.aupdate_state(config, {
-        "messages": [synthetic_msg],
-        "pending_tasks": pending_tasks,
-    })
+    try:
+        await agent_svc.agent.aupdate_state(config, {
+            "messages": [synthetic_msg],
+            "pending_tasks": pending_tasks,
+        })
+    except Exception as e:
+        logger.error(f"State update failed for session {session_id}: {e}")
+        raise HTTPException(status_code=503, detail="State update failed")
 
     # reply_channel은 task 레벨에서 읽음 (세션 레벨 아님)
     reply_channel = task_record.get("reply_channel")
