@@ -36,6 +36,19 @@ class SlackService:
         self._bot_user_id: str | None = None
         self._bot_name: str = settings.bot_name
 
+    async def initialize(self) -> None:
+        """Slack auth.test를 호출해 봇의 user_id를 가져온다.
+        실패 시 경고만 기록하고 이름 기반 매칭으로 폴백한다.
+        """
+        try:
+            result = await self._client.auth_test()
+            self._bot_user_id = result["user_id"]
+            logger.info(f"SlackService bot_user_id resolved: {self._bot_user_id}")
+        except Exception as e:
+            logger.warning(
+                f"SlackService auth.test failed, falling back to name-only matching: {e}"
+            )
+
     def verify_signature(self, *, body: str, timestamp: str, signature: str) -> bool:
         """Slack request signature를 검증한다. Replay attack 방지를 위해 5분 이상 오래된 요청은 거부."""
         try:

@@ -3,8 +3,6 @@ import hmac
 import time
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from src.services.channel_service.slack_service import (
     SlackMessage,
     SlackService,
@@ -67,8 +65,29 @@ class TestSlackServiceSignature:
         assert svc.verify_signature(body=body, timestamp=old_ts, signature=sig) is False
 
 
+class TestSlackServiceInitialize:
+    async def test_initialize_sets_bot_user_id_on_success(self):
+        svc = SlackService(_make_settings())
+        mock_client = MagicMock()
+        mock_client.auth_test = AsyncMock(return_value={"user_id": "UBOTABC"})
+        svc._client = mock_client
+
+        await svc.initialize()
+
+        assert svc._bot_user_id == "UBOTABC"
+
+    async def test_initialize_leaves_bot_user_id_none_on_failure(self):
+        svc = SlackService(_make_settings())
+        mock_client = MagicMock()
+        mock_client.auth_test = AsyncMock(side_effect=Exception("auth failed"))
+        svc._client = mock_client
+
+        await svc.initialize()  # must not raise
+
+        assert svc._bot_user_id is None
+
+
 class TestParseEvent:
-    @pytest.mark.asyncio
     async def test_returns_none_for_bot_message(self):
         svc = SlackService(_make_settings())
         payload = {
@@ -85,7 +104,6 @@ class TestParseEvent:
         result = await svc.parse_event(payload)
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_returns_slack_message_for_valid_event(self):
         svc = SlackService(_make_settings())
         payload = {
@@ -106,7 +124,6 @@ class TestParseEvent:
         assert result.session_id == "slack:T1:C1:default"
         assert result.provider == "slack"
 
-    @pytest.mark.asyncio
     async def test_returns_none_for_non_message_event(self):
         svc = SlackService(_make_settings())
         payload = {
@@ -119,7 +136,6 @@ class TestParseEvent:
 
 
 class TestSendMessage:
-    @pytest.mark.asyncio
     async def test_send_message_calls_slack_api(self):
         svc = SlackService(_make_settings())
         mock_client = MagicMock()
