@@ -19,11 +19,12 @@ _tts_processor = TTSTextProcessor()
 _slack_service: SlackService | None = None
 
 
-def init_channel_service(settings: SlackSettings | None) -> None:
+async def init_channel_service(settings: SlackSettings | None) -> None:
     """main.py lifespan에서 호출. SlackService 싱글톤을 초기화한다."""
     global _slack_service
     if settings and settings.enabled and settings.bot_token:
         _slack_service = SlackService(settings)
+        await _slack_service.initialize()
         logger.info("SlackService initialized")
     else:
         logger.info("SlackService disabled (enabled=false or bot_token missing)")
