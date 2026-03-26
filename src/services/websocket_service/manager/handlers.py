@@ -16,13 +16,12 @@ from src.models.websocket import (
     ErrorMessage,
     PongMessage,
 )
-from src.services import get_agent_service, get_ltm_service
+from src.services import get_agent_service
 from src.services.service_manager import (
     get_emotion_motion_mapper,
     get_session_registry,
     get_tts_service,
 )
-from src.services.websocket_service.manager.memory_orchestrator import load_ltm_prefix
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
@@ -141,7 +140,6 @@ class MessageHandler:
             return
 
         agent_service = get_agent_service()
-        ltm_service = get_ltm_service()
 
         if agent_service is None:
             logger.error("Agent service not initialized")
@@ -203,25 +201,15 @@ class MessageHandler:
             if registry:
                 await asyncio.to_thread(registry.upsert, session_id, user_id, agent_id)
 
-            message_history = await load_ltm_prefix(
-                ltm_service=ltm_service,
-                user_id=user_id,
-                agent_id=agent_id,
-                query=content if isinstance(content, str) else "",
-            )
-
             content = [{"type": "text", "text": content}]
             if images and agent_service.support_image:
                 content.extend(images)
 
-            message_history.append(HumanMessage(content=content))
-
             metadata["user_id"] = user_id
             metadata["agent_id"] = agent_id
-            metadata["ltm_service"] = ltm_service
 
             agent_stream = agent_service.stream(
-                messages=message_history,
+                messages=[HumanMessage(content=content)],
                 session_id=session_id,
                 persona_id=persona_id,
                 user_id=user_id,

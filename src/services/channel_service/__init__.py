@@ -6,9 +6,7 @@ from loguru import logger
 from src.services.agent_service.service import AgentService
 from src.services.channel_service.session_lock import session_lock
 from src.services.channel_service.slack_service import SlackService, SlackSettings
-from src.services.ltm_service.service import LTMService
 from src.services.service_manager import get_session_registry
-from src.services.websocket_service.manager.memory_orchestrator import load_ltm_prefix
 from src.services.websocket_service.text_processors import TTSTextProcessor
 
 _tts_processor = TTSTextProcessor()
@@ -40,7 +38,6 @@ async def process_message(
     user_id: str = "default",
     agent_id: str = "yuri",
     agent_service: AgentService,
-    ltm: LTMService | None = None,
 ) -> None:
     """외부 채널 메시지를 처리하고 응답을 전송한다.
 
@@ -55,15 +52,8 @@ async def process_message(
         if registry:
             await asyncio.to_thread(registry.upsert, session_id, user_id, agent_id)
 
-        # 2. 컨텍스트 로드 (LTM prefix only; STM is handled by checkpointer)
-        context = await load_ltm_prefix(
-            ltm_service=ltm,
-            user_id=user_id,
-            agent_id=agent_id,
-            query=text,
-        )
-        # 3. 에이전트 실행
-        messages = context + [HumanMessage(text)] if text else context
+        # 2. 에이전트 실행 (LTM retrieval handled by ltm_retrieve_hook middleware)
+        messages = [HumanMessage(text)] if text else []
         slack = get_slack_service() if provider == "slack" else None
         try:
             result = await agent_service.invoke(

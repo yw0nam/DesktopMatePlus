@@ -5,6 +5,7 @@ Updated: 2026-03-25
 > **Data Flow:** [SLACK_MESSAGE](../../../../docs/data_flow/channel/SLACK_MESSAGE.md) — 전체 메시지 처리 시퀀스 다이어그램
 
 - **`process_message()` 공통 진입점:** Webhook 라우트(text 있음)와 Callback 핸들러(text="") 양쪽에서 호출. `text=""`이면 STM에 TaskResult가 이미 주입된 상태이므로 `HumanMessage` 추가하지 않음.
+
 - **`session_lock`:** `cachetools.TTLCache` 기반, 10분 TTL, maxsize 1024. 동일 세션의 동시 처리 방지.
 - **`reply_channel` 메타데이터:** `process_message()`가 STM session metadata에 `{"provider": "slack", "channel_id": "..."}` 형태로 저장. `callback.py`는 이 값을 읽어 Slack 라우팅 결정.
 - **`init_channel_service()`는 async:** lifespan에서 `await init_channel_service(slack_settings)` 로 호출.

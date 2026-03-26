@@ -4,8 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
+from src.services.agent_service.middleware.delegate_middleware import (
+    DelegateToolMiddleware,
+)
 from src.services.agent_service.tools.delegate.delegate_task import DelegateTaskTool
-from src.services.agent_service.utils.delegate_middleware import DelegateToolMiddleware
 
 
 class TestDelegateToolMiddleware:

@@ -14,21 +14,16 @@ def _make_deps(invoke_content="응답"):
             "new_chats": [AIMessage(invoke_content)],
         }
     )
-    ltm = MagicMock()
-    return agent_service, ltm
+    return agent_service
 
 
 class TestProcessMessage:
     @pytest.mark.asyncio
     async def test_calls_agent_invoke_with_human_message_when_text_provided(self):
-        agent, ltm = _make_deps()
+        agent = _make_deps()
         mock_slack = AsyncMock()
 
         with (
-            patch(
-                "src.services.channel_service.load_ltm_prefix",
-                new=AsyncMock(return_value=[]),
-            ),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
@@ -44,7 +39,6 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                ltm=ltm,
             )
 
         call_messages = agent.invoke.call_args[1]["messages"]
@@ -54,15 +48,11 @@ class TestProcessMessage:
 
     @pytest.mark.asyncio
     async def test_does_not_add_human_message_when_text_empty(self):
-        """콜백 경로: text=""이면 HumanMessage를 context에 추가하지 않는다."""
-        agent, ltm = _make_deps()
+        """콜백 경로: text=""이면 HumanMessage를 추가하지 않는다."""
+        agent = _make_deps()
         mock_slack = AsyncMock()
 
         with (
-            patch(
-                "src.services.channel_service.load_ltm_prefix",
-                new=AsyncMock(return_value=[]),
-            ),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
@@ -78,7 +68,6 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                ltm=ltm,
             )
 
         call_messages = agent.invoke.call_args[1]["messages"]
@@ -86,14 +75,10 @@ class TestProcessMessage:
 
     @pytest.mark.asyncio
     async def test_sends_response_to_slack(self):
-        agent, ltm = _make_deps("Yuri 응답")
+        agent = _make_deps("Yuri 응답")
         mock_slack = AsyncMock()
 
         with (
-            patch(
-                "src.services.channel_service.load_ltm_prefix",
-                new=AsyncMock(return_value=[]),
-            ),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
@@ -109,22 +94,17 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                ltm=ltm,
             )
 
         mock_slack.send_message.assert_called_once_with("C1", "Yuri 응답")
 
     @pytest.mark.asyncio
     async def test_sends_error_message_on_invoke_failure(self):
-        agent, ltm = _make_deps()
+        agent = _make_deps()
         agent.invoke = AsyncMock(side_effect=RuntimeError("LLM 오류"))
         mock_slack = AsyncMock()
 
         with (
-            patch(
-                "src.services.channel_service.load_ltm_prefix",
-                new=AsyncMock(return_value=[]),
-            ),
             patch(
                 "src.services.channel_service.get_slack_service",
                 return_value=mock_slack,
@@ -140,7 +120,6 @@ class TestProcessMessage:
                 provider="slack",
                 channel_id="C1",
                 agent_service=agent,
-                ltm=ltm,
             )
 
         mock_slack.send_message.assert_called_once()

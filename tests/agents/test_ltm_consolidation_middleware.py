@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.services.agent_service.utils.ltm_consolidation_middleware import (
+from src.services.agent_service.middleware.ltm_middleware import (
     _LTM_CONSOLIDATION_INTERVAL,
     ltm_consolidation_hook,
 )
@@ -31,7 +31,7 @@ def test_returns_none_below_threshold():
 def test_returns_update_at_threshold():
     with (
         patch(
-            "src.services.agent_service.utils.ltm_consolidation_middleware.get_ltm_service"
+            "src.services.agent_service.middleware.ltm_middleware.get_ltm_service"
         ) as m,
         patch("asyncio.create_task"),
     ):
@@ -44,7 +44,7 @@ def test_returns_update_at_threshold():
 
 def test_skips_when_ltm_unavailable():
     with patch(
-        "src.services.agent_service.utils.ltm_consolidation_middleware.get_ltm_service"
+        "src.services.agent_service.middleware.ltm_middleware.get_ltm_service"
     ) as m:
         m.return_value = None
         result = ltm_consolidation_hook(
@@ -57,7 +57,7 @@ def test_no_double_trigger_within_interval():
     # consolidated at 10, current 15 — delta 5 < 10
     with (
         patch(
-            "src.services.agent_service.utils.ltm_consolidation_middleware.get_ltm_service"
+            "src.services.agent_service.middleware.ltm_middleware.get_ltm_service"
         ) as m,
         patch("asyncio.create_task") as mock_task,
     ):

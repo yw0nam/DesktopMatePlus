@@ -57,7 +57,6 @@ async def nanoclaw_callback(session_id: str, payload: NanoClawCallbackRequest):
     # Route to originating channel via task-level reply_channel
     reply_channel = task_record.get("reply_channel")
     if reply_channel:
-        from src.services import get_ltm_service
         from src.services.channel_service import process_message
 
         asyncio.create_task(
@@ -69,7 +68,6 @@ async def nanoclaw_callback(session_id: str, payload: NanoClawCallbackRequest):
                 user_id=state.get("user_id", "default"),
                 agent_id=state.get("agent_id", "yuri"),
                 agent_service=agent_svc,
-                ltm=get_ltm_service(),
             )
         )
         logger.info(f"Callback routing to {reply_channel['provider']} for {session_id}")

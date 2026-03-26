@@ -53,7 +53,6 @@ Keep this document lean but contain all critical information for capturing the a
     - `tts_pipeline.py`: `synthesize_chunk()` — emotion → keyframes + WAV audio synthesis.
     - `emotion_motion_mapper.py`: `EmotionMotionMapper` — maps emotion string → `list[TimelineKeyframe]`.
   - `websocket_service/`: WebSocket communication services.
-    - `manager/memory_orchestrator.py`: LTM prefix loading — `load_ltm_prefix()` only. STM persistence is automatic via LangGraph checkpointer.
   - `knowledge_base_service/`: Knowledge base (RAG) services.
   - `task_sweep_service/`: Background expired task cleanup.
   - `channel_service/`: External channel integrations (Slack 등).
