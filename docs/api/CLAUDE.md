@@ -69,4 +69,3 @@ curl "http://127.0.0.1:5500/v1/tts/voices"
 ### A. Related Documents
 
 - [WebSocket API Guide](../websocket/CLAUDE.md)
-- [Service Layer](../feature/service/README.md)
