@@ -9,21 +9,23 @@ import threading
 from pathlib import Path
 from typing import Awaitable, Callable, Optional, TypeVar
 
+import pymongo as _pymongo
 import yaml
 from loguru import logger
 
 from src.services.agent_service import AgentFactory, AgentService
+from src.services.agent_service.session_registry import SessionRegistry
 from src.services.ltm_service import LTMFactory, LTMService
-from src.services.stm_service import STMFactory, STMService
 from src.services.tts_service import TTSFactory, TTSService
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
 
 # Global service instances
 _tts_service_instance: Optional[TTSService] = None
 _agent_service_instance: Optional[AgentService] = None
-_stm_service_instance: Optional[STMService] = None
 _ltm_service_instance: Optional[LTMService] = None
 _emotion_motion_mapper_instance: Optional[EmotionMotionMapper] = None
+_mongo_client: "_pymongo.MongoClient | None" = None
+_session_registry_instance: "SessionRegistry | None" = None
 
 T = TypeVar("T")
 
@@ -144,6 +146,48 @@ def _initialize_service(
 _BASE_YAML = Path(__file__).parent.parent.parent / "yaml_files"
 
 
+def initialize_mongodb_client(
+    config_path: Optional[str | Path] = None, force_reinit: bool = False
+) -> "_pymongo.MongoClient":
+    """Initialize shared MongoDB client for checkpointer and session_registry."""
+    global _mongo_client, _session_registry_instance
+    if _mongo_client is not None and not force_reinit:
+        logger.debug("MongoDB client already initialized, skipping")
+        return _mongo_client
+
+    resolved = (
+        Path(config_path)
+        if config_path
+        else _BASE_YAML / "services" / "checkpointer.yml"
+    )
+    cfg = _load_yaml_config(resolved).get("checkpointer_config", {})
+    connection_string: str = cfg["connection_string"]
+    db_name: str = cfg["db_name"]
+
+    _mongo_client = _pymongo.MongoClient(
+        connection_string, uuidRepresentation="standard"
+    )
+    try:
+        _mongo_client.admin.command("ping")
+    except Exception as e:
+        logger.error(f"❌ MongoDB client ping failed: {e}")
+        raise
+    db = _mongo_client[db_name]
+    _session_registry_instance = SessionRegistry(db["session_registry"])
+    logger.info(f"MongoDB client initialized (db={db_name})")
+    return _mongo_client
+
+
+def get_mongo_client() -> "_pymongo.MongoClient | None":
+    """Get the initialized MongoDB client instance."""
+    return _mongo_client
+
+
+def get_session_registry() -> "SessionRegistry | None":
+    """Get the initialized SessionRegistry instance."""
+    return _session_registry_instance
+
+
 def initialize_tts_service(
     config_path: Optional[str | Path] = None, force_reinit: bool = False
 ) -> TTSService:
@@ -218,37 +262,6 @@ def initialize_agent_service(
     return _agent_service_instance
 
 
-def initialize_stm_service(
-    config_path: Optional[str | Path] = None, force_reinit: bool = False
-) -> STMService:
-    """Initialize STM service from configuration.
-
-    Args:
-        config_path: Path to STM YAML config file. If None, uses default path.
-        force_reinit: If True, reinitialize even if already initialized.
-
-    Returns:
-        Initialized STM service instance
-
-    Raises:
-        ValueError: If configuration is invalid
-    """
-    global _stm_service_instance
-
-    if _stm_service_instance is not None and not force_reinit:
-        logger.debug("STM service already initialized, skipping")
-        return _stm_service_instance
-
-    _stm_service_instance = _initialize_service(
-        service_name="STM",
-        default_config_path=_BASE_YAML / "services" / "stm_service" / "mongodb.yml",
-        config_key="stm_config",
-        factory_fn=STMFactory.get_stm_service,
-        config_path=config_path,
-    )
-    return _stm_service_instance
-
-
 def initialize_ltm_service(
     config_path: Optional[str | Path] = None, force_reinit: bool = False
 ) -> LTMService:
@@ -283,21 +296,19 @@ def initialize_ltm_service(
 def initialize_services(
     tts_config_path: Optional[str | Path] = None,
     agent_config_path: Optional[str | Path] = None,
-    stm_config_path: Optional[str | Path] = None,
     ltm_config_path: Optional[str | Path] = None,
     force_reinit: bool = False,
-) -> tuple[TTSService, AgentService, STMService, LTMService]:
+) -> tuple[TTSService, AgentService, LTMService]:
     """Initialize all services from YAML configurations.
 
     Args:
         tts_config_path: Path to TTS YAML config. If None, uses default.
         agent_config_path: Path to Agent YAML config. If None, uses default.
-        stm_config_path: Path to STM YAML config. If None, uses default.
         ltm_config_path: Path to LTM YAML config. If None, uses default.
         force_reinit: If True, reinitialize even if already initialized.
 
     Returns:
-        Tuple of (tts_service, agent_service, stm_service, ltm_service)
+        Tuple of (tts_service, agent_service, ltm_service)
     """
     logger.info("🚀 Initializing services...")
 
@@ -307,15 +318,12 @@ def initialize_services(
     agent_service = initialize_agent_service(
         config_path=agent_config_path, force_reinit=force_reinit
     )
-    stm_service = initialize_stm_service(
-        config_path=stm_config_path, force_reinit=force_reinit
-    )
     ltm_service = initialize_ltm_service(
         config_path=ltm_config_path, force_reinit=force_reinit
     )
     logger.info("✨ All services initialized successfully")
 
-    return tts_service, agent_service, stm_service, ltm_service
+    return tts_service, agent_service, ltm_service
 
 
 def get_tts_service() -> Optional[TTSService]:
@@ -334,15 +342,6 @@ def get_agent_service() -> Optional[AgentService]:
         Agent service instance or None if not initialized
     """
     return _agent_service_instance
-
-
-def get_stm_service() -> Optional[STMService]:
-    """Get the initialized STM service instance.
-
-    Returns:
-        STM service instance or None if not initialized
-    """
-    return _stm_service_instance
 
 
 def get_ltm_service() -> Optional[LTMService]:
@@ -398,12 +397,13 @@ __all__ = [
     "initialize_services",
     "initialize_tts_service",
     "initialize_agent_service",
-    "initialize_stm_service",
     "initialize_ltm_service",
     "initialize_emotion_motion_mapper",
+    "initialize_mongodb_client",
     "get_tts_service",
     "get_agent_service",
-    "get_stm_service",
     "get_ltm_service",
     "get_emotion_motion_mapper",
+    "get_mongo_client",
+    "get_session_registry",
 ]

@@ -7,8 +7,7 @@ from langchain_core.messages import SystemMessage
 from loguru import logger
 
 from src.models.callback import NanoClawCallbackRequest, NanoClawCallbackResponse
-from src.services import get_agent_service, get_ltm_service, get_stm_service
-from src.services.channel_service import process_message
+from src.services import get_agent_service
 
 router = APIRouter(prefix="/v1/callback", tags=["Callback"])
 
@@ -20,87 +19,62 @@ router = APIRouter(prefix="/v1/callback", tags=["Callback"])
     status_code=status.HTTP_200_OK,
     responses={
         404: {"description": "Task not found"},
-        503: {"description": "STM service not initialized"},
+        503: {"description": "Agent service not initialized or state update failed"},
     },
 )
 async def nanoclaw_callback(session_id: str, payload: NanoClawCallbackRequest):
-    """Receive a task completion or failure callback from NanoClaw.
+    """Inject synthetic message into agent state; route result to originating channel."""
+    agent_svc = get_agent_service()
+    if agent_svc is None:
+        raise HTTPException(503, "Agent service not initialized")
 
-    Updates the pending task status in session metadata and injects
-    a synthetic system message into STM chat history.
-    """
-    stm_service = get_stm_service()
-    if stm_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="STM service not initialized",
-        )
+    config = {"configurable": {"thread_id": session_id}}
+    state = (await agent_svc.agent.aget_state(config)).values
+    pending_tasks = list(state.get("pending_tasks", []))
 
-    task_id = payload.task_id
-
-    # Look up pending tasks for this session
-    metadata = stm_service.get_session_metadata(session_id)
-    pending_tasks = metadata.get("pending_tasks", [])
-
-    # Find the matching task
-    task_record = None
-    for task in pending_tasks:
-        if task.get("task_id") == task_id:
-            task_record = task
-            break
-
+    task_record = next(
+        (t for t in pending_tasks if t.get("task_id") == payload.task_id), None
+    )
     if task_record is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task {task_id} not found in session {session_id}",
+            404, f"Task {payload.task_id} not found in session {session_id}"
         )
 
-    # Update task status
     task_record["status"] = payload.status
-    stm_service.update_session_metadata(session_id, {"pending_tasks": pending_tasks})
-
-    # Inject synthetic message into chat history
     prefix = "TaskResult" if payload.status == "done" else "TaskFailed"
-    synthetic_content = f"[{prefix}:{task_id}] {payload.summary}"
-    synthetic_msg = SystemMessage(content=synthetic_content)
-
-    # Use session metadata for user/agent IDs (set by DelegateTaskTool)
-    user_id = metadata.get("user_id", "system")
-    agent_id = metadata.get("agent_id", "system")
-    stm_service.add_chat_history(
-        user_id=user_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        messages=[synthetic_msg],
+    synthetic_msg = SystemMessage(
+        content=f"[{prefix}:{payload.task_id}] {payload.summary}"
     )
 
-    # reply_channel이 있으면 Slack 등 외부 채널 세션 — process_message로 최종 응답
-    reply_channel = metadata.get("reply_channel")
+    try:
+        await agent_svc.agent.aupdate_state(
+            config, {"messages": [synthetic_msg], "pending_tasks": pending_tasks}
+        )
+    except Exception as e:
+        logger.error(f"State update failed for session {session_id}: {e}")
+        raise HTTPException(503, "State update failed") from e
+
+    # Route to originating channel via task-level reply_channel
+    reply_channel = task_record.get("reply_channel")
     if reply_channel:
-        agent_svc = get_agent_service()
-        stm_svc = get_stm_service()
-        ltm_svc = get_ltm_service()
+        from src.services.channel_service import process_message
+
         asyncio.create_task(
             process_message(
-                text="",  # STM에 TaskResult가 이미 주입된 상태 — HumanMessage 불필요
+                text="",
                 session_id=session_id,
                 provider=reply_channel["provider"],
                 channel_id=reply_channel["channel_id"],
-                user_id=metadata.get("user_id", "default"),
-                agent_id=metadata.get("agent_id", "yuri"),
+                user_id=state.get("user_id", "default"),
+                agent_id=state.get("agent_id", "yuri"),
                 agent_service=agent_svc,
-                stm=stm_svc,
-                ltm=ltm_svc,
             )
         )
-        logger.info(
-            f"Callback routing to {reply_channel['provider']} for session {session_id}"
-        )
+        logger.info(f"Callback routing to {reply_channel['provider']} for {session_id}")
 
-    logger.info(f"Callback processed: task={task_id} status={payload.status}")
-
+    logger.info(f"Callback processed: task={payload.task_id} status={payload.status}")
     return NanoClawCallbackResponse(
-        task_id=task_id,
+        task_id=payload.task_id,
         status=payload.status,
-        message=f"Task {task_id} updated to {payload.status}",
+        message=f"Task {payload.task_id} updated to {payload.status}",
     )

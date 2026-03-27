@@ -130,7 +130,7 @@ All messages share a base structure:
 - [Connection Lifecycle](./WebSocket_ConnectionLifecycle.md) - Detailed connection management
 - [Error Handling](./WebSocket_ErrorHandling.md) - Error classification and recovery
 - [REST API Guide](../api/CLAUDE.md)
-- [WebSocket Service](../feature/service/WebSocket_Service.md)
+- [Data Flow: Chat](../data_flow/chat/)
 
 ### C. Error Codes
 

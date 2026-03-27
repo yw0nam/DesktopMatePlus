@@ -1,8 +1,8 @@
-"""STM (Short-Term Memory) API routes."""
+"""STM-compatible API routes — backed by LangGraph checkpointer + session_registry."""
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException
 from langchain_core.messages import convert_to_messages, convert_to_openai_messages
 
 from src.models.stm import (
@@ -16,439 +16,181 @@ from src.models.stm import (
     UpdateSessionMetadataRequest,
     UpdateSessionMetadataResponse,
 )
-from src.services import get_stm_service
-from src.services.stm_service import STMService
+from src.services import get_agent_service
+from src.services.service_manager import get_session_registry
 
 router = APIRouter(prefix="/v1/stm", tags=["STM"])
 
-
-def get_stm_service_or_raise() -> STMService:
-    stm_service = get_stm_service()
-    if stm_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="STM service not initialized",
-        )
-    return stm_service
+_ALLOWED_METADATA_KEYS = {
+    "user_id",
+    "agent_id",
+    "knowledge_saved",
+    "ltm_last_consolidated_at_turn",
+}
 
 
-@router.post(
-    "/add-chat-history",
-    response_model=AddChatHistoryResponse,
-    summary="Add chat history",
-    status_code=status.HTTP_201_CREATED,
-    responses={
-        201: {
-            "description": "Chat history added successfully",
-        },
-        400: {
-            "description": "Invalid input",
-            "content": {
-                "application/json": {"example": {"detail": "Invalid message format"}}
-            },
-        },
-        500: {
-            "description": "STM service error",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Error adding chat history: ..."}
-                }
-            },
-        },
-        503: {
-            "description": "STM service not initialized",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "STM service not initialized"}
-                }
-            },
-        },
-    },
-)
-async def add_chat_history(
-    request: AddChatHistoryRequest,
-    stm_service: STMService = Depends(get_stm_service_or_raise),
-) -> AddChatHistoryResponse:
-    """Add chat history to a session.
-
-    This endpoint accepts messages and stores them in the specified session.
-    If no session_id is provided, a new session will be created.
-
-    Args:
-        request: Add chat history request
-
-    Returns:
-        AddChatHistoryResponse: Session ID and message count
-
-    Raises:
-        HTTPException: If STM service is not initialized or processing fails
-    """
-    try:
-        # Parse messages
-        messages = convert_to_messages(request.messages)
-
-        # Add chat history
-        session_id = stm_service.add_chat_history(
-            user_id=request.user_id,
-            agent_id=request.agent_id,
-            session_id=request.session_id,
-            messages=messages,
-        )
-
-        return AddChatHistoryResponse(
-            session_id=session_id,
-            message_count=len(messages),
-        )
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error adding chat history: {str(e)}",
-        ) from e
+def _agent_or_raise():
+    svc = get_agent_service()
+    if svc is None:
+        raise HTTPException(503, "Agent service not initialized")
+    return svc
 
 
 @router.get(
     "/get-chat-history",
     response_model=GetChatHistoryResponse,
-    summary="Get chat history",
-    status_code=status.HTTP_200_OK,
+    summary="Get chat history for a session",
+    status_code=200,
     responses={
-        200: {
-            "description": "Chat history retrieved successfully",
-        },
-        400: {
-            "description": "Invalid input",
-            "content": {
-                "application/json": {"example": {"detail": "Invalid parameters"}}
-            },
-        },
-        404: {
-            "description": "Session not found",
-            "content": {
-                "application/json": {"example": {"detail": "Session not found"}}
-            },
-        },
-        500: {
-            "description": "STM service error",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Error retrieving chat history: ..."}
-                }
-            },
-        },
-        503: {
-            "description": "STM service not initialized",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "STM service not initialized"}
-                }
-            },
-        },
+        500: {"description": "Error retrieving chat history"},
+        503: {"description": "Agent service not initialized"},
     },
 )
 async def get_chat_history(
-    user_id: str,
-    agent_id: str,
-    session_id: str,
-    limit: Optional[int] = None,
-    stm_service: STMService = Depends(get_stm_service_or_raise),
-) -> GetChatHistoryResponse:
-    """Get chat history from a session.
-
-    This endpoint retrieves messages from the specified session.
-
-    Args:
-        user_id: User identifier
-        agent_id: Agent identifier
-        session_id: Session identifier
-        limit: Maximum number of recent messages to retrieve (optional)
-
-    Returns:
-        GetChatHistoryResponse: Chat history messages
-
-    Raises:
-        HTTPException: If STM service is not initialized or processing fails
-    """
+    session_id: str, user_id: str, agent_id: str, limit: Optional[int] = None
+):
+    svc = _agent_or_raise()
+    config = {"configurable": {"thread_id": session_id}}
     try:
-        # Get chat history
-        messages = stm_service.get_chat_history(
-            user_id=user_id,
-            agent_id=agent_id,
-            session_id=session_id,
-            limit=limit,
-        )
-        messages = convert_to_openai_messages(messages)
-        # Convert to response format
-        message_responses = []
-        for msg in messages:
-            message_responses.append(MessageResponse(**msg))
-
+        messages = svc.agent.get_state(config).values.get("messages", [])
+        if limit:
+            messages = messages[-limit:]
+        openai_msgs = convert_to_openai_messages(messages)
         return GetChatHistoryResponse(
             session_id=session_id,
-            messages=message_responses,
+            messages=[MessageResponse(**m) for m in openai_msgs],
         )
-
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving chat history: {str(e)}",
-        ) from e
+        raise HTTPException(500, f"Error retrieving chat history: {e}") from e
+
+
+@router.post(
+    "/add-chat-history",
+    response_model=AddChatHistoryResponse,
+    summary="Add messages to chat history",
+    status_code=201,
+    responses={
+        500: {"description": "Error adding chat history"},
+        503: {"description": "Agent service not initialized"},
+    },
+)
+async def add_chat_history(request: AddChatHistoryRequest):
+    svc = _agent_or_raise()
+    config = {"configurable": {"thread_id": request.session_id}}
+    try:
+        messages = convert_to_messages(request.messages)
+        svc.agent.update_state(config, {"messages": messages})
+        return AddChatHistoryResponse(
+            session_id=request.session_id, message_count=len(messages)
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Error adding chat history: {e}") from e
 
 
 @router.get(
     "/sessions",
     response_model=ListSessionsResponse,
-    summary="List sessions",
-    status_code=status.HTTP_200_OK,
+    summary="List all sessions for a user/agent",
+    status_code=200,
     responses={
-        200: {
-            "description": "Sessions retrieved successfully",
-        },
-        400: {
-            "description": "Invalid input",
-            "content": {
-                "application/json": {"example": {"detail": "Invalid parameters"}}
-            },
-        },
-        500: {
-            "description": "STM service error",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Error listing sessions: ..."}
-                }
-            },
-        },
-        503: {
-            "description": "STM service not initialized",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "STM service not initialized"}
-                }
-            },
-        },
+        500: {"description": "Error listing sessions"},
+        503: {"description": "Session registry not initialized"},
     },
 )
-async def list_sessions(
-    user_id: str,
-    agent_id: str,
-    stm_service: STMService = Depends(get_stm_service_or_raise),
-) -> ListSessionsResponse:
-    """List all sessions for a user and agent.
-
-    This endpoint retrieves all sessions for the specified user and agent.
-
-    Args:
-        user_id: User identifier
-        agent_id: Agent identifier
-
-    Returns:
-        ListSessionsResponse: List of sessions
-
-    Raises:
-        HTTPException: If STM service is not initialized or processing fails
-    """
+async def list_sessions(user_id: str, agent_id: str):
+    registry = get_session_registry()
+    if registry is None:
+        raise HTTPException(503, "Session registry not initialized")
     try:
-        # List sessions
-        sessions = stm_service.list_sessions(
-            user_id=user_id,
-            agent_id=agent_id,
+        sessions = registry.list_sessions(user_id=user_id, agent_id=agent_id)
+        return ListSessionsResponse(
+            sessions=[
+                SessionMetadata(
+                    session_id=s["thread_id"],
+                    user_id=s["user_id"],
+                    agent_id=s["agent_id"],
+                    created_at=(
+                        s["created_at"].isoformat()
+                        if hasattr(s["created_at"], "isoformat")
+                        else str(s["created_at"])
+                    ),
+                    updated_at=(
+                        s["updated_at"].isoformat()
+                        if hasattr(s["updated_at"], "isoformat")
+                        else str(s["updated_at"])
+                    ),
+                    metadata={},
+                )
+                for s in sessions
+            ]
         )
-
-        # Convert to response format
-        session_metadata = [
-            SessionMetadata(
-                session_id=session["session_id"],
-                user_id=session["user_id"],
-                agent_id=session["agent_id"],
-                created_at=session["created_at"].isoformat(),
-                updated_at=session["updated_at"].isoformat(),
-                metadata=session.get("metadata", {}),
-            )
-            for session in sessions
-        ]
-
-        return ListSessionsResponse(sessions=session_metadata)
-
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error listing sessions: {str(e)}",
-        ) from e
+        raise HTTPException(500, f"Error listing sessions: {e}") from e
 
 
 @router.delete(
     "/sessions/{session_id}",
     response_model=DeleteSessionResponse,
-    summary="Delete session",
-    status_code=status.HTTP_200_OK,
+    summary="Delete a session and its chat history",
+    status_code=200,
     responses={
-        200: {
-            "description": "Session deleted successfully",
-        },
-        400: {
-            "description": "Invalid input",
-            "content": {
-                "application/json": {"example": {"detail": "Invalid parameters"}}
-            },
-        },
-        404: {
-            "description": "Session not found",
-            "content": {
-                "application/json": {"example": {"detail": "Session not found"}}
-            },
-        },
-        500: {
-            "description": "STM service error",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Error deleting session: ..."}
-                }
-            },
-        },
-        503: {
-            "description": "STM service not initialized",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "STM service not initialized"}
-                }
-            },
-        },
+        404: {"description": "Session not found"},
+        503: {"description": "Agent service not initialized"},
     },
 )
-async def delete_session(
-    session_id: str,
-    user_id: str,
-    agent_id: str,
-    stm_service: STMService = Depends(get_stm_service_or_raise),
-) -> DeleteSessionResponse:
-    """Delete a session.
-
-    This endpoint deletes the specified session and all its messages.
-
-    Args:
-        session_id: Session identifier
-        user_id: User identifier
-        agent_id: Agent identifier
-
-    Returns:
-        DeleteSessionResponse: Deletion status
-
-    Raises:
-        HTTPException: If STM service is not initialized or processing fails
-    """
-    try:
-        # Delete session
-        success = stm_service.delete_session(
-            session_id=session_id,
-            user_id=user_id,
-            agent_id=agent_id,
-        )
-
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Session not found",
-            )
-
-        return DeleteSessionResponse(
-            success=True,
-            message="Session deleted successfully",
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting session: {str(e)}",
-        ) from e
+async def delete_session(session_id: str, user_id: str, agent_id: str):
+    _agent_or_raise()
+    registry = get_session_registry()
+    if not (registry and registry.delete(session_id)):
+        raise HTTPException(404, "Session not found")
+    return DeleteSessionResponse(success=True, message="Session deleted successfully")
 
 
 @router.patch(
     "/sessions/{session_id}/metadata",
     response_model=UpdateSessionMetadataResponse,
     summary="Update session metadata",
-    status_code=status.HTTP_200_OK,
+    status_code=200,
     responses={
-        200: {
-            "description": "Session metadata updated successfully",
-        },
-        400: {
-            "description": "Invalid input",
-            "content": {
-                "application/json": {"example": {"detail": "Invalid parameters"}}
-            },
-        },
-        404: {
-            "description": "Session not found",
-            "content": {
-                "application/json": {"example": {"detail": "Session not found"}}
-            },
-        },
-        500: {
-            "description": "STM service error",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Error updating session metadata: ..."}
-                }
-            },
-        },
-        503: {
-            "description": "STM service not initialized",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "STM service not initialized"}
-                }
-            },
-        },
+        500: {"description": "Error updating metadata"},
+        503: {"description": "Agent service not initialized"},
     },
 )
 async def update_session_metadata(
-    session_id: str,
-    request: UpdateSessionMetadataRequest,
-    stm_service: STMService = Depends(get_stm_service_or_raise),
-) -> UpdateSessionMetadataResponse:
-    """Update session metadata.
-
-    This endpoint updates the metadata for the specified session.
-
-    Args:
-        session_id: Session identifier
-        request: Update session metadata request
-
-    Returns:
-        UpdateSessionMetadataResponse: Update status
-
-    Raises:
-        HTTPException: If STM service is not initialized or processing fails
-    """
+    session_id: str, request: UpdateSessionMetadataRequest
+):
+    svc = _agent_or_raise()
+    config = {"configurable": {"thread_id": session_id}}
     try:
-        # Update session metadata
-        success = stm_service.update_session_metadata(
-            session_id=session_id,
-            metadata=request.metadata,
-        )
-
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Session not found",
-            )
-
-        return UpdateSessionMetadataResponse(
-            success=True,
-            message="Session metadata updated successfully",
-        )
-
-    except HTTPException:
-        raise
+        update = {
+            k: v for k, v in request.metadata.items() if k in _ALLOWED_METADATA_KEYS
+        }
+        if update:
+            svc.agent.update_state(config, update)
+        return UpdateSessionMetadataResponse(success=True, message="Metadata updated")
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating session metadata: {str(e)}",
-        ) from e
+        raise HTTPException(500, f"Error updating metadata: {e}") from e
+
+
+@router.get(
+    "/{session_id}/messages",
+    response_model=GetChatHistoryResponse,
+    summary="Fetch all messages — NanoClaw Option B fetch endpoint",
+    status_code=200,
+    responses={
+        500: {"description": "Error retrieving messages"},
+        503: {"description": "Agent service not initialized"},
+    },
+)
+async def get_session_messages(session_id: str):
+    svc = _agent_or_raise()
+    config = {"configurable": {"thread_id": session_id}}
+    try:
+        messages = svc.agent.get_state(config).values.get("messages", [])
+        openai_msgs = convert_to_openai_messages(messages)
+        return GetChatHistoryResponse(
+            session_id=session_id,
+            messages=[MessageResponse(**m) for m in openai_msgs],
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Error retrieving messages: {e}") from e

@@ -27,7 +27,6 @@ def test_settings_yaml():
         "services": {
             "tts_service": "fish_speech.yml",
             "agent_service": "openai_chat_agent.yml",
-            "stm_service": "mongodb.yml",
             "ltm_service": "mem0.yml",
             "channel_service": "channel.yml",
         },

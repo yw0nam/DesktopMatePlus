@@ -1,100 +1,76 @@
-"""Tests for on_disconnect knowledge summary trigger."""
-
+# tests/services/websocket_service/test_knowledge_trigger.py
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
-from src.services.stm_service.service import STMService
 from src.services.websocket_service.manager.disconnect_handler import (
+    MIN_TURNS_FOR_SUMMARY,
+    STM_INLINE_MAX_TURNS,
     build_delegate_payload,
     on_disconnect_handler,
 )
 
 
-@pytest.fixture
-def mock_stm():
-    svc = MagicMock(spec=STMService)
+def _agent_service(messages, knowledge_saved=False):
+    svc = MagicMock()
+    checkpoint = MagicMock()
+    checkpoint.values = {"messages": messages, "knowledge_saved": knowledge_saved}
+    svc.agent.aget_state = AsyncMock(return_value=checkpoint)
+    svc.agent.aupdate_state = AsyncMock()
     return svc
 
 
-@pytest.fixture
-def mock_delegate():
-    return AsyncMock()
-
-
-@pytest.mark.asyncio
-async def test_trigger_fires_when_conditions_met(mock_stm, mock_delegate):
-    """Should call delegate when knowledge_saved=False and turns >= MIN_TURNS."""
-    mock_stm.get_session_metadata.return_value = {"knowledge_saved": False}
-    mock_stm.get_chat_history.return_value = [
-        HumanMessage(content="hi"),
-        AIMessage(content="hello"),
-        HumanMessage(content="bye"),
-        AIMessage(content="goodbye"),
-        HumanMessage(content="again"),
-    ]
+async def test_skips_when_knowledge_saved():
+    svc = _agent_service(
+        [HumanMessage("hi")] * MIN_TURNS_FOR_SUMMARY, knowledge_saved=True
+    )
+    delegate = AsyncMock()
     await on_disconnect_handler(
-        session_id="s1",
-        user_id="u1",
-        agent_id="a1",
-        stm_service=mock_stm,
-        delegate=mock_delegate,
+        "s1", "u1", "yuri", agent_service=svc, delegate=delegate
     )
-    mock_delegate.assert_called_once()
+    delegate.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_trigger_skips_when_already_saved(mock_stm, mock_delegate):
-    """Should NOT call delegate when knowledge_saved=True."""
-    mock_stm.get_session_metadata.return_value = {"knowledge_saved": True}
+async def test_skips_when_too_few_turns():
+    svc = _agent_service([HumanMessage("hi")])  # below threshold
+    delegate = AsyncMock()
     await on_disconnect_handler(
-        session_id="s1",
-        user_id="u1",
-        agent_id="a1",
-        stm_service=mock_stm,
-        delegate=mock_delegate,
+        "s1", "u1", "yuri", agent_service=svc, delegate=delegate
     )
-    mock_delegate.assert_not_called()
+    delegate.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_trigger_skips_when_insufficient_turns(mock_stm, mock_delegate):
-    """Should NOT call delegate when human message count < MIN_TURNS (3)."""
-    mock_stm.get_session_metadata.return_value = {"knowledge_saved": False}
-    mock_stm.get_chat_history.return_value = [
-        HumanMessage(content="hi"),
-        AIMessage(content="hello"),
-    ]  # only 1 HumanMessage
+async def test_delegates_and_marks_saved():
+    msgs = [HumanMessage(f"msg {i}") for i in range(MIN_TURNS_FOR_SUMMARY)]
+    svc = _agent_service(msgs)
+    delegate = AsyncMock()
     await on_disconnect_handler(
-        session_id="s1",
-        user_id="u1",
-        agent_id="a1",
-        stm_service=mock_stm,
-        delegate=mock_delegate,
+        "s1", "u1", "yuri", agent_service=svc, delegate=delegate
     )
-    mock_delegate.assert_not_called()
+    delegate.assert_called_once()
+    update = svc.agent.aupdate_state.call_args[0][1]
+    assert update == {"knowledge_saved": True}
 
 
-def test_option_a_payload_when_turns_below_threshold(mock_stm):
-    """Option A: inline STM messages when turns < STM_INLINE_MAX_TURNS (30)."""
-    mock_stm.get_chat_history.return_value = [
-        HumanMessage(content=f"msg{i}") for i in range(5)  # 5 turns < 30
-    ]
-    payload = build_delegate_payload(
-        session_id="s1", user_id="u1", agent_id="a1", stm=mock_stm
+async def test_aget_state_called_with_thread_id():
+    msgs = [HumanMessage(f"m{i}") for i in range(MIN_TURNS_FOR_SUMMARY)]
+    svc = _agent_service(msgs)
+    await on_disconnect_handler(
+        "sess-99", "u1", "yuri", agent_service=svc, delegate=AsyncMock()
     )
+    config = svc.agent.aget_state.call_args[0][0]
+    assert config["configurable"]["thread_id"] == "sess-99"
+
+
+def test_option_a_payload_when_turns_below_threshold():
+    msgs = [HumanMessage(f"m{i}") for i in range(STM_INLINE_MAX_TURNS - 1)]
+    payload = build_delegate_payload("s1", "u1", "yuri", msgs)
     assert "stm_messages" in payload
     assert "stm_fetch_url" not in payload
 
 
-def test_option_b_payload_when_turns_above_threshold(mock_stm):
-    """Option B: fetch URL when turns >= STM_INLINE_MAX_TURNS (30)."""
-    mock_stm.get_chat_history.return_value = [
-        HumanMessage(content=f"msg{i}") for i in range(35)  # 35 turns >= 30
-    ]
-    payload = build_delegate_payload(
-        session_id="s1", user_id="u1", agent_id="a1", stm=mock_stm
-    )
+def test_option_b_payload_when_turns_above_threshold():
+    msgs = [HumanMessage(f"m{i}") for i in range(STM_INLINE_MAX_TURNS + 1)]
+    payload = build_delegate_payload("s1", "u1", "yuri", msgs)
     assert "stm_fetch_url" in payload
     assert "stm_messages" not in payload

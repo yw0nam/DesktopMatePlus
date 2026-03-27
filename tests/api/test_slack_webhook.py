@@ -89,7 +89,6 @@ class TestSlackWebhook:
                 "src.api.routes.slack.get_slack_service", return_value=mock_slack_svc
             ),
             patch("src.api.routes.slack.get_agent_service", return_value=MagicMock()),
-            patch("src.api.routes.slack.get_stm_service", return_value=MagicMock()),
             patch("src.api.routes.slack.get_ltm_service", return_value=MagicMock()),
             patch("src.api.routes.slack.process_message", new=AsyncMock()) as mock_pm,
         ):

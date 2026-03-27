@@ -17,8 +17,11 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from loguru import logger
 
+from src.services.agent_service.middleware.delegate_middleware import (
+    DelegateToolMiddleware,
+)
 from src.services.agent_service.service import AgentService
-from src.services.agent_service.utils.delegate_middleware import DelegateToolMiddleware
+from src.services.agent_service.state import CustomAgentState
 from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
 from src.services.agent_service.utils.text_processor import (
     load_emotion_keywords,
@@ -100,10 +103,35 @@ class OpenAIChatAgent(AgentService):
             logger.info(f"Cached {len(self._mcp_tools)} MCP tools")
 
         # 3. Create single agent instance
+        from langchain.agents.middleware import after_model, before_model
+
+        from src.services.agent_service.middleware.ltm_middleware import (
+            ltm_consolidation_hook,
+            ltm_retrieve_hook,
+        )
+        from src.services.service_manager import get_mongo_client
+
+        mongo_client = get_mongo_client()
+        checkpointer = None
+        if mongo_client:
+            try:
+                from langgraph.checkpoint.mongodb import MongoDBSaver
+
+                checkpointer = MongoDBSaver(client=mongo_client)
+            except ImportError:
+                logger.warning(
+                    "langgraph-checkpoint-mongodb not available, checkpointer disabled"
+                )
         self.agent = create_agent(
             model=self.llm,
             tools=self._mcp_tools,
-            middleware=[DelegateToolMiddleware()],
+            state_schema=CustomAgentState,
+            checkpointer=checkpointer,
+            middleware=[
+                DelegateToolMiddleware(),
+                before_model(ltm_retrieve_hook),
+                after_model(ltm_consolidation_hook),
+            ],
         )
         logger.info("Agent created successfully")
 
@@ -126,6 +154,7 @@ class OpenAIChatAgent(AgentService):
         persona_id: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
+        context: dict | None = None,
     ):
         """Stream agent response, yielding typed dicts."""
         logger.debug(f"Starting LLM stream: {len(messages)} messages")
@@ -140,7 +169,7 @@ class OpenAIChatAgent(AgentService):
                 messages = [SystemMessage(content=full_persona)] + list(messages)
 
             turn_id = str(uuid4())
-            config = {"configurable": {"session_id": session_id}}
+            config = {"configurable": {"thread_id": session_id}}
 
             yield {
                 "type": "stream_start",
@@ -149,7 +178,13 @@ class OpenAIChatAgent(AgentService):
             }
 
             new_chats: list[BaseMessage] = []
-            async for item in self._process_message(messages=messages, config=config):
+            async for item in self._process_message(
+                messages=messages,
+                config=config,
+                user_id=user_id,
+                agent_id=agent_id,
+                context=context,
+            ):
                 if item["type"] != "final_response":
                     yield item
                 else:
@@ -175,6 +210,7 @@ class OpenAIChatAgent(AgentService):
         persona_id: str = "",
         user_id: str = "default_user",
         agent_id: str = "default_agent",
+        context: dict | None = None,
     ) -> dict:
         """Invoke agent and return final result without streaming."""
         logger.debug(f"Starting LLM invoke: {len(messages)} messages")
@@ -187,10 +223,14 @@ class OpenAIChatAgent(AgentService):
                 )
                 messages = [SystemMessage(content=full_persona)] + list(messages)
 
-            config = {"configurable": {"session_id": session_id}}
+            config = {"configurable": {"thread_id": session_id}}
             input_count = len(messages)
 
-            result = await self.agent.ainvoke({"messages": messages}, config=config)
+            result = await self.agent.ainvoke(
+                {"messages": messages, "user_id": user_id, "agent_id": agent_id},
+                config=config,
+                context=context,
+            )
 
             all_messages: list[BaseMessage] = result.get("messages", [])
             new_chats = all_messages[input_count:]
@@ -214,6 +254,9 @@ class OpenAIChatAgent(AgentService):
         self,
         messages: list[BaseMessage],
         config: dict,
+        user_id: str = "",
+        agent_id: str = "",
+        context: dict | None = None,
     ):
         """Process messages and yield streaming events."""
         logger.debug(f"Processing {len(messages)} messages with agent")
@@ -226,8 +269,9 @@ class OpenAIChatAgent(AgentService):
 
         try:
             async for stream_type, data in self.agent.astream(
-                {"messages": messages},
+                {"messages": messages, "user_id": user_id, "agent_id": agent_id},
                 config=config,
+                context=context,
                 stream_mode=["messages", "updates"],
             ):
                 if stream_type == "updates":

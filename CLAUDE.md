@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Updated: 2026-03-25
+Updated: 2026-03-26
 
 This document outlines the fundamental rules, architectural patterns, and conventions for the **DesktopMate+ Backend** repository.
 You must adhere to these guidelines for all code generation and refactoring tasks.
@@ -46,13 +46,13 @@ Keep this document lean but contain all critical information for capturing the a
 - `src/models`: Pydantic data models and schemas.
 - `src/services`: Business logic and Service implementations.
   - `agent_service/`: LLM Agent logic (`create_agent`, single instance). Supports text + image (OpenAI-compatible).
-  - `stm_service/`: Short-Term Memory services (MongoDB).
+    - `state.py`: `CustomAgentState`, `PendingTask`, `ReplyChannel` — LangGraph state schema.
+    - `session_registry.py`: `SessionRegistry` — thin MongoDB wrapper for session listing/sweep.
   - `ltm_service/`: Long-Term Memory (Mem0/Qdrant) services.
   - `tts_service/`: Text-to-Speech services.
     - `tts_pipeline.py`: `synthesize_chunk()` — emotion → keyframes + WAV audio synthesis.
     - `emotion_motion_mapper.py`: `EmotionMotionMapper` — maps emotion string → `list[TimelineKeyframe]`.
   - `websocket_service/`: WebSocket communication services.
-    - `manager/memory_orchestrator.py`: STM/LTM I/O — `load_context()` and `save_turn()`.
   - `knowledge_base_service/`: Knowledge base (RAG) services.
   - `task_sweep_service/`: Background expired task cleanup.
   - `channel_service/`: External channel integrations (Slack 등).
@@ -63,6 +63,7 @@ Keep this document lean but contain all critical information for capturing the a
 - `yaml_files/`: Service configuration files.
   - `personas.yml`: Persona definitions (system prompts keyed by `persona_id`).
   - `tts_rules.yml`: TTS text chunking rules, emotion keywords, and `emotion_motion_map` (emotion → keyframes).
+  - `services/checkpointer.yml`: MongoDB connection config for LangGraph `MongoDBSaver` checkpointer and `SessionRegistry`.
 - `tests/`: Unit and integration tests.
 
 ## 4. Coding Conventions

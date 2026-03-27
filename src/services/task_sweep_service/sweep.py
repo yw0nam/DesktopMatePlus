@@ -1,10 +1,4 @@
-"""Background sweep service that marks expired delegated tasks as failed.
-
-DelegateTaskTool stores task records in STM metadata under ``pending_tasks``.
-If NanoClaw never responds the task stays in ``pending`` (or ``running``) status
-forever.  This service periodically scans every session and marks stale tasks as
-``failed``.
-"""
+"""Background sweep — marks expired delegated tasks as failed."""
 
 from __future__ import annotations
 
@@ -15,70 +9,43 @@ from typing import TYPE_CHECKING, Callable
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from src.services.stm_service.service import STMService
-
 if TYPE_CHECKING:
+    from src.services.agent_service.service import AgentService
+    from src.services.agent_service.session_registry import SessionRegistry
     from src.services.channel_service.slack_service import SlackService
 
-# Statuses that are considered "active" and therefore eligible for expiry.
 _EXPIRABLE_STATUSES = frozenset({"pending", "running"})
 
 
 class SweepConfig(BaseModel):
-    """Configuration for the background sweep service."""
-
-    sweep_interval_seconds: int = Field(
-        default=60,
-        ge=1,
-        description="How often (in seconds) to run the sweep loop.",
-    )
-    task_ttl_seconds: int = Field(
-        default=300,
-        ge=1,
-        description="Maximum age (in seconds) a pending/running task may have before being marked failed.",
-    )
+    sweep_interval_seconds: int = Field(default=60, ge=1)
+    task_ttl_seconds: int = Field(default=300, ge=1)
 
 
 class BackgroundSweepService:
-    """Periodically scans STM sessions and expires stale delegated tasks.
-
-    Usage (in FastAPI lifespan)::
-
-        sweep_svc = BackgroundSweepService(stm_service=stm, config=cfg)
-        asyncio.create_task(sweep_svc.start())
-        ...
-        await sweep_svc.stop()
-    """
-
     def __init__(
         self,
-        stm_service: STMService,
+        agent_service: "AgentService",
+        session_registry: "SessionRegistry",
         config: SweepConfig,
         slack_service_fn: Callable[[], "SlackService | None"] | None = None,
     ) -> None:
-        self._stm = stm_service
+        self._agent = agent_service
+        self._registry = session_registry
         self.config = config
         self._slack_service_fn = slack_service_fn
-        self._task: asyncio.Task | None = None  # type: ignore[type-arg]
-
-    # ------------------------------------------------------------------
-    # Public lifecycle API
-    # ------------------------------------------------------------------
+        self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
-        """Start the background sweep loop as an asyncio Task."""
         if self._task is not None and not self._task.done():
-            logger.warning("BackgroundSweepService already running — ignoring start()")
             return
         self._task = asyncio.create_task(self._loop(), name="task_sweep_loop")
         logger.info(
             f"BackgroundSweepService started "
-            f"(interval={self.config.sweep_interval_seconds}s, "
-            f"ttl={self.config.task_ttl_seconds}s)"
+            f"(interval={self.config.sweep_interval_seconds}s, ttl={self.config.task_ttl_seconds}s)"
         )
 
     async def stop(self) -> None:
-        """Cancel the background sweep loop and wait for it to finish."""
         if self._task is None or self._task.done():
             return
         self._task.cancel()
@@ -89,15 +56,9 @@ class BackgroundSweepService:
         logger.info("BackgroundSweepService stopped")
 
     def is_running(self) -> bool:
-        """Return True if the sweep loop is currently active."""
         return self._task is not None and not self._task.done()
 
-    # ------------------------------------------------------------------
-    # Internal loop
-    # ------------------------------------------------------------------
-
     async def _loop(self) -> None:
-        """Run sweep forever, sleeping between iterations."""
         while True:
             try:
                 await self._sweep_once()
@@ -107,89 +68,82 @@ class BackgroundSweepService:
                 logger.exception("BackgroundSweepService: unhandled error during sweep")
             await asyncio.sleep(self.config.sweep_interval_seconds)
 
-    # ------------------------------------------------------------------
-    # Core sweep logic — public for easy unit-testing
-    # ------------------------------------------------------------------
-
     async def _sweep_once(self) -> None:
-        """Scan all sessions and expire stale tasks in a single pass."""
         now = datetime.now(timezone.utc)
-        ttl_seconds = self.config.task_ttl_seconds
+        ttl = self.config.task_ttl_seconds
 
         try:
-            sessions = self._stm.list_all_sessions()
+            sessions = self._registry.find_all()
         except Exception:
             logger.exception("BackgroundSweepService: failed to list sessions")
             return
 
         for session in sessions:
-            session_id: str = session.get("session_id", "")
-            if not session_id:
+            thread_id = session.get("thread_id", "")
+            if not thread_id:
                 continue
+            config = {"configurable": {"thread_id": thread_id}}
 
             try:
-                metadata = self._stm.get_session_metadata(session_id)
+                state = (await self._agent.agent.aget_state(config)).values
             except Exception:
                 logger.exception(
-                    f"BackgroundSweepService: failed to get metadata for session {session_id}"
+                    f"BackgroundSweepService: aget_state failed for {thread_id}"
                 )
                 continue
 
-            pending_tasks: list[dict] = metadata.get("pending_tasks", [])
-            if not pending_tasks:
+            pending: list[dict] = list(state.get("pending_tasks", []))
+            if not pending:
                 continue
 
             updated = False
-            for task in pending_tasks:
+            for task in pending:
                 if task.get("status") not in _EXPIRABLE_STATUSES:
                     continue
-
-                created_at_raw: str = task.get("created_at", "")
-                if not created_at_raw:
+                raw = task.get("created_at", "")
+                if not raw:
                     continue
-
                 try:
-                    created_at = datetime.fromisoformat(created_at_raw)
-                    # Ensure timezone-aware comparison
+                    created_at = datetime.fromisoformat(raw)
                     if created_at.tzinfo is None:
                         created_at = created_at.replace(tzinfo=timezone.utc)
                 except ValueError:
-                    logger.warning(
-                        f"BackgroundSweepService: unparseable created_at "
-                        f"'{created_at_raw}' for task {task.get('task_id')}"
-                    )
                     continue
-
-                age_seconds = (now - created_at).total_seconds()
-                if age_seconds > ttl_seconds:
+                if (now - created_at).total_seconds() > ttl:
                     logger.info(
-                        f"BackgroundSweepService: expiring task {task.get('task_id')} "
-                        f"(age={age_seconds:.0f}s, ttl={ttl_seconds}s, session={session_id})"
+                        f"Expiring task {task.get('task_id')} for thread {thread_id}"
                     )
                     task["status"] = "failed"
                     updated = True
 
-            if updated:
-                try:
-                    self._stm.update_session_metadata(
-                        session_id, {"pending_tasks": pending_tasks}
-                    )
-                except Exception:
-                    logger.exception(
-                        f"BackgroundSweepService: failed to update metadata for session {session_id}"
-                    )
-                # Slack 알림: reply_channel이 있는 외부 채널 세션만
-                if self._slack_service_fn:
-                    reply_channel = metadata.get("reply_channel")
-                    if reply_channel and reply_channel.get("provider") == "slack":
-                        slack = self._slack_service_fn()
-                        if slack:
-                            try:
-                                await slack.send_message(
-                                    reply_channel["channel_id"],
-                                    "태스크가 시간 초과됐어. 다시 시도해줘",
-                                )
-                            except Exception:
-                                logger.exception(
-                                    "Failed to send sweep timeout Slack notification"
-                                )
+            if not updated:
+                continue
+
+            try:
+                await self._agent.agent.aupdate_state(
+                    config, {"pending_tasks": pending}
+                )
+            except Exception:
+                logger.exception(
+                    f"BackgroundSweepService: aupdate_state failed for {thread_id}"
+                )
+                continue
+
+            if not self._slack_service_fn:
+                continue
+            for task in pending:
+                if task["status"] != "failed":
+                    continue
+                rc = task.get("reply_channel")
+                if rc and rc.get("provider") == "slack":
+                    slack = self._slack_service_fn()
+                    if slack:
+                        try:
+                            await slack.send_message(
+                                rc["channel_id"],
+                                "태스크가 시간 초과됐어. 다시 시도해줘",
+                            )
+                        except Exception:
+                            logger.exception(
+                                "Failed to send sweep timeout Slack notification"
+                            )

@@ -299,11 +299,9 @@ class TestInitializeAllServices:
 
         sm._tts_service_instance = None
         sm._agent_service_instance = None
-        sm._stm_service_instance = None
         yield
         sm._tts_service_instance = None
         sm._agent_service_instance = None
-        sm._stm_service_instance = None
 
     @patch.dict(
         os.environ,
@@ -317,33 +315,27 @@ class TestInitializeAllServices:
     @patch("src.services.service_manager.initialize_ltm_service")
     @patch("src.services.service_manager.initialize_tts_service")
     @patch("src.services.service_manager.initialize_agent_service")
-    @patch("src.services.service_manager.initialize_stm_service")
     def test_initialize_services_all_four(
         self,
-        mock_init_stm,
         mock_init_agent,
         mock_init_tts,
         mock_init_ltm,
     ):
-        """Test initializing all four services."""
+        """Test initializing all services."""
         mock_tts = Mock()
         mock_agent = Mock()
-        mock_stm = Mock()
         mock_ltm = Mock()
         mock_init_tts.return_value = mock_tts
         mock_init_agent.return_value = mock_agent
-        mock_init_stm.return_value = mock_stm
         mock_init_ltm.return_value = mock_ltm
 
-        tts, agent, stm, ltm = initialize_services()
+        tts, agent, ltm = initialize_services()
 
         assert tts is mock_tts
         assert agent is mock_agent
-        assert stm is mock_stm
         assert ltm is mock_ltm
         mock_init_tts.assert_called_once()
         mock_init_agent.assert_called_once()
-        mock_init_stm.assert_called_once()
 
     @patch.dict(
         os.environ,
@@ -357,10 +349,8 @@ class TestInitializeAllServices:
     @patch("src.services.service_manager.initialize_ltm_service")
     @patch("src.services.service_manager.initialize_tts_service")
     @patch("src.services.service_manager.initialize_agent_service")
-    @patch("src.services.service_manager.initialize_stm_service")
     def test_initialize_services_with_custom_paths(
         self,
-        mock_init_stm,
         mock_init_agent,
         mock_init_tts,
         mock_init_ltm,
@@ -368,29 +358,22 @@ class TestInitializeAllServices:
         """Test initializing services with custom config paths."""
         mock_tts = Mock()
         mock_agent = Mock()
-        mock_stm = Mock()
         mock_ltm = Mock()
         mock_init_tts.return_value = mock_tts
         mock_init_agent.return_value = mock_agent
-        mock_init_stm.return_value = mock_stm
         mock_init_ltm.return_value = mock_ltm
         custom_tts_path = "/custom/tts.yml"
         custom_agent_path = "/custom/agent.yml"
-        custom_stm_path = "/custom/stm.yml"
         custom_ltm_path = "/custom/ltm.yml"
 
-        _tts, _agent, _stm, _ltm = initialize_services(
+        _tts, _agent, _ltm = initialize_services(
             tts_config_path=custom_tts_path,
             agent_config_path=custom_agent_path,
-            stm_config_path=custom_stm_path,
             ltm_config_path=custom_ltm_path,
         )
 
         mock_init_tts.assert_called_once_with(
             config_path=custom_tts_path, force_reinit=False
-        )
-        mock_init_stm.assert_called_once_with(
-            config_path=custom_stm_path, force_reinit=False
         )
         mock_init_agent.assert_called_once_with(
             config_path=custom_agent_path,

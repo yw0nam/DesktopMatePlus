@@ -25,7 +25,7 @@ sequenceDiagram
     FE->>BE_WS: send_json({<br/> "type": "chat_message",<br/> "session_id": "Session_B",<br/> "user_id": "...",<br/> "agent_id": "...",<br/> "content": "안녕"<br/>})
 
     activate BE_WS
-    Note right of BE_WS: [Backend Logic]<br>1. packet.session_id 확인<br>2. STM에서 History Load<br>3. LLM Invoke (History + "안녕")
+    Note right of BE_WS: [Backend Logic]<br>1. packet.session_id → thread_id<br>2. Checkpointer에서 History 자동 로드<br>3. LTM prefix 로드<br>4. LLM Invoke (History + "안녕")
 
     BE_WS-->>FE: stream_start
     Note right of BE_WS: stream_token은 서버 내부 TTS 처리용<br>FE로 전달되지 않음

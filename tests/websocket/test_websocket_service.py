@@ -14,7 +14,6 @@ from src.models.websocket import (
     PongMessage,
     TtsChunkMessage,
 )
-from src.services.stm_service.service import STMService
 from src.services.websocket_service.manager import ConnectionState, WebSocketManager
 from src.services.websocket_service.message_processor import (
     MessageProcessor,
@@ -209,25 +208,11 @@ class TestWebSocketManager:
                 persona_id="yuri",
                 user_id="default_user",
                 agent_id="default_agent",
-                stm_service=None,
-                ltm_service=None,
+                context=None,
             ):
                 yield {"type": "stream_start"}
                 yield {"type": "stream_token", "chunk": "Hello, world!"}
                 yield {"type": "stream_end"}
-
-        class FakeSTMService(STMService):
-            def initialize_memory(self):
-                return None
-
-            def is_healthy(self):
-                return True, "OK"
-
-            def add_chat_history(self, user_id, agent_id, session_id, messages):
-                return session_id or "test"
-
-            def get_chat_history(self, user_id, agent_id, session_id, limit=None):
-                return []
 
             def list_sessions(self, user_id, agent_id):
                 return []
@@ -267,12 +252,12 @@ class TestWebSocketManager:
                 return_value=FakeAgentService(),
             ),
             patch(
-                "src.services.websocket_service.manager.handlers.get_stm_service",
-                return_value=FakeSTMService(),
-            ),
-            patch(
                 "src.services.websocket_service.manager.handlers.get_ltm_service",
                 return_value=FakeLTMService(),
+            ),
+            patch(
+                "src.services.websocket_service.manager.handlers.get_session_registry",
+                return_value=None,
             ),
             patch(
                 "src.services.websocket_service.message_processor.event_handlers.synthesize_chunk",

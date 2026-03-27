@@ -20,7 +20,7 @@ tests/
   ├── api/             # REST API endpoint tests (FastAPI)
   ├── config/          # Settings and environment configuration tests
   ├── core/            # Core logic, middleware, and message processing tests
-  ├── services/        # Individual service tests (TTS, LTM, STM, Screen Capture, etc.)
+  ├── services/        # Individual service tests (TTS, LTM, channel, etc.)
   ├── storage/         # Database and vector store integration tests
   └── websocket/       # WebSocket gateway and message processor tests
 ```
@@ -45,13 +45,13 @@ All tests should follow the AAA structure:
 | Category | Purpose | Example |
 |----------|---------|---------|
 | **Unit Tests** | Test individual functions/classes in isolation | Slug generation, config defaults |
-| **Integration Tests** | Test service-to-service or service-to-DB interactions | STM MongoDB operations, LTM memory storage |
+| **Integration Tests** | Test service-to-service or service-to-DB interactions | Checkpointer/session history, LTM memory storage |
 | **API/E2E Tests** | Test full request/response cycles | `/health` endpoint, WebSocket message flow |
 | **Async Tests** | Test asynchronous code using `pytest-asyncio` | Service `is_healthy` checks, async API calls |
 
 **What to Test:**
 
-- **Core Service Logic**: Business logic for TTS synthesis, LTM/STM management, and agent task delegation.
+- **Core Service Logic**: Business logic for TTS synthesis, LTM/checkpointer management, and agent task delegation.
 - **API Contracts**: Ensure endpoints return correct status codes and response models.
 - **Data Persistence**: Verify correct data is stored and retrieved from MongoDB/Qdrant.
 - **Error Handling**: Graceful handling of invalid inputs, service timeouts, and connection failures.

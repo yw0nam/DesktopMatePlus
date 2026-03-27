@@ -28,7 +28,15 @@ def get_health_service() -> HealthService:
     return health_service
 
 
-@router.get("/", summary="Root endpoint", tags=["Root"])
+@router.get(
+    "/",
+    summary="Root endpoint",
+    status_code=status.HTTP_200_OK,
+    tags=["Root"],
+    responses={
+        200: {"description": "API is running"},
+    },
+)
 async def read_root():
     """Root endpoint that returns a welcome message.
 

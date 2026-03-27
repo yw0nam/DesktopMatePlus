@@ -46,7 +46,6 @@ async def _run_process_message_directly(
     provider: str,
     channel_id: str,
     mock_agent: MagicMock,
-    mock_stm: MagicMock,
     mock_ltm: MagicMock,
     mock_slack_svc: MagicMock,
 ) -> None:
@@ -59,9 +58,13 @@ async def _run_process_message_directly(
             return_value=mock_slack_svc,
         ),
         patch(
-            "src.services.channel_service.load_context", new=AsyncMock(return_value=[])
+            "src.services.channel_service.get_session_registry",
+            return_value=MagicMock(),
         ),
-        patch("src.services.channel_service.save_turn", new=AsyncMock()),
+        patch(
+            "src.services.channel_service.load_ltm_prefix",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         await process_message(
             text=text,
@@ -69,7 +72,6 @@ async def _run_process_message_directly(
             provider=provider,
             channel_id=channel_id,
             agent_service=mock_agent,
-            stm=mock_stm,
             ltm=mock_ltm,
         )
 
@@ -95,12 +97,6 @@ class TestSlackFullFlow:
             return_value={"content": "안녕!", "new_chats": [AIMessage("안녕!")]}
         )
 
-        mock_stm = MagicMock()
-        mock_stm.upsert_session = MagicMock(return_value=True)
-        mock_stm.update_session_metadata = MagicMock(return_value=True)
-        mock_stm.get_chat_history = MagicMock(return_value=[])
-        mock_stm.get_session_metadata = MagicMock(return_value={})
-
         mock_ltm = MagicMock()
         mock_ltm.search_memory = MagicMock(return_value={"results": []})
 
@@ -110,7 +106,6 @@ class TestSlackFullFlow:
                 "src.api.routes.slack.get_slack_service", return_value=mock_slack_svc
             ),
             patch("src.api.routes.slack.get_agent_service", return_value=mock_agent),
-            patch("src.api.routes.slack.get_stm_service", return_value=mock_stm),
             patch("src.api.routes.slack.get_ltm_service", return_value=mock_ltm),
             patch("src.api.routes.slack.process_message", new=AsyncMock()) as mock_pm,
         ):
@@ -129,7 +124,6 @@ class TestSlackFullFlow:
             provider="slack",
             channel_id="C1",
             mock_agent=mock_agent,
-            mock_stm=mock_stm,
             mock_ltm=mock_ltm,
             mock_slack_svc=mock_slack_svc,
         )
@@ -142,19 +136,25 @@ class TestSlackFullFlow:
         session_id = "slack:T1:C1:default"
         task_id = "task-123"
 
-        mock_stm = MagicMock()
-        mock_stm.get_session_metadata.return_value = {
-            "pending_tasks": [{"task_id": task_id, "status": "running"}],
+        # Mock agent with state containing pending_tasks and reply_channel
+        mock_agent = MagicMock()
+        state_values = {
+            "pending_tasks": [
+                {
+                    "task_id": task_id,
+                    "status": "running",
+                    "reply_channel": {"provider": "slack", "channel_id": "C1"},
+                }
+            ],
             "user_id": "default",
             "agent_id": "yuri",
-            "reply_channel": {"provider": "slack", "channel_id": "C1"},
+            "messages": [],
         }
-        mock_stm.update_session_metadata.return_value = True
-        mock_stm.add_chat_history.return_value = session_id
-        mock_stm.upsert_session = MagicMock(return_value=True)
-        mock_stm.get_chat_history = MagicMock(return_value=[])
-
-        mock_agent = MagicMock()
+        checkpoint = MagicMock()
+        checkpoint.values = state_values
+        mock_agent.agent = MagicMock()
+        mock_agent.agent.aget_state = AsyncMock(return_value=checkpoint)
+        mock_agent.agent.aupdate_state = AsyncMock()
         mock_agent.invoke = AsyncMock(
             return_value={
                 "content": "결과 받았어!",
@@ -168,11 +168,9 @@ class TestSlackFullFlow:
 
         # Step 1: 콜백 엔드포인트가 200을 반환하고 process_message를 스케줄링하는지 확인
         with (
-            patch("src.api.routes.callback.get_stm_service", return_value=mock_stm),
             patch("src.api.routes.callback.get_agent_service", return_value=mock_agent),
-            patch("src.api.routes.callback.get_ltm_service", return_value=mock_ltm),
             patch(
-                "src.api.routes.callback.process_message", new=AsyncMock()
+                "src.services.channel_service.process_message", new=AsyncMock()
             ) as mock_pm,
         ):
             response = client.post(
@@ -193,7 +191,6 @@ class TestSlackFullFlow:
             provider="slack",
             channel_id="C1",
             mock_agent=mock_agent,
-            mock_stm=mock_stm,
             mock_ltm=mock_ltm,
             mock_slack_svc=mock_slack_svc,
         )
