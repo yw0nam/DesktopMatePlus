@@ -36,7 +36,16 @@ def _agent_or_raise():
     return svc
 
 
-@router.get("/get-chat-history", response_model=GetChatHistoryResponse, status_code=200)
+@router.get(
+    "/get-chat-history",
+    response_model=GetChatHistoryResponse,
+    summary="Get chat history for a session",
+    status_code=200,
+    responses={
+        500: {"description": "Error retrieving chat history"},
+        503: {"description": "Agent service not initialized"},
+    },
+)
 async def get_chat_history(
     session_id: str, user_id: str, agent_id: str, limit: Optional[int] = None
 ):
@@ -56,7 +65,14 @@ async def get_chat_history(
 
 
 @router.post(
-    "/add-chat-history", response_model=AddChatHistoryResponse, status_code=201
+    "/add-chat-history",
+    response_model=AddChatHistoryResponse,
+    summary="Add messages to chat history",
+    status_code=201,
+    responses={
+        500: {"description": "Error adding chat history"},
+        503: {"description": "Agent service not initialized"},
+    },
 )
 async def add_chat_history(request: AddChatHistoryRequest):
     svc = _agent_or_raise()
@@ -71,7 +87,16 @@ async def add_chat_history(request: AddChatHistoryRequest):
         raise HTTPException(500, f"Error adding chat history: {e}") from e
 
 
-@router.get("/sessions", response_model=ListSessionsResponse, status_code=200)
+@router.get(
+    "/sessions",
+    response_model=ListSessionsResponse,
+    summary="List all sessions for a user/agent",
+    status_code=200,
+    responses={
+        500: {"description": "Error listing sessions"},
+        503: {"description": "Session registry not initialized"},
+    },
+)
 async def list_sessions(user_id: str, agent_id: str):
     registry = get_session_registry()
     if registry is None:
@@ -104,7 +129,14 @@ async def list_sessions(user_id: str, agent_id: str):
 
 
 @router.delete(
-    "/sessions/{session_id}", response_model=DeleteSessionResponse, status_code=200
+    "/sessions/{session_id}",
+    response_model=DeleteSessionResponse,
+    summary="Delete a session and its chat history",
+    status_code=200,
+    responses={
+        404: {"description": "Session not found"},
+        503: {"description": "Agent service not initialized"},
+    },
 )
 async def delete_session(session_id: str, user_id: str, agent_id: str):
     _agent_or_raise()
@@ -117,7 +149,12 @@ async def delete_session(session_id: str, user_id: str, agent_id: str):
 @router.patch(
     "/sessions/{session_id}/metadata",
     response_model=UpdateSessionMetadataResponse,
+    summary="Update session metadata",
     status_code=200,
+    responses={
+        500: {"description": "Error updating metadata"},
+        503: {"description": "Agent service not initialized"},
+    },
 )
 async def update_session_metadata(
     session_id: str, request: UpdateSessionMetadataRequest
@@ -138,8 +175,12 @@ async def update_session_metadata(
 @router.get(
     "/{session_id}/messages",
     response_model=GetChatHistoryResponse,
-    status_code=200,
     summary="Fetch all messages — NanoClaw Option B fetch endpoint",
+    status_code=200,
+    responses={
+        500: {"description": "Error retrieving messages"},
+        503: {"description": "Agent service not initialized"},
+    },
 )
 async def get_session_messages(session_id: str):
     svc = _agent_or_raise()
