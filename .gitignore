@@ -108,8 +108,9 @@ tts_output
 # Claude Memory Policy
 # Keep (shared SSOT): .claude/memory/decisions.md, .claude/memory/patterns.md
 # Ignore (local): .claude/state/, session-log.md
-.claude/state/
-.claude/memory/session-log.md
-.claude/memory/context.json
-.claude/memory/archive/
-.claude
+agents-v3/
+.claude/agent-memory
+.claude/memory
+.claude/sessions
+.claude/state
+.claude/settings.json
