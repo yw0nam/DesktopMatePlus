@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import WebSocket
@@ -29,9 +29,9 @@ class WebSocketManager:
 
     def __init__(
         self,
-        ping_interval: Optional[int] = None,
-        pong_timeout: Optional[int] = None,
-        disconnect_timeout: Optional[float] = None,
+        ping_interval: int | None = None,
+        pong_timeout: int | None = None,
+        disconnect_timeout: float | None = None,
     ):
         """Initialize WebSocket manager.
 
@@ -43,7 +43,7 @@ class WebSocketManager:
             pong_timeout: Timeout for pong response in seconds.
             disconnect_timeout: Timeout for graceful disconnect in seconds.
         """
-        self.connections: Dict[UUID, ConnectionState] = {}
+        self.connections: dict[UUID, ConnectionState] = {}
         self._heartbeat_tasks: set[asyncio.Task] = set()
 
         # Load settings from config if available, otherwise use parameters or defaults
@@ -81,7 +81,7 @@ class WebSocketManager:
             close_connection_fn=self._close_connection,
         )
 
-    def _get_connection(self, connection_id: UUID) -> Optional[ConnectionState]:
+    def _get_connection(self, connection_id: UUID) -> ConnectionState | None:
         """Get connection state by ID.
 
         Args:
@@ -158,7 +158,7 @@ class WebSocketManager:
                     timeout=self.disconnect_timeout,
                 )
                 logger.debug(f"MessageProcessor shutdown complete: {connection_id}")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     f"MessageProcessor shutdown timeout ({self.disconnect_timeout}s): {connection_id}"
                 )
@@ -241,7 +241,7 @@ class WebSocketManager:
         for connection_id in connections_to_send:
             await self.send_message(connection_id, message)
 
-    def validate_token(self, token: str) -> Optional[str]:
+    def validate_token(self, token: str) -> str | None:
         """Validate authentication token.
 
         Args:
@@ -282,7 +282,7 @@ class WebSocketManager:
         )
 
     async def interrupt_active_turn(
-        self, connection_id: UUID, turn_id: Optional[str] = None
+        self, connection_id: UUID, turn_id: str | None = None
     ) -> bool:
         """Interrupt an active conversation turn for a connection.
 
@@ -297,7 +297,7 @@ class WebSocketManager:
 
     async def get_connection_stats(
         self, connection_id: UUID
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get statistics for a specific connection.
 
         Args:
@@ -385,7 +385,7 @@ class WebSocketManager:
                     await self.send_message(
                         connection_id,
                         ErrorMessage(
-                            error=f"Invalid chat message format: {str(chat_validation_error)}"
+                            error=f"Invalid chat message format: {chat_validation_error!s}"
                         ),
                     )
                     return

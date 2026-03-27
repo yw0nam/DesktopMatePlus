@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, AsyncIterator, Dict
+from collections.abc import AsyncIterator
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -86,7 +87,7 @@ def processor() -> MessageProcessor:
     )
 
 
-async def mock_agent_stream_with_tools() -> AsyncIterator[Dict[str, Any]]:
+async def mock_agent_stream_with_tools() -> AsyncIterator[dict[str, Any]]:
     """Mock agent stream that includes tool events."""
     # Stream start
     yield {"type": "stream_start"}
@@ -119,7 +120,7 @@ async def mock_agent_stream_with_tools() -> AsyncIterator[Dict[str, Any]]:
     yield {"type": "stream_end"}
 
 
-async def mock_agent_stream_with_error() -> AsyncIterator[Dict[str, Any]]:
+async def mock_agent_stream_with_error() -> AsyncIterator[dict[str, Any]]:
     """Mock agent stream with a tool that fails."""
     yield {"type": "stream_start"}
     yield {"type": "stream_token", "data": "Attempting to execute tool... "}
@@ -309,7 +310,7 @@ async def test_multiple_tools_in_sequence(
 ):
     """Test logging when multiple tools are called in sequence."""
 
-    async def multi_tool_stream() -> AsyncIterator[Dict[str, Any]]:
+    async def multi_tool_stream() -> AsyncIterator[dict[str, Any]]:
         yield {"type": "stream_start"}
         yield {"type": "stream_token", "data": "First tool... "}
 

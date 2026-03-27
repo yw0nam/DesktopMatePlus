@@ -1,7 +1,6 @@
 """Application settings and configuration."""
 
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
 from pydantic import BaseModel, Field
@@ -58,7 +57,7 @@ class Settings(BaseModel):
     port: int = Field(default=8000, ge=1, le=65535, description="Server port number")
 
     # CORS configuration
-    cors_origins: List[str] = Field(default=["*"], description="Allowed CORS origins")
+    cors_origins: list[str] = Field(default=["*"], description="Allowed CORS origins")
 
     # Application metadata
     app_name: str = Field(
@@ -95,7 +94,7 @@ def load_settings_from_yaml(yaml_file: str | Path) -> Settings:
     if not yaml_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {yaml_path}")
 
-    with open(yaml_path, "r", encoding="utf-8") as f:
+    with open(yaml_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Extract settings section from config
@@ -106,7 +105,7 @@ def load_settings_from_yaml(yaml_file: str | Path) -> Settings:
 
 
 # Global settings instance (will be initialized from YAML in main.py)
-settings: Optional[Settings] = None
+settings: Settings | None = None
 
 
 def get_settings() -> Settings:

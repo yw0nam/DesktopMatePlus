@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from langchain_core.tools import BaseTool
 from mem0 import Memory
@@ -20,7 +20,7 @@ class UpdateMemoryTool(BaseTool):
         super().__init__(mem0_client=mem0_client, user_id=user_id)
         self.user_id = user_id
 
-    def _run(self, memory_id: str, payload: Dict[str, Any]) -> str:
+    def _run(self, memory_id: str, payload: dict[str, Any]) -> str:
         """Updates a memory synchronously."""
         try:
             # mem0-python 라이브러리의 update 메서드는 payload를 직접 받지 않고,

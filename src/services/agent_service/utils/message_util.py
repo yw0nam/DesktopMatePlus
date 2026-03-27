@@ -1,4 +1,3 @@
-from typing import List
 
 import psycopg
 from langchain_core.messages import (
@@ -11,8 +10,8 @@ from langchain_core.messages import (
 
 
 def trim_messages(
-    messages: List[BaseMessage], max_messages: int = 20
-) -> dict[str, List[BaseMessage]]:
+    messages: list[BaseMessage], max_messages: int = 20
+) -> dict[str, list[BaseMessage]]:
     """
     Trim messages using message type.
     Preserve AI and Human messages, discard Tool and System messages except first system message.
@@ -24,11 +23,9 @@ def trim_messages(
     trimmed_messages = []
     for message in reversed(messages):
         if len(trimmed_messages) < max_messages:
-            if isinstance(message, HumanMessage):
+            if isinstance(message, HumanMessage) or (isinstance(message, AIMessage) and message.content.strip() != ""):
                 trimmed_messages.append(message)
-            elif isinstance(message, AIMessage) and message.content.strip() != "":
-                trimmed_messages.append(message)
-            elif isinstance(message, (ToolMessage, SystemMessage)):
+            elif isinstance(message, ToolMessage | SystemMessage):
                 continue
         else:
             break

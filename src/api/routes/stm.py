@@ -1,6 +1,5 @@
 """STM-compatible API routes — backed by LangGraph checkpointer + session_registry."""
 
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from langchain_core.messages import convert_to_messages, convert_to_openai_messages
@@ -47,7 +46,7 @@ def _agent_or_raise():
     },
 )
 async def get_chat_history(
-    session_id: str, user_id: str, agent_id: str, limit: Optional[int] = None
+    session_id: str, user_id: str, agent_id: str, limit: int | None = None
 ):
     svc = _agent_or_raise()
     config = {"configurable": {"thread_id": session_id}}

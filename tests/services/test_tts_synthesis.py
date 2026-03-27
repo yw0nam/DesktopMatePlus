@@ -204,7 +204,7 @@ class TestTTSIntegration:
         mock_post.assert_called_once()
 
         # Verify health check works
-        is_healthy, message = tts_engine.is_healthy()
+        is_healthy, _message = tts_engine.is_healthy()
         assert is_healthy is True
 
 

@@ -39,7 +39,7 @@ async def test_synthesize_and_send_success():
     from src.models.websocket import TtsChunkMessage
 
     turn_id = "t1"
-    proc, turn = _make_processor(turn_id)
+    proc, _turn = _make_processor(turn_id)
     handler = EventHandler(proc)
 
     fake_chunk = TtsChunkMessage(
@@ -79,7 +79,7 @@ async def test_synthesize_and_send_tts_failure_still_puts_chunk():
     from src.models.websocket import TtsChunkMessage
 
     turn_id = "t2"
-    proc, turn = _make_processor(turn_id)
+    proc, _turn = _make_processor(turn_id)
     handler = EventHandler(proc)
 
     fake_chunk = TtsChunkMessage(
@@ -114,7 +114,7 @@ async def test_synthesize_and_send_tts_failure_still_puts_chunk():
 async def test_synthesize_and_send_is_closing_drops_silently():
     """is_closing=True before synthesize: no _put_event call, no synthesize_chunk call."""
     turn_id = "t3"
-    proc, turn = _make_processor(turn_id, is_closing=True)
+    proc, _turn = _make_processor(turn_id, is_closing=True)
     handler = EventHandler(proc)
 
     with patch(

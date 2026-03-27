@@ -1,5 +1,6 @@
 """Tests for STM API routes (backed by LangGraph checkpointer + session_registry)."""
 
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -164,7 +165,7 @@ def test_add_chat_history_service_not_initialized(client):
 
 def test_list_sessions_success(client):
     """Test successful session listing via session_registry."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     registry = MagicMock()
     registry.list_sessions.return_value = [
@@ -172,8 +173,8 @@ def test_list_sessions_success(client):
             "thread_id": "session1",
             "user_id": "user123",
             "agent_id": "agent456",
-            "created_at": datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
-            "updated_at": datetime(2025, 1, 1, 13, 0, tzinfo=timezone.utc),
+            "created_at": datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+            "updated_at": datetime(2025, 1, 1, 13, 0, tzinfo=UTC),
         },
     ]
 

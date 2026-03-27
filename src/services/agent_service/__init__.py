@@ -10,7 +10,7 @@ from .openai_chat_agent import OpenAIChatAgent
 from .service import AgentService
 
 __all__ = [
+    "AgentFactory",
     "AgentService",
     "OpenAIChatAgent",
-    "AgentFactory",
 ]

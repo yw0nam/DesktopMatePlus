@@ -1,7 +1,7 @@
 """WebSocket message models and schemas."""
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 _MAX_IMAGE_BASE64_BYTES = 6 * 1024 * 1024
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     """WebSocket message types."""
 
     # Client -> Server
@@ -39,8 +39,8 @@ class BaseMessage(BaseModel):
     """Base WebSocket message structure."""
 
     type: MessageType
-    id: Optional[str] = Field(default=None, description="Message ID for tracking")
-    timestamp: Optional[float] = Field(default=None, description="Message timestamp")
+    id: str | None = Field(default=None, description="Message ID for tracking")
+    timestamp: float | None = Field(default=None, description="Message timestamp")
 
 
 # =================================================================================
@@ -104,11 +104,11 @@ class ChatMessage(BaseMessage):
         default="yuri",
         description="Persona identifier — matches a key in yaml_files/personas.yml",
     )
-    images: Optional[List[ImageContent]] = Field(
+    images: list[ImageContent] | None = Field(
         default=None,
         description="Optional images in OpenAI-compatible format",
     )
-    limit: Optional[int] = Field(
+    limit: int | None = Field(
         default=10,
         description="Optional limit for short-term memory messages",
     )
@@ -116,15 +116,15 @@ class ChatMessage(BaseMessage):
         default=True,
         description="Whether TTS synthesis is enabled for this message",
     )
-    reference_id: Optional[str] = Field(
+    reference_id: str | None = Field(
         default=None,
         description="TTS voice reference identifier",
     )
-    session_id: Optional[UUID] = Field(
+    session_id: UUID | None = Field(
         default=None,
         description="Persistent conversation identifier, First message in a new conversation if None, Note should be None or UUID",
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         default=None, description="Additional metadata for the message"
     )
 
@@ -133,7 +133,7 @@ class InterruptStreamMessage(BaseMessage):
     """Client message to interrupt active stream."""
 
     type: MessageType = MessageType.INTERRUPT_STREAM
-    turn_id: Optional[str] = Field(
+    turn_id: str | None = Field(
         default=None,
         description="Specific turn ID to interrupt, or None for all active turns",
     )
@@ -177,7 +177,7 @@ class StreamTokenMessage(BaseMessage):
 
     type: MessageType = MessageType.STREAM_TOKEN
     chunk: str
-    node: Optional[str] = None
+    node: str | None = None
 
 
 class ToolCallMessage(BaseMessage):
@@ -186,7 +186,7 @@ class ToolCallMessage(BaseMessage):
     type: MessageType = MessageType.TOOL_CALL
     tool_name: str
     args: str
-    node: Optional[str] = None
+    node: str | None = None
 
 
 class ToolResultMessage(BaseMessage):
@@ -194,7 +194,7 @@ class ToolResultMessage(BaseMessage):
 
     type: MessageType = MessageType.TOOL_RESULT
     result: str
-    node: Optional[str] = None
+    node: str | None = None
 
 
 class StreamEndMessage(BaseMessage):
@@ -224,11 +224,11 @@ class TtsChunkMessage(BaseMessage):
         ..., description="Sequence number within the turn, starting from 0"
     )
     text: str = Field(..., description="Text used for TTS synthesis")
-    audio_base64: Optional[str] = Field(
+    audio_base64: str | None = Field(
         default=None,
         description="WAV audio encoded as base64. None means skip audio playback.",
     )
-    emotion: Optional[str] = Field(default=None, description="Detected emotion tag")
+    emotion: str | None = Field(default=None, description="Detected emotion tag")
     keyframes: list[TimelineKeyframe] = Field(
         ...,
         description=(
@@ -243,7 +243,7 @@ class ErrorMessage(BaseMessage):
 
     type: MessageType = MessageType.ERROR
     error: str
-    code: Optional[int] = None
+    code: int | None = None
 
 
 # =================================================================================
@@ -251,26 +251,21 @@ class ErrorMessage(BaseMessage):
 # =================================================================================
 
 # Union type for all possible client messages
-ClientMessage = Union[
-    AuthorizeMessage,
-    PongMessage,
-    ChatMessage,
-    InterruptStreamMessage,
-]
+ClientMessage = AuthorizeMessage | PongMessage | ChatMessage | InterruptStreamMessage
 
 # Union type for all possible server messages
-ServerMessage = Union[
-    AuthorizeSuccessMessage,
-    AuthorizeErrorMessage,
-    PingMessage,
-    StreamStartMessage,
-    StreamTokenMessage,
-    ToolCallMessage,
-    ToolResultMessage,
-    StreamEndMessage,
-    TtsChunkMessage,
-    ErrorMessage,
-]
+ServerMessage = (
+    AuthorizeSuccessMessage
+    | AuthorizeErrorMessage
+    | PingMessage
+    | StreamStartMessage
+    | StreamTokenMessage
+    | ToolCallMessage
+    | ToolResultMessage
+    | StreamEndMessage
+    | TtsChunkMessage
+    | ErrorMessage
+)
 
 # Union type for all messages
-WebSocketMessage = Union[ClientMessage, ServerMessage]
+WebSocketMessage = ClientMessage | ServerMessage

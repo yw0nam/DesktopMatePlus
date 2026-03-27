@@ -1,7 +1,7 @@
 """Fish Local TTS configuration."""
 
 import os
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,7 @@ class VLLMOmniTTSConfig(BaseModel):
     """Configuration for VLLM Omni TTS."""
 
     base_url: str = Field(..., description="Base URL for local VLLM Omni TTS server")
-    api_key: Optional[str] = Field(default_factory=lambda: os.getenv("TTS_API_KEY"))
+    api_key: str | None = Field(default_factory=lambda: os.getenv("TTS_API_KEY"))
     model: str = Field("chat_model", description="Model name to use for synthesis")
     task_type: str = Field(
         "Base", description="Task type for the TTS request (e.g. 'Base')"

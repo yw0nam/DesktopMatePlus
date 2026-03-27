@@ -1,6 +1,5 @@
 """Health check service for monitoring external dependencies."""
 
-from typing import Tuple
 
 from src.models.responses import HealthResponse, ModuleStatus
 
@@ -8,7 +7,7 @@ from src.models.responses import HealthResponse, ModuleStatus
 class HealthService:
     """Service for checking the health of system modules."""
 
-    def __init__(self, timeout: int = None):
+    def __init__(self, timeout: int | None = None):
         """Initialize health service.
 
         Args:
@@ -27,7 +26,7 @@ class HealthService:
         else:
             self.timeout = timeout
 
-    async def check_tts(self) -> Tuple[bool, str | None]:
+    async def check_tts(self) -> tuple[bool, str | None]:
         """Check TTS (Text-to-Speech) service health.
 
         Returns:
@@ -49,9 +48,9 @@ class HealthService:
                 return False, str(message) if message else "TTS service unhealthy"
 
         except Exception as e:
-            return False, f"TTS check failed: {str(e)}"
+            return False, f"TTS check failed: {e!s}"
 
-    async def check_agent(self) -> Tuple[bool, str | None]:
+    async def check_agent(self) -> tuple[bool, str | None]:
         """Check LangGraph agent health.
 
         Currently returns ready=True as agent is in-process.
@@ -66,9 +65,9 @@ class HealthService:
             # This is a placeholder that always returns True
             return True, None
         except Exception as e:
-            return False, f"Agent check failed: {str(e)}"
+            return False, f"Agent check failed: {e!s}"
 
-    async def check_ltm(self) -> Tuple[bool, str | None]:
+    async def check_ltm(self) -> tuple[bool, str | None]:
         """Check Long-Term Memory (LTM) service health.
 
         Returns:
@@ -90,9 +89,9 @@ class HealthService:
                 return False, str(message) if message else "LTM service unhealthy"
 
         except Exception as e:
-            return False, f"LTM check failed: {str(e)}"
+            return False, f"LTM check failed: {e!s}"
 
-    async def check_mongodb(self) -> Tuple[bool, str | None]:
+    async def check_mongodb(self) -> tuple[bool, str | None]:
         """Check MongoDB checkpointer connectivity.
 
         Returns:
@@ -109,7 +108,7 @@ class HealthService:
             return True, None
 
         except Exception as e:
-            return False, f"MongoDB ping failed: {str(e)}"
+            return False, f"MongoDB ping failed: {e!s}"
 
     async def get_system_health(self) -> HealthResponse:
         """Get overall system health status.

@@ -4,23 +4,24 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterable, Iterator, List, Optional, Pattern, Tuple
+from re import Pattern
 
 import yaml
 from loguru import logger
 
-from src.services.agent_service.utils.text_chunker import (  # noqa: WPS347
+from src.services.agent_service.utils.text_chunker import (
     TextChunkProcessor as AgentTextChunkProcessor,
 )
-from src.services.agent_service.utils.text_processor import (  # noqa: WPS347
+from src.services.agent_service.utils.text_processor import (
     ProcessedText,
 )
 from src.services.agent_service.utils.text_processor import (
     TTSTextProcessor as AgentTTSTextProcessor,
 )
 
-_DEFAULT_RULES: List[dict] = [
+_DEFAULT_RULES: list[dict] = [
     {"pattern": r"\((?:웃음|giggle)\)", "replacement": ""},
     {"pattern": r"\b(?:음|uh|um)+[\.\u2026]*", "replacement": ""},
     {"pattern": r"\s{2,}", "replacement": " "},
@@ -51,7 +52,7 @@ class TextChunkProcessor:
     def __init__(
         self,
         min_chunk_length: int | None = None,
-        rules_path: Optional[Path | str] = None,
+        rules_path: Path | str | None = None,
     ) -> None:
         path = Path(rules_path) if rules_path else _DEFAULT_RULES_PATH
         resolved_length = (
@@ -67,10 +68,9 @@ class TextChunkProcessor:
         if not token:
             return
 
-        for sentence in self._delegate.add_chunk(token):
-            yield sentence
+        yield from self._delegate.add_chunk(token)
 
-    def flush(self) -> Optional[str]:
+    def flush(self) -> str | None:
         """Return any buffered text that never reached a terminator."""
 
         sentences = self._delegate.finalize()
@@ -89,7 +89,7 @@ class TextChunkProcessor:
 class TTSTextProcessor:
     """Configurable regex cleanup layered on top of the agent processor."""
 
-    def __init__(self, rules_path: Optional[str | Path] = None) -> None:
+    def __init__(self, rules_path: str | Path | None = None) -> None:
         self._delegate = AgentTTSTextProcessor()
         self._rules_path = (
             Path(rules_path)
@@ -113,7 +113,7 @@ class TTSTextProcessor:
         filtered = re.sub(r"\s{2,}", " ", filtered).strip()
         return ProcessedText(filtered, processed.emotion_tag)
 
-    def _load_rules(self, path: Path) -> List[Tuple[Pattern[str], str]]:
+    def _load_rules(self, path: Path) -> list[tuple[Pattern[str], str]]:
         data = None
 
         if path.exists():
@@ -141,7 +141,7 @@ class TTSTextProcessor:
         else:
             rules = _DEFAULT_RULES
 
-        compiled: List[Tuple[Pattern[str], str]] = []
+        compiled: list[tuple[Pattern[str], str]] = []
         for rule in rules:
             pattern = rule.get("pattern")
             replacement = rule.get("replacement", "")
@@ -158,12 +158,12 @@ class TTSTextProcessor:
         return compiled
 
 
-def build_sentence_pipeline(tokens: Iterable[str]) -> List[ProcessedText]:
+def build_sentence_pipeline(tokens: Iterable[str]) -> list[ProcessedText]:
     """Utility to run the combined pipeline on an iterable of token chunks."""
 
     chunker = TextChunkProcessor(min_chunk_length=0)
     cleaner = TTSTextProcessor()
-    results: List[ProcessedText] = []
+    results: list[ProcessedText] = []
 
     for token in tokens:
         for sentence in chunker.process(token):

@@ -1,7 +1,7 @@
 """DelegateTaskTool — async, uses ToolRuntime to read/write agent state."""
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
@@ -35,7 +35,7 @@ class DelegateTaskTool(BaseTool):
 
     async def _arun(self, task: str, runtime=None, **kwargs) -> Command:
         task_id = str(uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         state = getattr(runtime, "state", {}) or {}
         context = getattr(runtime, "context", {}) or {}

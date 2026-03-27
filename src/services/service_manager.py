@@ -6,8 +6,9 @@ Services are initialized once and stored as module-level singletons.
 
 import asyncio
 import threading
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable, Optional, TypeVar
+from typing import TypeVar
 
 import pymongo as _pymongo
 import yaml
@@ -20,17 +21,17 @@ from src.services.tts_service import TTSFactory, TTSService
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
 
 # Global service instances
-_tts_service_instance: Optional[TTSService] = None
-_agent_service_instance: Optional[AgentService] = None
-_ltm_service_instance: Optional[LTMService] = None
-_emotion_motion_mapper_instance: Optional[EmotionMotionMapper] = None
+_tts_service_instance: TTSService | None = None
+_agent_service_instance: AgentService | None = None
+_ltm_service_instance: LTMService | None = None
+_emotion_motion_mapper_instance: EmotionMotionMapper | None = None
 _mongo_client: "_pymongo.MongoClient | None" = None
 _session_registry_instance: "SessionRegistry | None" = None
 
 T = TypeVar("T")
 
 
-def _run_async_callable(func: Callable[[], Awaitable[T]]) -> T:
+def _run_async_callable[T](func: Callable[[], Awaitable[T]]) -> T:
     """Execute an async callable in synchronous context.
 
     FastAPI lifespan and CLI entry points are synchronous when initializing
@@ -51,7 +52,7 @@ def _run_async_callable(func: Callable[[], Awaitable[T]]) -> T:
         try:
             asyncio.set_event_loop(new_loop)
             result["value"] = new_loop.run_until_complete(func())
-        except BaseException as exc:  # noqa: BLE001 - propagate after join
+        except BaseException as exc:
             error.append(exc)
         finally:
             asyncio.set_event_loop(None)
@@ -85,19 +86,19 @@ def _load_yaml_config(yaml_path: str | Path) -> dict:
     if not yaml_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {yaml_path}")
 
-    with open(yaml_path, "r", encoding="utf-8") as f:
+    with open(yaml_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     return config or {}
 
 
-def _initialize_service(
+def _initialize_service[T](
     service_name: str,
     default_config_path: Path,
     config_key: str,
     factory_fn: Callable[..., T],
-    config_path: Optional[str | Path] = None,
-    pre_factory_hook: Optional[Callable[[dict, dict], None]] = None,
+    config_path: str | Path | None = None,
+    pre_factory_hook: Callable[[dict, dict], None] | None = None,
     async_health_check: bool = False,
     swallow_health_error: bool = False,
 ) -> T:
@@ -130,7 +131,7 @@ def _initialize_service(
                 logger.warning(
                     f"⚠️  {service_name} service initialized but not healthy: {msg}"
                 )
-        except Exception as health_err:  # noqa: BLE001
+        except Exception as health_err:
             if swallow_health_error:
                 logger.error(f"⚠️  {service_name} health check failed: {health_err}")
             else:
@@ -147,7 +148,7 @@ _BASE_YAML = Path(__file__).parent.parent.parent / "yaml_files"
 
 
 def initialize_mongodb_client(
-    config_path: Optional[str | Path] = None, force_reinit: bool = False
+    config_path: str | Path | None = None, force_reinit: bool = False
 ) -> "_pymongo.MongoClient":
     """Initialize shared MongoDB client for checkpointer and session_registry."""
     global _mongo_client, _session_registry_instance
@@ -189,7 +190,7 @@ def get_session_registry() -> "SessionRegistry | None":
 
 
 def initialize_tts_service(
-    config_path: Optional[str | Path] = None, force_reinit: bool = False
+    config_path: str | Path | None = None, force_reinit: bool = False
 ) -> TTSService:
     """Initialize TTS service from YAML configuration.
 
@@ -221,7 +222,7 @@ def initialize_tts_service(
 
 
 def initialize_agent_service(
-    config_path: Optional[str | Path] = None,
+    config_path: str | Path | None = None,
     force_reinit: bool = False,
 ) -> AgentService:
     """Initialize Agent service from YAML configuration.
@@ -244,7 +245,7 @@ def initialize_agent_service(
         return _agent_service_instance
 
     def _inject_mcp(config: dict, service_configs: dict) -> None:
-        service_configs["mcp_config"] = config.get("mcp_config", None)
+        service_configs["mcp_config"] = config.get("mcp_config")
 
     _agent_service_instance = _initialize_service(
         service_name="Agent",
@@ -263,7 +264,7 @@ def initialize_agent_service(
 
 
 def initialize_ltm_service(
-    config_path: Optional[str | Path] = None, force_reinit: bool = False
+    config_path: str | Path | None = None, force_reinit: bool = False
 ) -> LTMService:
     """Initialize LTM service from configuration.
 
@@ -294,9 +295,9 @@ def initialize_ltm_service(
 
 
 def initialize_services(
-    tts_config_path: Optional[str | Path] = None,
-    agent_config_path: Optional[str | Path] = None,
-    ltm_config_path: Optional[str | Path] = None,
+    tts_config_path: str | Path | None = None,
+    agent_config_path: str | Path | None = None,
+    ltm_config_path: str | Path | None = None,
     force_reinit: bool = False,
 ) -> tuple[TTSService, AgentService, LTMService]:
     """Initialize all services from YAML configurations.
@@ -326,7 +327,7 @@ def initialize_services(
     return tts_service, agent_service, ltm_service
 
 
-def get_tts_service() -> Optional[TTSService]:
+def get_tts_service() -> TTSService | None:
     """Get the initialized TTS service instance.
 
     Returns:
@@ -335,7 +336,7 @@ def get_tts_service() -> Optional[TTSService]:
     return _tts_service_instance
 
 
-def get_agent_service() -> Optional[AgentService]:
+def get_agent_service() -> AgentService | None:
     """Get the initialized Agent service instance.
 
     Returns:
@@ -344,7 +345,7 @@ def get_agent_service() -> Optional[AgentService]:
     return _agent_service_instance
 
 
-def get_ltm_service() -> Optional[LTMService]:
+def get_ltm_service() -> LTMService | None:
     """Get the initialized LTM service instance.
 
     Returns:
@@ -354,7 +355,7 @@ def get_ltm_service() -> Optional[LTMService]:
 
 
 def initialize_emotion_motion_mapper(
-    config_path: Optional[str | Path] = None,
+    config_path: str | Path | None = None,
     force_reinit: bool = False,
 ) -> EmotionMotionMapper:
     """Initialize EmotionMotionMapper from YAML configuration.
@@ -384,7 +385,7 @@ def initialize_emotion_motion_mapper(
     return _emotion_motion_mapper_instance
 
 
-def get_emotion_motion_mapper() -> Optional[EmotionMotionMapper]:
+def get_emotion_motion_mapper() -> EmotionMotionMapper | None:
     """Get the initialized EmotionMotionMapper instance.
 
     Returns:
@@ -394,16 +395,16 @@ def get_emotion_motion_mapper() -> Optional[EmotionMotionMapper]:
 
 
 __all__ = [
-    "initialize_services",
-    "initialize_tts_service",
-    "initialize_agent_service",
-    "initialize_ltm_service",
-    "initialize_emotion_motion_mapper",
-    "initialize_mongodb_client",
-    "get_tts_service",
     "get_agent_service",
-    "get_ltm_service",
     "get_emotion_motion_mapper",
+    "get_ltm_service",
     "get_mongo_client",
     "get_session_registry",
+    "get_tts_service",
+    "initialize_agent_service",
+    "initialize_emotion_motion_mapper",
+    "initialize_ltm_service",
+    "initialize_mongodb_client",
+    "initialize_services",
+    "initialize_tts_service",
 ]

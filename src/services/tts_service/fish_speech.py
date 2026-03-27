@@ -1,11 +1,11 @@
 import base64
-from typing import Literal, Optional
+import contextlib
+from typing import Annotated, Literal
 
 import ormsgpack
 import requests  # type: ignore
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, conint, model_validator
-from typing_extensions import Annotated
 
 from src.services.tts_service.service import TTSService
 
@@ -18,10 +18,8 @@ class ServeReferenceAudio(BaseModel):
     def decode_audio(cls, values):
         audio = values.get("audio")
         if isinstance(audio, str):
-            try:
+            with contextlib.suppress(Exception):
                 values["audio"] = base64.b64decode(audio)
-            except Exception:
-                pass
         return values
 
     def __repr__(self) -> str:
@@ -103,7 +101,7 @@ class FishSpeechTTS(TTSService):
 
         logger.info(f"FishTTS initialized at {self.base_url}")
 
-    def _request_tts_stream(self, request_payload: ServeTTSRequest) -> Optional[bytes]:
+    def _request_tts_stream(self, request_payload: ServeTTSRequest) -> bytes | None:
         """
         [내부 메서드] TTS 요청을 보내고 오디오 데이터를 바이트로 반환합니다.
 
@@ -139,11 +137,11 @@ class FishSpeechTTS(TTSService):
     def generate_speech(
         self,
         text: str,
-        reference_id: Optional[str] = None,
+        reference_id: str | None = None,
         output_format: Literal["bytes", "base64", "file"] = "bytes",
-        output_filename: Optional[str] = "output.wav",
+        output_filename: str | None = "output.wav",
         audio_format: Literal["wav", "mp3"] = "mp3",
-    ) -> Optional[bytes | str | bool]:
+    ) -> bytes | str | bool | None:
         """
         [메인 메서드] 원본 텍스트를 받아 음성을 생성하고 지정된 포맷으로 반환합니다.
 
@@ -207,7 +205,7 @@ class FishSpeechTTS(TTSService):
             else:
                 return False, "Fish Speech TTS returned empty result"
         except Exception as e:
-            return False, f"Fish Speech TTS health check failed: {str(e)}"
+            return False, f"Fish Speech TTS health check failed: {e!s}"
 
 
 # --- 사용 예제 ---

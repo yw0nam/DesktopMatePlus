@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +23,7 @@ class SearchMemoryInput(BaseModel):
         ...,
         description="The natural language query to search for relevant memories. This should be a question or a statement describing the information needed.",
     )
-    limit: Optional[int] = Field(
+    limit: int | None = Field(
         default=5,
         description="The maximum number of memory results to return. Defaults to 5 to avoid overwhelming the context window.",
     )
@@ -49,7 +49,7 @@ class UpdateMemoryInput(BaseModel):
         ...,
         description="The unique ID of the memory to be updated. This ID is typically obtained from a prior search result.",
     )
-    payload: Dict[str, Any] = Field(
+    payload: dict[str, Any] = Field(
         ...,
         description="A dictionary containing the fields to be updated. For example, to update the content, use {'content': 'new updated text'}.",
     )

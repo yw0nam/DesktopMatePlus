@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, AsyncGenerator, AsyncIterator, Dict, List, Optional, Set
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import Any
 from uuid import UUID, uuid4
 
 from loguru import logger
@@ -49,18 +50,18 @@ class MessageProcessor:
         self.tts_service = tts_service
         self.mapper = mapper
         self.queue_maxsize = max(1, queue_maxsize)
-        self.turns: Dict[str, ConversationTurn] = {}
-        self.active_turns: Set[str] = set()
-        self.active_tasks: Set[asyncio.Task] = set()
+        self.turns: dict[str, ConversationTurn] = {}
+        self.active_turns: set[str] = set()
+        self.active_tasks: set[asyncio.Task] = set()
         self.created_at = time.time()
         self.total_turns = 0
         self.total_interrupted = 0
         self._shutdown_event = asyncio.Event()
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: asyncio.Task | None = None
         self._turn_lock = asyncio.Lock()
         self._cleanup_lock = asyncio.Lock()
-        self._current_turn_id: Optional[str] = None
-        self._cleaned_turns: Set[str] = set()
+        self._current_turn_id: str | None = None
+        self._cleaned_turns: set[str] = set()
 
         # Initialize helper components
         self._event_handler = EventHandler(self)
@@ -79,10 +80,10 @@ class MessageProcessor:
         session_id: str,
         user_input: str,
         *,
-        agent_stream: Optional[AsyncIterator[Dict[str, Any]]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        agent_stream: AsyncIterator[dict[str, Any]] | None = None,
+        metadata: dict[str, Any] | None = None,
         tts_enabled: bool = True,
-        reference_id: Optional[str] = None,
+        reference_id: str | None = None,
     ) -> str:
         """Start a new conversation turn.
 
@@ -143,7 +144,7 @@ class MessageProcessor:
         return turn_id
 
     async def start_conversation_turn(
-        self, user_message: str, metadata: Optional[Dict[str, Any]] = None
+        self, user_message: str, metadata: dict[str, Any] | None = None
     ) -> str:
         """Backward compatible wrapper that generates a conversation id."""
 
@@ -156,7 +157,7 @@ class MessageProcessor:
         )
 
     async def update_turn_status(
-        self, turn_id: str, status: TurnStatus, error_message: Optional[str] = None
+        self, turn_id: str, status: TurnStatus, error_message: str | None = None
     ) -> bool:
         """Update status of a conversation turn."""
 
@@ -234,7 +235,7 @@ class MessageProcessor:
         self,
         turn_id: str,
         response_content: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Mark a conversation turn as completed."""
 
@@ -255,7 +256,7 @@ class MessageProcessor:
         self,
         turn_id: str,
         error_message: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Mark a conversation turn as failed."""
 
@@ -274,8 +275,8 @@ class MessageProcessor:
     async def handle_interrupt(
         self,
         reason: str = "Interrupt requested",
-        turn_id: Optional[str] = None,
-    ) -> Optional[str]:
+        turn_id: str | None = None,
+    ) -> str | None:
         """Handle an interrupt for the specified (or current) turn."""
 
         target_turn_id = turn_id or self._current_turn_id
@@ -329,7 +330,7 @@ class MessageProcessor:
 
             try:
                 await asyncio.wait_for(queue.join(), timeout=INTERRUPT_WAIT_TIMEOUT)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.debug(
                     f"Timed out waiting for interrupt event delivery for turn {target_turn_id}"
                 )
@@ -337,7 +338,7 @@ class MessageProcessor:
         await self.cleanup(target_turn_id)
         return target_turn_id
 
-    async def cleanup(self, turn_id: Optional[str] = None):
+    async def cleanup(self, turn_id: str | None = None):
         """Cleanup resources associated with a conversation turn."""
 
         if turn_id is None:
@@ -389,7 +390,7 @@ class MessageProcessor:
             )
 
     async def attach_agent_stream(
-        self, turn_id: str, agent_stream: AsyncIterator[Dict[str, Any]]
+        self, turn_id: str, agent_stream: AsyncIterator[dict[str, Any]]
     ) -> None:
         """Attach an AgentService stream to an existing turn."""
 
@@ -405,12 +406,12 @@ class MessageProcessor:
         )
         self._task_manager.track_task(turn_id, producer_task)
 
-    async def get_turn(self, turn_id: str) -> Optional[ConversationTurn]:
+    async def get_turn(self, turn_id: str) -> ConversationTurn | None:
         """Get a specific conversation turn."""
 
         return self.turns.get(turn_id)
 
-    async def get_active_turns(self) -> List[ConversationTurn]:
+    async def get_active_turns(self) -> list[ConversationTurn]:
         """Get all currently active conversation turns."""
 
         return [
@@ -419,7 +420,7 @@ class MessageProcessor:
             if turn_id in self.turns
         ]
 
-    def get_event_queue(self, turn_id: Optional[str] = None) -> Optional[asyncio.Queue]:
+    def get_event_queue(self, turn_id: str | None = None) -> asyncio.Queue | None:
         """Return the event queue for the requested turn (defaults to current)."""
 
         if turn_id is None:
@@ -458,7 +459,7 @@ class MessageProcessor:
 
         return len(turns_to_remove)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get statistics about this MessageProcessor."""
 
         active_turns = len(self.active_turns)
@@ -495,8 +496,8 @@ class MessageProcessor:
             await self.cleanup_completed_turns(0)
 
     async def stream_events(
-        self, turn_id: Optional[str] = None
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+        self, turn_id: str | None = None
+    ) -> AsyncGenerator[dict[str, Any]]:
         """Yield events for the active turn until terminal event and cleanup."""
 
         if turn_id is None:
@@ -520,7 +521,7 @@ class MessageProcessor:
         finally:
             await self.cleanup(turn_id)
 
-    async def _put_event(self, turn_id: str, event: Dict[str, Any]) -> None:
+    async def _put_event(self, turn_id: str, event: dict[str, Any]) -> None:
         """Put an event onto the turn's queue respecting backpressure."""
 
         queue = self.get_event_queue(turn_id)
@@ -583,12 +584,12 @@ class MessageProcessor:
             )
         except asyncio.CancelledError:  # pragma: no cover - defensive
             logger.debug(f"Cleanup task cancelled for connection {self.connection_id}")
-        except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+        except Exception as exc:  # pragma: no cover - defensive
             logger.error(
                 f"Error during delayed cleanup for connection {self.connection_id}: {exc}"
             )
 
-    def _normalize_event(self, turn_id: str, event: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_event(self, turn_id: str, event: dict[str, Any]) -> dict[str, Any]:
         """Ensure every event contains basic identifiers."""
 
         normalized = dict(event)
@@ -599,7 +600,7 @@ class MessageProcessor:
 
     async def _default_agent_stream(
         self, turn_id: str, session_id: str, user_input: str
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Synthetic stream used when no agent is provided."""
 
         yield {

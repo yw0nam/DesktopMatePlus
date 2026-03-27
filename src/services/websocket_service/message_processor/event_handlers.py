@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, AsyncIterator, Dict
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from src.services.tts_service.tts_pipeline import synthesize_chunk
+from src.services.websocket_service.text_processors import (
+    TextChunkProcessor,
+    TTSTextProcessor,
+)
 
-from ..text_processors import TextChunkProcessor, TTSTextProcessor
 from .constants import INTERRUPT_WAIT_TIMEOUT, TOKEN_QUEUE_SENTINEL
 from .models import TurnStatus
 
@@ -28,10 +32,10 @@ class EventHandler:
             processor: The parent MessageProcessor instance.
         """
         self.processor = processor
-        self._tool_start_times: Dict[str, float] = {}  # Track tool call start times
+        self._tool_start_times: dict[str, float] = {}  # Track tool call start times
 
     async def produce_agent_events(
-        self, turn_id: str, agent_stream: AsyncIterator[Dict[str, Any]]
+        self, turn_id: str, agent_stream: AsyncIterator[dict[str, Any]]
     ) -> None:
         """Consume AgentService events and forward them to the queue."""
         try:
@@ -94,7 +98,7 @@ class EventHandler:
         except asyncio.CancelledError:
             logger.debug(f"Producer cancelled for turn {turn_id}")
             raise
-        except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+        except Exception as exc:  # pragma: no cover - defensive
             await self.processor.fail_turn(turn_id, str(exc))
             await self._signal_token_stream_closed(turn_id)
             await self._wait_for_token_queue(turn_id)
@@ -134,7 +138,7 @@ class EventHandler:
         except asyncio.CancelledError:
             logger.debug(f"Token consumer cancelled for turn {turn_id}")
             raise
-        except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+        except Exception as exc:  # pragma: no cover - defensive
             logger.error(
                 f"Error consuming token events for turn {turn_id}: {exc}",
                 exc_info=True,
@@ -147,7 +151,7 @@ class EventHandler:
     async def _process_token_event(
         self,
         turn_id: str,
-        token_event: Dict[str, Any],
+        token_event: dict[str, Any],
     ) -> None:
         """Transform a single token event into zero or more TTS events."""
         turn = self.processor.turns.get(turn_id)
@@ -293,7 +297,7 @@ class EventHandler:
             },
         )
 
-    async def _put_token_event(self, turn_id: str, event: Dict[str, Any]) -> None:
+    async def _put_token_event(self, turn_id: str, event: dict[str, Any]) -> None:
         """Send a token event to the internal token queue."""
         turn = self.processor.turns.get(turn_id)
         queue = turn.token_queue if turn else None
@@ -333,11 +337,11 @@ class EventHandler:
         try:
             await asyncio.wait_for(queue.join(), timeout=INTERRUPT_WAIT_TIMEOUT)
             logger.debug(f"Token queue drained for turn {turn_id}")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.debug(f"Timed out waiting for token queue join for turn {turn_id}")
         except asyncio.CancelledError:  # pragma: no cover - defensive
             raise
-        except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+        except Exception as exc:  # pragma: no cover - defensive
             logger.debug(f"Error waiting for token queue for turn {turn_id}: {exc}")
 
         # Then, wait for consumer task to finish (flush buffer, emit final chunks)
@@ -346,16 +350,16 @@ class EventHandler:
             try:
                 await asyncio.wait_for(consumer_task, timeout=INTERRUPT_WAIT_TIMEOUT)
                 logger.debug(f"Token consumer finished for turn {turn_id}")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.debug(f"Timed out waiting for token consumer for turn {turn_id}")
             except asyncio.CancelledError:  # pragma: no cover - defensive
                 raise
-            except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+            except Exception as exc:  # pragma: no cover - defensive
                 logger.debug(
                     f"Error waiting for token consumer for turn {turn_id}: {exc}"
                 )
 
-    async def _log_tool_call(self, turn_id: str, event: Dict[str, Any]) -> None:
+    async def _log_tool_call(self, turn_id: str, event: dict[str, Any]) -> None:
         """Log tool call event with structured metadata.
 
         Tool events are not forwarded to clients - they are logged server-side only.
@@ -388,7 +392,7 @@ class EventHandler:
             },
         )
 
-    async def _log_tool_result(self, turn_id: str, event: Dict[str, Any]) -> None:
+    async def _log_tool_result(self, turn_id: str, event: dict[str, Any]) -> None:
         """Log tool result event with structured metadata.
 
         Tool events are not forwarded to clients - they are logged server-side only.
@@ -411,7 +415,7 @@ class EventHandler:
 
         # Try to find the most recent tool call for this turn
         matching_keys = [
-            k for k in self._tool_start_times.keys() if k.startswith(f"{turn_id}:")
+            k for k in self._tool_start_times if k.startswith(f"{turn_id}:")
         ]
         if matching_keys:
             # Use the most recent tool call

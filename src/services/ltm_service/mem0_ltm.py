@@ -1,4 +1,4 @@
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import convert_to_openai_messages
@@ -40,31 +40,31 @@ class Mem0MemoryItem(BaseModel):
         ...,
         description="Memory content/text",
     )
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         default=None,
         description="Associated user ID",
     )
-    agent_id: Optional[str] = Field(
+    agent_id: str | None = Field(
         default=None,
         description="Associated agent ID",
     )
-    hash: Optional[str] = Field(
+    hash: str | None = Field(
         default=None,
         description="Memory hash for deduplication",
     )
-    metadata: Optional[dict] = Field(
+    metadata: dict | None = Field(
         default=None,
         description="Additional metadata associated with the memory",
     )
-    score: Optional[float] = Field(
+    score: float | None = Field(
         default=None,
         description="Similarity score for search results",
     )
-    created_at: Optional[str] = Field(
+    created_at: str | None = Field(
         default=None,
         description="Timestamp when the memory was created",
     )
-    updated_at: Optional[str] = Field(
+    updated_at: str | None = Field(
         default=None,
         description="Timestamp when the memory was last updated",
     )

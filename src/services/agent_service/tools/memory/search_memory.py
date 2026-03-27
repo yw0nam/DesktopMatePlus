@@ -1,5 +1,4 @@
 import json
-from typing import Optional
 
 from langchain_core.tools import BaseTool
 from mem0 import Memory
@@ -31,8 +30,8 @@ class SearchMemoryTool(BaseTool):
     args_schema: type[SearchMemoryInput] = SearchMemoryInput
     mem0_client: Memory
     user_id: str
-    agent_id: Optional[str] = None
-    run_id: Optional[str] = None
+    agent_id: str | None = None
+    run_id: str | None = None
     # vocabulary_manager: Optional[PostgreSQLVocabularyManager] = None
 
     def __init__(
@@ -40,8 +39,8 @@ class SearchMemoryTool(BaseTool):
         *,
         mem0_client: Memory,
         user_id: str,
-        agent_id: Optional[str] = None,
-        run_id: Optional[str] = None,
+        agent_id: str | None = None,
+        run_id: str | None = None,
         # vocabulary_manager: Optional[PostgreSQLVocabularyManager] = None,
     ) -> None:
         super().__init__(

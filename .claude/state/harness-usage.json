@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "updatedAt": "2026-03-27T02:05:14.870Z",
+  "skills": {},
+  "commands": {
+    "code-review-graph:build-graph": {
+      "count": 1,
+      "lastUsed": "2026-03-26T13:46:19.840Z"
+    },
+    "claude-md-improver": {
+      "count": 1,
+      "lastUsed": "2026-03-27T02:04:37.360Z"
+    },
+    "claude-md-management:revise-claude-md": {
+      "count": 1,
+      "lastUsed": "2026-03-27T02:05:14.869Z"
+    }
+  },
+  "agents": {},
+  "hooks": {
+    "session-init": {
+      "triggered": 2,
+      "blocked": 0,
+      "lastTriggered": "2026-03-26T23:58:46.952Z"
+    }
+  }
+}

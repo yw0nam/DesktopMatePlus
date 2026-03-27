@@ -4,6 +4,6 @@ from src.services.agent_service.utils.text_chunker import (
 from src.services.agent_service.utils.text_processor import TTSTextProcessor
 
 __all__ = [
-    "TextChunkProcessor",
     "TTSTextProcessor",
+    "TextChunkProcessor",
 ]
