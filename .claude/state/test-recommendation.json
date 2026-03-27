@@ -1,7 +1,0 @@
-{
-  "timestamp": "2026-03-27T01:57:53Z",
-  "changed_file": "src/models/websocket.py",
-  "test_command": "pytest",
-  "related_test": "",
-  "recommendation": "テストの実行を推奨します"
-}

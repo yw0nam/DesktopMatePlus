@@ -101,3 +101,15 @@ resources
 .worktrees
 tts_output
 .claude/settings.local.json
+
+# Claude harness
+.claude-code-harness/
+
+# Claude Memory Policy
+# Keep (shared SSOT): .claude/memory/decisions.md, .claude/memory/patterns.md
+# Ignore (local): .claude/state/, session-log.md
+.claude/state/
+.claude/memory/session-log.md
+.claude/memory/context.json
+.claude/memory/archive/
+.claude

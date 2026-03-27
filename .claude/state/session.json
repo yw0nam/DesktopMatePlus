@@ -1,11 +1,11 @@
 {
-  "session_id": "fb3d1496-26ed-4a7d-b7cd-53ae6712c4b4",
+  "session_id": "7a41f2e1-8024-48c7-b5f9-d9694a037360",
   "parent_session_id": null,
   "state": "initialized",
   "state_version": 1,
-  "started_at": "2026-03-26T23:58:46Z",
-  "updated_at": "2026-03-26T23:58:46Z",
-  "resume_token": "62ae9a2c-f676-443b-8cd3-5307bed3a3c6",
+  "started_at": "2026-03-27T06:48:21Z",
+  "updated_at": "2026-03-27T06:48:21Z",
+  "resume_token": "4e373b11-1068-4cbe-89c0-b83bf8aac6e3",
   "event_seq": 0,
   "last_event_id": "",
   "fork_count": 0,
@@ -17,20 +17,20 @@
   "project_name": "backend",
   "prompt_seq": 0,
   "git": {
-    "branch": "feat/migrate_stm_to_checkpointer",
-    "uncommitted_changes": 16,
-    "last_commit": "23a5be5"
+    "branch": "feat/claude_harness",
+    "uncommitted_changes": 12,
+    "last_commit": "5ee5702"
   },
   "plans": {
     "exists": true,
     "last_modified":   File: "Plans.md"
     ID: cdf41278c4484bd8 Namelen: 255     Type: ext2/ext3
 Block size: 4096       Fundamental block size: 4096
-Blocks: Total: 460931733  Free: 56712394   Available: 33279908
-Inodes: Total: 117145600  Free: 111106249
-1774530489,
-    "wip_tasks": 1,
-    "todo_tasks": 1,
+Blocks: Total: 460931733  Free: 28951067   Available: 5518581
+Inodes: Total: 117145600  Free: 110236178
+1774591860,
+    "wip_tasks": 0,
+    "todo_tasks": 0,
     "pending_tasks": 0,
     "completed_tasks": 0
   },
