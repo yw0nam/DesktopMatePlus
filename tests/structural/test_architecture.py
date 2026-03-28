@@ -143,9 +143,9 @@ class TestImportLayering:
                 if imp.startswith("src.api"):
                     rel = py_file.relative_to(SRC)
                     violations.append(f"  {rel}: `{imp}`")
-        assert not violations, (
-            "Services must not import from API routes:\n" + "\n".join(violations)
-        )
+        assert (
+            not violations
+        ), "Services must not import from API routes:\n" + "\n".join(violations)
 
     def test_models_stay_at_base_layer(self):
         """
@@ -157,9 +157,9 @@ class TestImportLayering:
             for imp in parse_imports(model_file):
                 if imp.startswith("src.services") or imp.startswith("src.api"):
                     violations.append(f"  {model_file.name}: `{imp}`")
-        assert not violations, (
-            "Models must not import from services or routes:\n" + "\n".join(violations)
-        )
+        assert (
+            not violations
+        ), "Models must not import from services or routes:\n" + "\n".join(violations)
 
     def test_configs_stay_at_base_layer(self):
         """
@@ -172,9 +172,9 @@ class TestImportLayering:
                 if imp.startswith("src.services") or imp.startswith("src.api"):
                     rel = config_file.relative_to(SRC)
                     violations.append(f"  {rel}: `{imp}`")
-        assert not violations, (
-            "Configs must not import from services or routes:\n" + "\n".join(violations)
-        )
+        assert (
+            not violations
+        ), "Configs must not import from services or routes:\n" + "\n".join(violations)
 
 
 # ── Test: File Size Limits ────────────────────────────────────────────────────
@@ -293,12 +293,12 @@ class TestCodeConventions:
         """
         manager = SERVICES_DIR / "service_manager.py"
         content = manager.read_text(encoding="utf-8")
-        assert "def initialize_" in content or "async def initialize_" in content, (
-            "service_manager.py must define initialize_*() functions"
-        )
-        assert "def get_" in content, (
-            "service_manager.py must define get_*() getter functions"
-        )
+        assert (
+            "def initialize_" in content or "async def initialize_" in content
+        ), "service_manager.py must define initialize_*() functions"
+        assert (
+            "def get_" in content
+        ), "service_manager.py must define get_*() getter functions"
 
     def test_no_hardcoded_localhost_in_services(self):
         """

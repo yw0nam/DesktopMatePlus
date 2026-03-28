@@ -1,4 +1,3 @@
-
 import psycopg
 from langchain_core.messages import (
     AIMessage,
@@ -23,7 +22,9 @@ def trim_messages(
     trimmed_messages = []
     for message in reversed(messages):
         if len(trimmed_messages) < max_messages:
-            if isinstance(message, HumanMessage) or (isinstance(message, AIMessage) and message.content.strip() != ""):
+            if isinstance(message, HumanMessage) or (
+                isinstance(message, AIMessage) and message.content.strip() != ""
+            ):
                 trimmed_messages.append(message)
             elif isinstance(message, ToolMessage | SystemMessage):
                 continue

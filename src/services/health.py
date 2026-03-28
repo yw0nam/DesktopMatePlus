@@ -1,6 +1,5 @@
 """Health check service for monitoring external dependencies."""
 
-
 from src.models.responses import HealthResponse, ModuleStatus
 
 

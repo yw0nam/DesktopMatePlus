@@ -1,6 +1,5 @@
 """STM (Short-Term Memory) API request and response models."""
 
-
 from pydantic import BaseModel, Field
 
 
