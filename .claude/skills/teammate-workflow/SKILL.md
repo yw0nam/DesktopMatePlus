@@ -2,62 +2,64 @@
 
 You are an implementing teammate in the DesktopMatePlus Agent Teams workflow.
 The Lead Agent has already completed Phases 1–5 (brainstorm → plan → review → distribute → worktree).
-Your job is Phases 6–8: implement → commit → report.
+Your job covers **Phase 6 (implement) → Phase 7 (report) only**.
+
+---
+
+## MANDATORY: Use harness-work for ALL implementation
+
+**DO NOT implement tasks directly. Always use:**
+
+```
+/harness-work breezing --no-discuss all
+```
+
+This is not optional. `harness-work` handles task tracking, lint checks, and commit formatting automatically. Implementing tasks manually bypasses these checks and will cause GP violations.
+
+---
 
 ## Your Responsibilities
 
-1. **Read context first**
-   - Read your repo's CLAUDE.md (original repo path, not worktree)
-   - Read `Plans.md` to find your `[target: this-repo/]` tasks with `cc:TODO`
+### Step 1 — Read context
+- Read your repo's CLAUDE.md (original repo path, not worktree)
+- Read `Plans.md` to confirm which `[target: this-repo/]` tasks are `cc:TODO`
 
-2. **Work inside your assigned worktree**
-   - You are already cd'd into `worktrees/{repo}-{slug}/`
-   - Never commit directly to `main`/`develop`/`feat/claude_harness`
-   - All changes happen inside the worktree branch
+### Step 2 — Work inside your assigned worktree
+- You are already in `worktrees/{repo}-{slug}/`
+- Never commit directly to `main` / `develop` / `feat/claude_harness`
 
-3. **Implement tasks**
-   - Use `/harness-work breezing --no-discuss all` for your assigned tasks
-   - Or implement task-by-task if breezing is not available
-   - Run lint/tests after each task: `sh scripts/lint.sh` (backend) or `npm test` (nanoclaw)
-
-4. **Commit your work**
-   ```bash
-   git add <specific files>   # never git add . — avoid untracked junk
-   git commit -m "feat: <description>"
-   ```
-
-5. **Report back to Lead Agent**
-   When all tasks are done, send a message with:
-   - Tasks completed (list)
-   - Files created/modified
-   - Test results (pass/fail)
-   - Any blockers or issues
-
-## Commit Message Convention
+### Step 3 — Execute ALL tasks via harness-work
 
 ```
-feat: <what was added>
-fix: <what was fixed>
-docs: <documentation changes>
-refactor: <code restructuring>
+/harness-work breezing --no-discuss all
 ```
 
-Always co-author:
-```
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
-```
+harness-work will:
+- Pick up `cc:TODO` tasks from Plans.md
+- Implement each task
+- Run lint/tests after each task
+- Commit with conventional commit messages
 
-## Golden Principles to Follow
+### Step 4 — Report back to Lead Agent
 
-See `docs/GOLDEN_PRINCIPLES.md` in the workspace root for full invariants.
-Key rules for implementing agents:
-- **GP-3**: No `print()` in backend, no `console.log()` in nanoclaw
+When harness-work completes, send a message with:
+- Tasks completed (list with cc:DONE status)
+- Files created/modified
+- Test/lint results
+- Any blockers or escalations
+
+---
+
+## Golden Principles (enforced by harness-work)
+
+See `docs/GOLDEN_PRINCIPLES.md` in workspace root.
+Key rules:
+- **GP-3**: No `print()` (backend) / no `console.log()` (nanoclaw)
 - **GP-4**: No hardcoded config values
-- **GP-10**: `sh scripts/lint.sh` must pass before reporting done (backend)
+- **GP-10**: `sh scripts/lint.sh` must pass (backend) / `npm run build` must pass (nanoclaw)
 
-## Escalation
+## Escalate to Lead Agent if
 
-Send a message to the Lead Agent if:
 - A task requires changes outside your assigned repo
-- A GP violation cannot be fixed without architectural decisions
-- Tests are failing after 2 fix attempts
+- GP violation cannot be fixed without architectural decision
+- harness-work fails after 2 retries
