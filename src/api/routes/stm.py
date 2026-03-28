@@ -1,6 +1,5 @@
 """STM-compatible API routes — backed by LangGraph checkpointer + session_registry."""
 
-
 from fastapi import APIRouter, HTTPException
 from langchain_core.messages import convert_to_messages, convert_to_openai_messages
 

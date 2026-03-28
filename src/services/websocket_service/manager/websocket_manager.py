@@ -295,9 +295,7 @@ class WebSocketManager:
         """
         return await self._message_handler.handle_interrupt(connection_id, turn_id)
 
-    async def get_connection_stats(
-        self, connection_id: UUID
-    ) -> dict[str, Any] | None:
+    async def get_connection_stats(self, connection_id: UUID) -> dict[str, Any] | None:
         """Get statistics for a specific connection.
 
         Args:

@@ -26,9 +26,7 @@ class Mem0EmbedderConfigValues(BaseModel):
 
     model_name: str = "chat_model"
     openai_base_url: str = "http://localhost:5504/v1"
-    openai_api_key: str | None = Field(
-        default_factory=lambda: os.getenv("EMB_API_KEY")
-    )
+    openai_api_key: str | None = Field(default_factory=lambda: os.getenv("EMB_API_KEY"))
     embedding_dims: int = 2560
 
 

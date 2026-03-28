@@ -10,9 +10,7 @@ class ModuleStatus(BaseModel):
 
     name: str = Field(..., description="Module name (TTS, or Agent)")
     ready: bool = Field(..., description="Whether the module is ready")
-    error: str | None = Field(
-        None, description="Error message if module is not ready"
-    )
+    error: str | None = Field(None, description="Error message if module is not ready")
 
 
 class HealthResponse(BaseModel):
