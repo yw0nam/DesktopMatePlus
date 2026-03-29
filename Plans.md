@@ -24,8 +24,8 @@ Created: 2026-03-27
 
 | Task | Content | DoD | Depends | Status |
 |------|------|-----|---------|--------|
-| MET-1 | FastAPI `/metrics` 엔드포인트 — request latency, error rate, active connections | `GET /metrics` → Prometheus 포맷 응답 | - | cc:DONE |
-| MET-2 | `scripts/metrics.sh` — worktree별 메트릭 조회 + 임계값 초과 알림 | `scripts/metrics.sh --latency p99` 정상 출력 | MET-1 | cc:DONE |
+| MET-1 | FastAPI `/metrics` 엔드포인트 — request latency, error rate, active connections | `GET /metrics` → Prometheus 포맷 응답 | - | removed |
+| MET-2 | `scripts/metrics.sh` — worktree별 메트릭 조회 + 임계값 초과 알림 | `scripts/metrics.sh --latency p99` 정상 출력 | MET-1 | removed |
 
 ## Phase 1: Active
 
