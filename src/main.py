@@ -15,7 +15,6 @@ from loguru import logger
 from src.api.routes import router as api_router
 from src.configs.settings import get_settings, initialize_settings
 from src.core.logger import setup_logging
-from src.core.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from src.core.middleware import RequestIDMiddleware
 
 load_dotenv()
@@ -244,22 +243,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    @app.middleware("http")
-    async def prometheus_middleware(request, call_next):
-        import time
-
-        endpoint = request.url.path
-        start = time.perf_counter()
-        response = await call_next(request)
-        elapsed = time.perf_counter() - start
-        REQUEST_LATENCY.labels(endpoint=endpoint).observe(elapsed)
-        REQUEST_COUNT.labels(
-            method=request.method,
-            endpoint=endpoint,
-            status=str(response.status_code),
-        ).inc()
-        return response
 
     # Include API routes
     app.include_router(api_router)

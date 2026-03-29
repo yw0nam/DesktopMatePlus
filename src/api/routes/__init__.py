@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
-from src.api.routes import callback, ltm, metrics, slack, stm, tts, websocket
+from src.api.routes import callback, ltm, slack, stm, tts, websocket
 from src.models.responses import HealthResponse
 from src.services.health import HealthService, health_service
 
@@ -17,7 +17,6 @@ router.include_router(stm.router)
 router.include_router(ltm.router)
 router.include_router(callback.router)
 router.include_router(slack.router)
-router.include_router(metrics.router)
 
 
 def get_health_service() -> HealthService:
