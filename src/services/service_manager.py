@@ -92,7 +92,9 @@ def _load_yaml_config(yaml_path: str | Path) -> dict:
     return config or {}
 
 
-def _initialize_service[T](
+def _initialize_service[
+    T
+](
     service_name: str,
     default_config_path: Path,
     config_key: str,

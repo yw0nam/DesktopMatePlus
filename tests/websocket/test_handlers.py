@@ -61,10 +61,6 @@ class TestHandlerPersonaId:
                 return_value=mock_agent,
             ),
             patch(
-                "src.services.websocket_service.manager.handlers.get_ltm_service",
-                return_value=None,
-            ),
-            patch(
                 "src.services.websocket_service.manager.handlers.get_session_registry",
                 return_value=None,
             ),
