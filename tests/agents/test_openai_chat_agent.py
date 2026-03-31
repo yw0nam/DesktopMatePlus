@@ -71,3 +71,60 @@ async def test_invoke_uses_thread_id():
     )
     assert config["configurable"]["thread_id"] == "s2"
     assert "session_id" not in config["configurable"]
+
+
+async def test_stream_injects_persona_only_for_new_session():
+    """Persona SystemMessage must NOT be prepended when session_id is set (continuing session)."""
+
+    svc = _agent()
+    svc._personas = {"yuri": "You are Yuri."}
+    captured_messages = {}
+
+    async def capturing_astream(input, config=None, context=None, **kw):
+        captured_messages["messages"] = input.get("messages", [])
+        return
+        yield
+
+    svc.agent.astream = capturing_astream
+
+    # Continuing session: session_id is set — persona must NOT be prepended
+    await _drain(
+        svc.stream(
+            messages=[HumanMessage("hi")],
+            session_id="existing-session",
+            persona_id="yuri",
+        )
+    )
+    types = [type(m).__name__ for m in captured_messages["messages"]]
+    assert (
+        "SystemMessage" not in types
+    ), "SystemMessage must not be injected for a continuing session"
+
+
+async def test_stream_injects_persona_for_new_session():
+    """Persona SystemMessage MUST be prepended when session_id is empty (new session)."""
+    from langchain_core.messages import SystemMessage
+
+    svc = _agent()
+    svc._personas = {"yuri": "You are Yuri."}
+    captured_messages = {}
+
+    async def capturing_astream(input, config=None, context=None, **kw):
+        captured_messages["messages"] = input.get("messages", [])
+        return
+        yield
+
+    svc.agent.astream = capturing_astream
+
+    # New session: session_id is empty — persona MUST be prepended
+    await _drain(
+        svc.stream(
+            messages=[HumanMessage("hi")],
+            session_id="",
+            persona_id="yuri",
+        )
+    )
+    assert captured_messages["messages"], "Expected messages to be captured"
+    assert isinstance(
+        captured_messages["messages"][0], SystemMessage
+    ), "First message must be SystemMessage for a new session"

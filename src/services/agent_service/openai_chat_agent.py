@@ -159,9 +159,10 @@ class OpenAIChatAgent(AgentService):
         """Stream agent response, yielding typed dicts."""
         logger.debug(f"Starting LLM stream: {len(messages)} messages")
         try:
-            # Prepend persona SystemMessage if available
+            # Only inject persona SystemMessage for new sessions.
+            # For continuing sessions, persona is already at the start of checkpointed history.
             persona_text = self._personas.get(persona_id, "")
-            if persona_text:
+            if persona_text and not session_id:
                 full_persona = (
                     persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
