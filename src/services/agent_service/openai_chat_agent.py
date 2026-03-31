@@ -178,6 +178,7 @@ class OpenAIChatAgent(AgentService):
             }
 
             new_chats: list[BaseMessage] = []
+            had_error = False
             async for item in self._process_message(
                 messages=messages,
                 config=config,
@@ -186,18 +187,21 @@ class OpenAIChatAgent(AgentService):
                 context=context,
             ):
                 if item["type"] != "final_response":
+                    if item["type"] == "error":
+                        had_error = True
                     yield item
                 else:
                     new_chats = item["data"]
 
-            content = new_chats[-1].content if new_chats else ""
-            yield {
-                "type": "stream_end",
-                "turn_id": turn_id,
-                "session_id": session_id,
-                "content": content,
-                "new_chats": new_chats,
-            }
+            if not had_error:
+                content = new_chats[-1].content if new_chats else ""
+                yield {
+                    "type": "stream_end",
+                    "turn_id": turn_id,
+                    "session_id": session_id,
+                    "content": content,
+                    "new_chats": new_chats,
+                }
         except Exception as e:
             logger.error(f"Error in stream method: {e}")
             traceback.print_exc()

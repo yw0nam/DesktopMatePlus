@@ -1,6 +1,6 @@
 """CustomAgentState for LangGraph checkpointer migration."""
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from langchain.agents import AgentState
 
@@ -21,6 +21,6 @@ class PendingTask(TypedDict):
 class CustomAgentState(AgentState):
     user_id: str
     agent_id: str
-    pending_tasks: list[PendingTask]
-    ltm_last_consolidated_at_turn: int
-    knowledge_saved: bool
+    pending_tasks: NotRequired[list[PendingTask]]
+    ltm_last_consolidated_at_turn: NotRequired[int]
+    knowledge_saved: NotRequired[bool]
