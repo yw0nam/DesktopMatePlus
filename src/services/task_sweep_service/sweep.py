@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+import contextlib
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -25,10 +27,10 @@ class SweepConfig(BaseModel):
 class BackgroundSweepService:
     def __init__(
         self,
-        agent_service: "AgentService",
-        session_registry: "SessionRegistry",
+        agent_service: AgentService,
+        session_registry: SessionRegistry,
         config: SweepConfig,
-        slack_service_fn: Callable[[], "SlackService | None"] | None = None,
+        slack_service_fn: Callable[[], SlackService | None] | None = None,
     ) -> None:
         self._agent = agent_service
         self._registry = session_registry
@@ -49,10 +51,8 @@ class BackgroundSweepService:
         if self._task is None or self._task.done():
             return
         self._task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._task
-        except asyncio.CancelledError:
-            pass
         logger.info("BackgroundSweepService stopped")
 
     def is_running(self) -> bool:
@@ -69,7 +69,7 @@ class BackgroundSweepService:
             await asyncio.sleep(self.config.sweep_interval_seconds)
 
     async def _sweep_once(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ttl = self.config.task_ttl_seconds
 
         try:
@@ -106,7 +106,7 @@ class BackgroundSweepService:
                 try:
                     created_at = datetime.fromisoformat(raw)
                     if created_at.tzinfo is None:
-                        created_at = created_at.replace(tzinfo=timezone.utc)
+                        created_at = created_at.replace(tzinfo=UTC)
                 except ValueError:
                     continue
                 if (now - created_at).total_seconds() > ttl:

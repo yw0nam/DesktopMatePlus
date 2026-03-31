@@ -1,6 +1,6 @@
 """Thin wrapper around MongoDB session_registry collection."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pymongo
 from pymongo.collection import Collection
@@ -15,7 +15,7 @@ class SessionRegistry:
         self._col.create_index([("updated_at", pymongo.DESCENDING)])
 
     def upsert(self, thread_id: str, user_id: str, agent_id: str) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._col.update_one(
             {"thread_id": thread_id},
             {

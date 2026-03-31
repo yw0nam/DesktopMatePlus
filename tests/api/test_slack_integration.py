@@ -46,7 +46,6 @@ async def _run_process_message_directly(
     provider: str,
     channel_id: str,
     mock_agent: MagicMock,
-    mock_ltm: MagicMock,
     mock_slack_svc: MagicMock,
 ) -> None:
     """process_message를 직접 실행하여 send_message 호출 여부를 검증한다."""
@@ -61,10 +60,6 @@ async def _run_process_message_directly(
             "src.services.channel_service.get_session_registry",
             return_value=MagicMock(),
         ),
-        patch(
-            "src.services.channel_service.load_ltm_prefix",
-            new=AsyncMock(return_value=[]),
-        ),
     ):
         await process_message(
             text=text,
@@ -72,7 +67,6 @@ async def _run_process_message_directly(
             provider=provider,
             channel_id=channel_id,
             agent_service=mock_agent,
-            ltm=mock_ltm,
         )
 
 
@@ -97,16 +91,12 @@ class TestSlackFullFlow:
             return_value={"content": "안녕!", "new_chats": [AIMessage("안녕!")]}
         )
 
-        mock_ltm = MagicMock()
-        mock_ltm.search_memory = MagicMock(return_value={"results": []})
-
         # Step 1: Webhook 엔드포인트가 200을 반환하고 process_message를 스케줄링하는지 확인
         with (
             patch(
                 "src.api.routes.slack.get_slack_service", return_value=mock_slack_svc
             ),
             patch("src.api.routes.slack.get_agent_service", return_value=mock_agent),
-            patch("src.api.routes.slack.get_ltm_service", return_value=mock_ltm),
             patch("src.api.routes.slack.process_message", new=AsyncMock()) as mock_pm,
         ):
             response = client.post(
@@ -124,7 +114,6 @@ class TestSlackFullFlow:
             provider="slack",
             channel_id="C1",
             mock_agent=mock_agent,
-            mock_ltm=mock_ltm,
             mock_slack_svc=mock_slack_svc,
         )
 
@@ -161,8 +150,6 @@ class TestSlackFullFlow:
                 "new_chats": [AIMessage("결과 받았어!")],
             }
         )
-        mock_ltm = MagicMock()
-        mock_ltm.search_memory = MagicMock(return_value={"results": []})
         mock_slack_svc = MagicMock()
         mock_slack_svc.send_message = AsyncMock()
 
@@ -191,7 +178,6 @@ class TestSlackFullFlow:
             provider="slack",
             channel_id="C1",
             mock_agent=mock_agent,
-            mock_ltm=mock_ltm,
             mock_slack_svc=mock_slack_svc,
         )
 

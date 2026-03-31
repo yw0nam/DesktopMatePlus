@@ -1,7 +1,6 @@
 """Connection state and lifecycle management."""
 
 import time
-from typing import Optional
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -23,8 +22,8 @@ class ConnectionState:
         self.connection_id = connection_id
         self.is_authenticated = False
         self.is_closing = False
-        self.last_ping_time: Optional[float] = None
-        self.last_pong_time: Optional[float] = None
-        self.user_id: Optional[str] = None
+        self.last_ping_time: float | None = None
+        self.last_pong_time: float | None = None
+        self.user_id: str | None = None
         self.created_at = time.time()
-        self.message_processor: Optional[MessageProcessor] = None
+        self.message_processor: MessageProcessor | None = None

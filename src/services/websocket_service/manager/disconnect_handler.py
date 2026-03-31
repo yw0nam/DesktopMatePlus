@@ -65,5 +65,5 @@ async def on_disconnect_handler(
         await delegate(payload)
         await agent_service.agent.aupdate_state(config, {"knowledge_saved": True})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Session {session_id}: on_disconnect_handler error: {e}")

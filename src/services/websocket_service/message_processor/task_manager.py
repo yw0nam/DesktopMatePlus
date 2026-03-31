@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -58,7 +58,7 @@ class TaskManager:
             return
 
         current_task = asyncio.current_task()
-        tasks_to_cancel: List[asyncio.Task] = []
+        tasks_to_cancel: list[asyncio.Task] = []
 
         for task in list(turn.tasks):
             if not isinstance(task, asyncio.Task):
@@ -110,7 +110,7 @@ class TaskManager:
             return
 
         current_task = asyncio.current_task()
-        tasks_to_cancel: List[asyncio.Task] = []
+        tasks_to_cancel: list[asyncio.Task] = []
         token_consumer_task = turn.token_consumer_task
 
         if token_consumer_task and token_consumer_task.done():

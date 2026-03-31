@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from src.services.websocket_service.text_processors import (
     TextChunkProcessor,
     TTSTextProcessor,
@@ -50,7 +48,7 @@ class TestTextChunkProcessor:
             "I am doing great today and feeling wonderful!",
         ]
 
-        sentences: List[str] = []
+        sentences: list[str] = []
         for token in tokens:
             sentences.extend(processor.process(token))
         remainder = processor.flush()
@@ -146,12 +144,12 @@ class TestPipelineIntegration:
         chunk_processor = TextChunkProcessor(min_chunk_length=0)
         tts_processor = TTSTextProcessor(rules_path=rules_file)
 
-        tokens: List[str] = [
+        tokens: list[str] = [
             "Hello world. ",
             "(aside)  All good?",
         ]
 
-        outputs: List[str] = []
+        outputs: list[str] = []
         for token in tokens:
             for sentence in chunk_processor.process(token):
                 cleaned = tts_processor.process(sentence)

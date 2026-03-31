@@ -12,6 +12,13 @@ Keep this document lean but contain all critical information for capturing the a
 - If there is too much detail, split into subdirectory `CLAUDE.md` files (e.g., `src/CLAUDE.md`, `tests/CLAUDE.md`, `docs/CLAUDE.md`) — Claude Code auto-loads these context-sensitively when entering that directory.
 - But, this document must contain the information for capturing the overall architecture, design patterns, and coding conventions that are critical for maintaining consistency across the codebase.
 
+## Cross-Repo Context
+
+Director-Artisan 패턴의 **Director** 역할. 변경 순서: backend → nanoclaw → desktop-homunculus.
+Task tracking: `backend/Plans.md`. 상세: `nanoclaw/.claude/rules/team-local.md` 참조.
+
+---
+
 ## Core Philosophy
 
 - Question every requirement. Is it really necessary? Is there a simpler way?
@@ -145,5 +152,15 @@ uv run pytest --cov=src                                   # with coverage
 ### E. Linting & Formatting
 
 ```bash
-sh scripts/lint.sh   # ruff lint + format check — run before ending any task
+sh scripts/lint.sh   # ruff + black + structural tests — run before ending any task
 ```
+
+### F. Architecture Enforcement
+
+```bash
+uv run pytest tests/structural/ -v   # layer boundary + file size + convention tests (included in lint.sh)
+```
+
+- `tests/structural/test_architecture.py` — 9개 구조적 테스트
+- Known-debt: `_KNOWN_*` sets에 기존 위반 추적. 신규 위반 → 즉시 fail. 해결 후 set에서 제거.
+- Ruff 추가 규칙: `UP` (pyupgrade) / `SIM` (simplify) / `RUF` / `A` (builtins) / `TID` (tidy-imports)

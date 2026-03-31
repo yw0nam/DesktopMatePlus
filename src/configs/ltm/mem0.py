@@ -1,7 +1,7 @@
 """Mem0 Long-Term Memory configuration."""
 
 import os
-from typing import Literal, Optional
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -16,7 +16,7 @@ class Mem0LLMConfigValues(BaseModel):
     """Mem0 LLM config 내부 값 정의"""
 
     openai_base_url: str = "http://localhost:55120/v1"
-    api_key: Optional[str] = Field(default_factory=lambda: os.getenv("LTM_API_KEY"))
+    api_key: str | None = Field(default_factory=lambda: os.getenv("LTM_API_KEY"))
     model: str = "chat_model"
     enable_vision: bool = True
 
@@ -26,9 +26,7 @@ class Mem0EmbedderConfigValues(BaseModel):
 
     model_name: str = "chat_model"
     openai_base_url: str = "http://localhost:5504/v1"
-    openai_api_key: Optional[str] = Field(
-        default_factory=lambda: os.getenv("EMB_API_KEY")
-    )
+    openai_api_key: str | None = Field(default_factory=lambda: os.getenv("EMB_API_KEY"))
     embedding_dims: int = 2560
 
 
@@ -44,8 +42,8 @@ class Mem0GraphStoreConfigValues(BaseModel):
     """Mem0 Graph Store config 내부 값 정의"""
 
     url: str = "bolt://localhost:7687"
-    username: Optional[str] = Field(default_factory=lambda: os.getenv("NEO4J_USER"))
-    password: Optional[str] = Field(default_factory=lambda: os.getenv("NEO4J_PASSWORD"))
+    username: str | None = Field(default_factory=lambda: os.getenv("NEO4J_USER"))
+    password: str | None = Field(default_factory=lambda: os.getenv("NEO4J_PASSWORD"))
 
 
 class Mem0LongTermMemoryConfig(BaseModel):

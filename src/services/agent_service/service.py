@@ -9,7 +9,7 @@ class AgentService(ABC):
 
     def __init__(
         self,
-        mcp_config: dict = None,
+        mcp_config: dict | None = None,
         support_image: bool = False,
     ):
         self.mcp_config = mcp_config

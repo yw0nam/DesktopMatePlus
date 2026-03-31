@@ -252,10 +252,6 @@ class TestWebSocketManager:
                 return_value=FakeAgentService(),
             ),
             patch(
-                "src.services.websocket_service.manager.handlers.get_ltm_service",
-                return_value=FakeLTMService(),
-            ),
-            patch(
                 "src.services.websocket_service.manager.handlers.get_session_registry",
                 return_value=None,
             ),

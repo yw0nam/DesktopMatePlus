@@ -5,7 +5,7 @@ This module provides a unified interface for TTS services like Fish Speech, Open
 """
 
 from abc import ABC, abstractmethod
-from typing import Literal, Optional
+from typing import Literal
 
 
 class TTSService(ABC):
@@ -15,11 +15,11 @@ class TTSService(ABC):
     def generate_speech(
         self,
         text: str,
-        reference_id: Optional[str] = None,
+        reference_id: str | None = None,
         output_format: Literal["bytes", "base64", "file"] = "bytes",
-        output_filename: Optional[str] = None,
+        output_filename: str | None = None,
         audio_format: Literal["wav", "mp3"] = "mp3",
-    ) -> Optional[bytes | str | bool]:
+    ) -> bytes | str | bool | None:
         """
         Generate speech from text.
 

@@ -39,7 +39,7 @@ def _load_personas() -> dict[str, str]:
         logger.warning(f"personas.yml not found at {_PERSONAS_PATH}")
         return {}
     try:
-        with open(_PERSONAS_PATH, "r", encoding="utf-8") as f:
+        with open(_PERSONAS_PATH, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         return {
             pid: p["system_prompt"]
@@ -58,9 +58,9 @@ class OpenAIChatAgent(AgentService):
         self,
         temperature: float,
         top_p: float,
-        openai_api_key: str = None,
-        openai_api_base: str = None,
-        model_name: str = None,
+        openai_api_key: str | None = None,
+        openai_api_base: str | None = None,
+        model_name: str | None = None,
         **kwargs,
     ):
         self.temperature = temperature
@@ -166,7 +166,7 @@ class OpenAIChatAgent(AgentService):
                     persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
                 )
-                messages = [SystemMessage(content=full_persona)] + list(messages)
+                messages = [SystemMessage(content=full_persona), *list(messages)]
 
             turn_id = str(uuid4())
             config = {"configurable": {"thread_id": session_id}}
@@ -221,7 +221,7 @@ class OpenAIChatAgent(AgentService):
                     persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
                 )
-                messages = [SystemMessage(content=full_persona)] + list(messages)
+                messages = [SystemMessage(content=full_persona), *list(messages)]
 
             config = {"configurable": {"thread_id": session_id}}
             input_count = len(messages)

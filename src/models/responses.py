@@ -1,7 +1,6 @@
 """Response models for API endpoints."""
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,9 +10,7 @@ class ModuleStatus(BaseModel):
 
     name: str = Field(..., description="Module name (TTS, or Agent)")
     ready: bool = Field(..., description="Whether the module is ready")
-    error: Optional[str] = Field(
-        None, description="Error message if module is not ready"
-    )
+    error: str | None = Field(None, description="Error message if module is not ready")
 
 
 class HealthResponse(BaseModel):

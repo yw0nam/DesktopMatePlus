@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import List
 
 from fast_bunkai import FastBunkai
 
@@ -52,7 +51,7 @@ class TextChunkProcessor:
 
         return filtered_chunk
 
-    def add_chunk(self, chunk: str) -> List[str]:
+    def add_chunk(self, chunk: str) -> list[str]:
         if not chunk:
             return []
 
@@ -98,7 +97,7 @@ class TextChunkProcessor:
 
         return result
 
-    def finalize(self) -> List[str]:
+    def finalize(self) -> list[str]:
         self._buffer = self._tool_call_pattern.sub("", self._buffer)
         remaining_text = self._buffer.strip()
         self.reset()

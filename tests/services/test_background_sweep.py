@@ -1,6 +1,6 @@
 """Tests for BackgroundSweepService — expired task cleanup."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -19,9 +19,7 @@ def _make_task(
     age_seconds: float,
 ) -> dict:
     """Build a synthetic task-record matching the DelegateTaskTool schema."""
-    created_at = (
-        datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
-    ).isoformat()
+    created_at = (datetime.now(UTC) - timedelta(seconds=age_seconds)).isoformat()
     return {
         "task_id": task_id,
         "description": f"task-{task_id}",

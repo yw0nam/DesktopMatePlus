@@ -71,7 +71,7 @@ async def websocket_chat_stream(websocket: WebSocket):
                 ws_logger.info(f"⚡ WebSocket disconnected: {connection_id}")
                 break
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # No message received for configured inactivity period
                 ws_logger.info(
                     f"⏱️ Inactivity timeout ({inactivity_timeout}s): {connection_id}"

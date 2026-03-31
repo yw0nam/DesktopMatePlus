@@ -1,7 +1,6 @@
 """OpenAI Chat Agent configuration."""
 
 import os
-from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +23,7 @@ class OpenAIChatAgentConfig(BaseModel):
     temperature: float = Field(
         0.7, description="Sampling temperature (controls creativity)"
     )
-    mcp_config: Optional[Dict] = Field(
+    mcp_config: dict | None = Field(
         default=None,
         description="MCP client configuration for OpenAI Chat Agent",
     )

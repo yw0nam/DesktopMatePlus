@@ -4,7 +4,7 @@ import uuid
 import httpx
 
 # Configuration
-BASE_URL = "http://127.0.0.1:5000/v1"
+BASE_URL = "http://127.0.0.1:5500/v1"
 USER_ID = "demo-user-001"
 AGENT_ID = "demo-agent-001"
 
@@ -99,11 +99,12 @@ def update_session_metadata(session_id):
         print("Skipping: No session ID available.")
         return
 
+    # session_id goes in the URL path; allowed metadata keys:
+    # user_id, agent_id, knowledge_saved, ltm_last_consolidated_at_turn
     url = f"{BASE_URL}/stm/sessions/{session_id}/metadata"
     payload = {
         "metadata": {
-            "title": "STM Demo Session",
-            "tags": ["demo", "test", "python-script"],
+            "knowledge_saved": True,
         }
     }
 
@@ -136,6 +137,23 @@ def delete_session(session_id):
         print(f"Error: {e}")
 
 
+def get_session_messages(session_id):
+    print_separator("6. Get Session Messages (NanoClaw Option B endpoint)")
+    if not session_id:
+        print("Skipping: No session ID available.")
+        return
+
+    url = f"{BASE_URL}/stm/{session_id}/messages"
+
+    print(f"GET {url}")
+
+    try:
+        response = httpx.get(url)
+        print_response(response)
+    except Exception as e:
+        print(f"Error: {e}")
+
+
 def main():
     print("Starting STM API Demo...")
     print(f"Base URL: {BASE_URL}")
@@ -163,12 +181,10 @@ def main():
         # 4. Update Metadata
         update_session_metadata(session_id)
 
-        # Verify metadata update by listing again (optional)
-        # list_sessions()
+        # 5. Get Session Messages (NanoClaw Option B endpoint)
+        get_session_messages(session_id)
 
-        # 5. Delete Session
-        # Input to confirm deletion to avoid accidental data loss during repeated runs?
-        # For a demo script, we usually want it to clean up after itself, so we'll delete.
+        # 6. Delete Session
         delete_session(session_id)
 
         # Verify deletion

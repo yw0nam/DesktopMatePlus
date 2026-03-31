@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from typing import Optional
 from uuid import UUID, uuid4
 
 from langchain_core.messages import HumanMessage
@@ -41,7 +40,7 @@ class MessageHandler:
         self.close_connection = close_connection_fn
 
     @staticmethod
-    def validate_token(token: str) -> Optional[str]:
+    def validate_token(token: str) -> str | None:
         """Validate authentication token.
 
         Args:
@@ -257,18 +256,18 @@ class MessageHandler:
                 )
                 await self.send_message(
                     connection_id,
-                    ErrorMessage(error=f"Failed to process message: {str(e)}"),
+                    ErrorMessage(error=f"Failed to process message: {e!s}"),
                 )
 
         except Exception as e:
             logger.error(f"Error processing chat message from {connection_id}: {e}")
             await self.send_message(
                 connection_id,
-                ErrorMessage(error=f"Failed to process message: {str(e)}"),
+                ErrorMessage(error=f"Failed to process message: {e!s}"),
             )
 
     async def handle_interrupt(
-        self, connection_id: UUID, turn_id: Optional[str] = None
+        self, connection_id: UUID, turn_id: str | None = None
     ) -> bool:
         """Interrupt an active conversation turn for a connection.
 
@@ -376,12 +375,12 @@ async def forward_turn_events(
                 logger.info(
                     f"Sent {event_type} event to connection {connection_id} (turn {turn_id})"
                 )
-            except Exception as send_error:  # noqa: BLE001
+            except Exception as send_error:
                 logger.error(
                     f"Failed to send event {event_type} for turn {turn_id} on connection {connection_id}: {send_error}"
                 )
                 break
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error(
             f"Error forwarding events for turn {turn_id} on connection {connection_id}: {exc}"
         )

@@ -1,7 +1,5 @@
 """STM (Short-Term Memory) API request and response models."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -18,7 +16,7 @@ class AddChatHistoryRequest(BaseModel):
         description="Agent identifier",
         min_length=1,
     )
-    session_id: Optional[str] = Field(
+    session_id: str | None = Field(
         default=None,
         description="Session identifier (optional, will create new if None)",
     )
@@ -59,7 +57,7 @@ class GetChatHistoryRequest(BaseModel):
         description="Session identifier",
         min_length=1,
     )
-    limit: Optional[int] = Field(
+    limit: int | None = Field(
         default=None,
         description="Maximum number of recent messages to retrieve",
         gt=0,
@@ -71,13 +69,13 @@ class MessageResponse(BaseModel):
 
     role: str = Field(..., description="Message role (user, assistant, tool, system)")
     content: str = Field(..., description="Message content")
-    tool_calls: Optional[list] = Field(
+    tool_calls: list | None = Field(
         default=None, description="Tool call information if applicable"
     )
-    tool_call_id: Optional[str] = Field(
+    tool_call_id: str | None = Field(
         default=None, description="Tool call identifier if applicable"
     )
-    name: Optional[str] = Field(default=None, description="Tool name for tool messages")
+    name: str | None = Field(default=None, description="Tool name for tool messages")
 
 
 class GetChatHistoryResponse(BaseModel):

@@ -3,4 +3,4 @@ from src.services.agent_service.tools.knowledge.search_knowledge import (
     SearchKnowledgeTool,
 )
 
-__all__ = ["SearchKnowledgeTool", "ReadNoteTool"]
+__all__ = ["ReadNoteTool", "SearchKnowledgeTool"]

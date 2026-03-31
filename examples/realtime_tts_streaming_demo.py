@@ -43,6 +43,9 @@ class RealtimeTTSDemo:
         token: str = "demo-token",
         reference_id: str = "ナツメ",
         persona_id: str = "yuri",
+        agent_id: str = "agent-001",
+        user_id: str = "user-001",
+        session_id: str | None = None,
         images: list[str] | None = None,
     ):
         self.websocket_url = websocket_url
@@ -50,6 +53,9 @@ class RealtimeTTSDemo:
         self.token = token
         self.reference_id = reference_id
         self.persona_id = persona_id
+        self.agent_id = agent_id
+        self.user_id = user_id
+        self.chat_session_id = session_id  # None = new session
         self.images = images or []
         self.chunk_count = 0
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -59,6 +65,11 @@ class RealtimeTTSDemo:
         print(f"📁 Output directory: {self.output_dir.absolute()}")
         print(f"🎙️  Reference voice: {self.reference_id}")
         print(f"🎭  Persona: {self.persona_id}")
+        print(f"👤  User: {self.user_id} / Agent: {self.agent_id}")
+        if self.chat_session_id:
+            print(f"💬  Session: {self.chat_session_id}")
+        else:
+            print("💬  Session: new (will be assigned by server)")
         if self.images:
             print(f"🖼️  Images to include: {len(self.images)}")
 
@@ -175,7 +186,7 @@ class RealtimeTTSDemo:
         """Save audio to file."""
         self.chunk_count += 1
         emotion_tag = f"_{emotion}" if emotion else ""
-        filename = f"{self.session_id}_seq{sequence:03d}{emotion_tag}.mp3"
+        filename = f"{self.session_id}_seq{sequence:03d}{emotion_tag}.wav"
         filepath = self.output_dir / filename
 
         with open(filepath, "wb") as f:
@@ -234,6 +245,12 @@ class RealtimeTTSDemo:
                         await self.send_json(websocket, {"type": "pong"})
                         continue
 
+                    # Handle authorization errors
+                    if event_type == "authorize_error":
+                        error = data.get("error", "Unknown authorization error")
+                        print(f"\n❌ Authorization failed: {error}")
+                        break
+
                     # Handle authorization
                     if event_type == "authorize_success" and not authorized:
                         authorized = True
@@ -249,9 +266,9 @@ class RealtimeTTSDemo:
                         chat_payload = {
                             "type": "chat_message",
                             "content": message,
-                            "session_id": "c157b220-47c0-4c48-a878-382ba6448cd6",
-                            "agent_id": "yuri",
-                            "user_id": "nanami",
+                            "session_id": self.chat_session_id,
+                            "agent_id": self.agent_id,
+                            "user_id": self.user_id,
                             "persona_id": self.persona_id,
                             "tts_enabled": True,
                             "reference_id": self.reference_id,
@@ -272,9 +289,22 @@ class RealtimeTTSDemo:
                         continue
 
                     if event_type == "stream_start":
+                        turn_id = data.get("turn_id", "")
+                        srv_session_id = data.get("session_id", "")
                         print("\n" + "─" * 70)
-                        print("🚀 Agent stream started")
+                        print(f"🚀 Agent stream started (turn={turn_id}, session={srv_session_id})")
                         print("─" * 70)
+                        continue
+
+                    if event_type == "tool_call":
+                        tool_name = data.get("tool_name", "")
+                        args = data.get("args", "")
+                        print(f"\n🔧 Tool call: {tool_name}({args})")
+                        continue
+
+                    if event_type == "tool_result":
+                        result = data.get("result", "")
+                        print(f"\n📋 Tool result: {result[:120]}{'...' if len(result) > 120 else ''}")
                         continue
 
                     # ⭐ THIS IS THE KEY EVENT: tts_chunk
@@ -318,8 +348,13 @@ class RealtimeTTSDemo:
                         continue
 
                     if event_type == "stream_end":
+                        turn_id = data.get("turn_id", "")
+                        srv_session_id = data.get("session_id", "")
+                        final_content = data.get("content", "")
                         print("\n" + "─" * 70)
-                        print("✅ Agent stream completed")
+                        print(f"✅ Agent stream completed (turn={turn_id}, session={srv_session_id})")
+                        if final_content:
+                            print(f"📄 Full response: {final_content[:200]}{'...' if len(final_content) > 200 else ''}")
                         print("─" * 70)
                         break
 
@@ -434,6 +469,21 @@ Example usage:
         default="yuri",
         help="Persona ID — must match a key in yaml_files/personas.yml (default: yuri)",
     )
+    parser.add_argument(
+        "--agent-id",
+        default="agent-001",
+        help="Persistent agent identifier (default: agent-001)",
+    )
+    parser.add_argument(
+        "--user-id",
+        default="user-001",
+        help="Persistent user/client identifier (default: user-001)",
+    )
+    parser.add_argument(
+        "--session-id",
+        default=None,
+        help="Existing session UUID to continue (default: None = new session)",
+    )
     return parser.parse_args()
 
 
@@ -446,6 +496,9 @@ async def main():
         token=args.token,
         reference_id=args.reference_id,
         persona_id=args.persona_id,
+        agent_id=args.agent_id,
+        user_id=args.user_id,
+        session_id=args.session_id,
         images=args.images,
     )
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,7 +11,7 @@ def _expired_task(reply_channel=None):
     task = {
         "task_id": "t1",
         "status": "running",
-        "created_at": (datetime.now(timezone.utc) - timedelta(seconds=999)).isoformat(),
+        "created_at": (datetime.now(UTC) - timedelta(seconds=999)).isoformat(),
     }
     if reply_channel is not None:
         task["reply_channel"] = reply_channel

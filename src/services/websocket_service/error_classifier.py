@@ -1,15 +1,14 @@
 """Error classification system for WebSocket operations."""
 
 import asyncio
-from enum import Enum
-from typing import Type
+from enum import StrEnum
 
 from fastapi import WebSocketDisconnect
 from loguru import logger
 from pydantic import ValidationError
 
 
-class ErrorSeverity(str, Enum):
+class ErrorSeverity(StrEnum):
     """Classification of error severity for handling strategy."""
 
     TRANSIENT = "transient"  # Temporary network issues, retry immediately
@@ -21,7 +20,7 @@ class ErrorClassifier:
     """Classifies exceptions into severity levels for appropriate handling."""
 
     # Mapping of exception types to severity levels
-    SEVERITY_MAP: dict[Type[Exception], ErrorSeverity] = {
+    SEVERITY_MAP: dict[type[Exception], ErrorSeverity] = {
         # Transient errors - network/connection issues that may resolve quickly
         asyncio.TimeoutError: ErrorSeverity.TRANSIENT,
         ConnectionResetError: ErrorSeverity.TRANSIENT,

@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple
 
 import yaml
 
@@ -34,7 +34,7 @@ Example: (joyful) I am so happy to see you!
 """
 
 
-def load_emotion_keywords(config_path: Optional[str] = None) -> List[str]:
+def load_emotion_keywords(config_path: str | None = None) -> list[str]:
     """Load emotion keywords from a YAML configuration file."""
     if config_path:
         path = Path(config_path)
@@ -48,7 +48,7 @@ def load_emotion_keywords(config_path: Optional[str] = None) -> List[str]:
         return _DEFAULT_EMOTION_KEYWORDS
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
             return data.get("emotion_keywords", _DEFAULT_EMOTION_KEYWORDS)
     except Exception as e:
@@ -56,7 +56,7 @@ def load_emotion_keywords(config_path: Optional[str] = None) -> List[str]:
         return _DEFAULT_EMOTION_KEYWORDS
 
 
-def load_emotion_prompt_template(config_path: Optional[str] = None) -> str:
+def load_emotion_prompt_template(config_path: str | None = None) -> str:
     """Load emotion prompt template from a YAML configuration file."""
     if config_path:
         path = Path(config_path)
@@ -70,7 +70,7 @@ def load_emotion_prompt_template(config_path: Optional[str] = None) -> str:
         return _DEFAULT_EMOTION_PROMPT_TEMPLATE
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
             return data.get("emotion_prompt_template", _DEFAULT_EMOTION_PROMPT_TEMPLATE)
     except Exception as e:
@@ -82,12 +82,12 @@ class ProcessedText(NamedTuple):
     """처리된 텍스트의 구조화된 결과 (reasoning_text 필드 제거)"""
 
     filtered_text: str
-    emotion_tag: Optional[str]
+    emotion_tag: str | None
     # reasoning_text 필드를 제거하여 구조를 더 간단하게 만들었어요.
 
 
 class TTSTextProcessor:
-    def __init__(self, emotion_keywords: Optional[List[str]] = None):
+    def __init__(self, emotion_keywords: list[str] | None = None):
         if emotion_keywords is None:
             self.emotion_keywords = load_emotion_keywords()
         else:

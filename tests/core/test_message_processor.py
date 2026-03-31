@@ -235,7 +235,7 @@ def test_get_stats(processor: MessageProcessor):
 def test_imports():
     """Module exports remain accessible."""
 
-    from src.services.websocket_service.message_processor import (  # noqa: F401
+    from src.services.websocket_service.message_processor import (
         ConversationTurn as ImportedConversationTurn,
     )
     from src.services.websocket_service.message_processor import (

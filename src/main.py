@@ -41,7 +41,7 @@ def load_main_config(yaml_file: str | Path) -> dict:
     initialize_settings(yaml_path)
 
     # Load config for service paths
-    with open(yaml_path, "r", encoding="utf-8") as f:
+    with open(yaml_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Resolve service config paths relative to main.yml location
@@ -68,7 +68,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
     settings = get_settings()
 
-    async def _startup() -> "BackgroundSweepService | None":  # noqa: F821
+    async def _startup() -> "BackgroundSweepService | None":
         log_level = os.getenv("LOG_LEVEL", "INFO")
         log_retention = os.getenv("LOG_RETENTION", "30 days")
         setup_logging(level=log_level, retention=log_retention)
@@ -78,7 +78,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         print(f"🔧 Debug mode: {settings.debug}")
         print(f"📊 Log level: {log_level} | Retention: {log_retention}")
 
-        sweep_service: "BackgroundSweepService | None" = None  # noqa: F821
+        sweep_service: BackgroundSweepService | None = None
 
         try:
             from src.services import (
@@ -141,7 +141,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 channel_config_path = config_paths.get("channel_service_path")
                 slack_settings = SlackSettings()
                 if channel_config_path and Path(channel_config_path).exists():
-                    with open(channel_config_path, "r", encoding="utf-8") as _f:
+                    with open(channel_config_path, encoding="utf-8") as _f:
                         _raw = _yaml.safe_load(_f) or {}
                     import os as _os
 
@@ -171,7 +171,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 sweep_config_path = config_paths.get("task_sweep_service_path")
                 sweep_cfg_dict: dict = {}
                 if sweep_config_path and Path(sweep_config_path).exists():
-                    with open(sweep_config_path, "r", encoding="utf-8") as _f:
+                    with open(sweep_config_path, encoding="utf-8") as _f:
                         _raw = _yaml.safe_load(_f) or {}
                     sweep_cfg_dict = _raw.get("sweep_config", {})
                 sweep_cfg = SweepConfig(**sweep_cfg_dict)
@@ -210,7 +210,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         return sweep_service
 
     async def _shutdown(
-        sweep_service: "BackgroundSweepService | None",  # noqa: F821
+        sweep_service: "BackgroundSweepService | None",
     ) -> None:
         if sweep_service is not None:
             await sweep_service.stop()

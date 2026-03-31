@@ -14,7 +14,7 @@ class KnowledgeBaseService:
     def __init__(self, kb_path: str) -> None:
         self.kb_path = kb_path
 
-    def search(self, query: str, tags: list[str]) -> list[SearchResult]:  # noqa: ARG002
+    def search(self, query: str, tags: list[str]) -> list[SearchResult]:
         """Search knowledge base using rg (ripgrep).
 
         Note: tags filtering not yet implemented.

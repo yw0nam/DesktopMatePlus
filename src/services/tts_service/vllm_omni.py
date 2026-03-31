@@ -1,7 +1,7 @@
 import base64
 import mimetypes
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import httpx
 from loguru import logger
@@ -105,7 +105,7 @@ class VLLMOmniTTSService(TTSService):
             raise FileNotFoundError(f"Reference text not found: {text_path}")
 
         ref_audio_data = self._file_to_data_url(audio_path)
-        with open(text_path, "r", encoding="utf-8") as f:
+        with open(text_path, encoding="utf-8") as f:
             ref_text = f.read().strip().replace("\n", "")
 
         self._ref_cache[reference_id] = (ref_audio_data, ref_text)
@@ -114,10 +114,10 @@ class VLLMOmniTTSService(TTSService):
     def _request_tts(
         self,
         text: str,
-        ref_audio: Optional[str] = None,
-        ref_text: Optional[str] = None,
+        ref_audio: str | None = None,
+        ref_text: str | None = None,
         audio_format: Literal["wav", "mp3"] = "mp3",
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """
         Send a TTS request to the vLLM Omni API and return raw audio bytes.
 
@@ -171,11 +171,11 @@ class VLLMOmniTTSService(TTSService):
     def generate_speech(
         self,
         text: str,
-        reference_id: Optional[str] = None,
+        reference_id: str | None = None,
         output_format: Literal["bytes", "base64", "file"] = "bytes",
-        output_filename: Optional[str] = "output.mp3",
+        output_filename: str | None = "output.mp3",
         audio_format: Literal["wav", "mp3"] = "mp3",
-    ) -> Optional[bytes | str | bool]:
+    ) -> bytes | str | bool | None:
         """
         Generate speech from text using the vLLM Omni TTS API.
 
@@ -197,8 +197,8 @@ class VLLMOmniTTSService(TTSService):
             return None
 
         # Load reference voice if specified
-        ref_audio: Optional[str] = None
-        ref_text: Optional[str] = None
+        ref_audio: str | None = None
+        ref_text: str | None = None
         if reference_id:
             try:
                 ref_audio, ref_text = self._load_reference(reference_id)
@@ -242,7 +242,7 @@ class VLLMOmniTTSService(TTSService):
                 return True, "VLLMOmni TTS is healthy"
             return False, f"VLLMOmni TTS health check returned {response.status_code}"
         except Exception as e:
-            return False, f"VLLMOmni TTS health check failed: {str(e)}"
+            return False, f"VLLMOmni TTS health check failed: {e!s}"
 
 
 # --- 사용 예제 ---
