@@ -2,6 +2,13 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+## [2.3.0] - 2026-03-31
+
+### Fixed
+- Session continuity error: persona SystemMessage now injected only for new sessions (empty `session_id`), preventing invalid message order `[SM, HM1, AI1, SM, HM2]` on second turn that caused LLM API 400 errors ([bad7ef8])
+- Suppress `stream_end` event after error to prevent clients receiving both error and end signals ([f0ff20c])
+- `CustomAgentState` extended fields (`pending_tasks`, `ltm_last_consolidated_at_turn`, `knowledge_saved`) now use `NotRequired` to avoid LangGraph state merge errors ([f0ff20c])
+
 ## [2.2.0] - 2026-03-10
 
 ### Added
