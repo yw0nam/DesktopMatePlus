@@ -25,11 +25,10 @@ def test_settings_yaml():
     """Create a temporary YAML settings file for testing."""
     config = {
         "services": {
-            "vlm_service": "openai_compatible.yml",
             "tts_service": "fish_speech.yml",
             "agent_service": "openai_chat_agent.yml",
-            "stm_service": "mongodb.yml",
             "ltm_service": "mem0.yml",
+            "channel_service": "channel.yml",
         },
         "settings": {
             "host": "127.0.0.1",
@@ -43,6 +42,7 @@ def test_settings_yaml():
                 "max_error_tolerance": 5,
                 "error_backoff_seconds": 0.5,
                 "inactivity_timeout_seconds": 300,
+                "tts_barrier_timeout_seconds": 10.0,
             },
         },
     }

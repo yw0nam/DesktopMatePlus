@@ -5,7 +5,7 @@ from src.services.ltm_service.mem0_ltm import Mem0LTM
 from src.services.ltm_service.service import LTMService
 
 __all__ = [
+    "LTMFactory",
     "LTMService",
     "Mem0LTM",
-    "LTMFactory",
 ]

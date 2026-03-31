@@ -1,54 +1,66 @@
 """Logging configuration for the application."""
 
-import logging
+import os
 import sys
+from pathlib import Path
 
 from loguru import logger
 
 
-def setup_json_logging(level: str = "INFO", json_output: bool = True) -> None:
-    """Configure loguru for JSON-structured logging.
+def setup_logging(
+    level: str = "INFO",
+    rotation: str = "00:00",
+    retention: str = "30 days",
+) -> None:
+    """Configure unified logging with Request ID support and daily rotation.
 
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        json_output: If True, output JSON format; if False, use standard format
+        rotation: When to rotate logs (default: "00:00" for daily at midnight)
+        retention: How long to keep logs (default: "30 days")
     """
     # Remove default handler
     logger.remove()
 
-    if json_output:
-        # Use loguru's built-in serialize for JSON output
-        # This properly handles all record fields including extra
-        logger.add(
-            sys.stderr,
-            level=level,
-            serialize=True,  # Built-in JSON serialization
-        )
-    else:
-        # Add standard formatter for development
-        logger.add(
-            sys.stderr,
-            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-            level=level,
-        )
+    # Get log directory from env or use default
+    log_dir = Path(os.getenv("LOG_DIR", "logs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
 
+    # Human-readable format with Request ID support
+    # Format: [HH:mm:ss.SSS] | LEVEL | module:line | [RequestID] - message
+    console_format = (
+        "<green>{time:HH:mm:ss.SSS}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{line}</cyan> | "
+        "<magenta>[{extra[request_id]!s}]</magenta> - "
+        "<level>{message}</level>"
+    )
 
-def setup_logging(
-    logger_name: str = "waifu_backend", level: int = logging.INFO
-) -> logging.Logger:
-    """Legacy logging setup for compatibility.
+    file_format = (
+        "{time:HH:mm:ss.SSS} | "
+        "{level: <8} | "
+        "{name}:{line} | "
+        "[{extra[request_id]!s}] - "
+        "{message}"
+    )
 
-    This function is kept for backward compatibility but is deprecated.
-    Use setup_json_logging() instead for new code.
-    """
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(level)
+    # Console output (colored, for development)
+    logger.add(
+        sys.stderr,
+        format=console_format,
+        level=level,
+        colorize=True,
+    )
 
-    # 핸들러가 이미 있으면 중복 방지
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+    # File output (daily rotation)
+    logger.add(
+        log_dir / "app_{time:YYYY-MM-DD}.log",
+        format=file_format,
+        level=level,
+        rotation=rotation,
+        retention=retention,
+        encoding="utf-8",
+    )
 
-    return logger
+    # Configure default request_id for logs without context
+    logger.configure(extra={"request_id": "-"})

@@ -1,13 +1,16 @@
 """WebSocket message models and schemas."""
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Max base64 image size: ~6MB corresponds to ~4.5MB binary file
+_MAX_IMAGE_BASE64_BYTES = 6 * 1024 * 1024
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     """WebSocket message types."""
 
     # Client -> Server
@@ -15,9 +18,6 @@ class MessageType(str, Enum):
     PONG = "pong"
     CHAT_MESSAGE = "chat_message"
     INTERRUPT_STREAM = "interrupt_stream"
-    FETCH_BACKGROUNDS = "fetch_backgrounds"
-    FETCH_AVATAR_CONFIGS = "fetch_avatar_configs"
-    SWITCH_AVATAR_CONFIG = "switch_avatar_config"
 
     # Server -> Client
     AUTHORIZE_SUCCESS = "authorize_success"
@@ -26,11 +26,10 @@ class MessageType(str, Enum):
     STREAM_START = "stream_start"
     STREAM_TOKEN = "stream_token"
     STREAM_END = "stream_end"
-    TTS_READY_CHUNK = "tts_ready_chunk"
+    TTS_CHUNK = "tts_chunk"
     TOOL_CALL = "tool_call"
     TOOL_RESULT = "tool_result"
     ERROR = "error"
-    BACKGROUND_FILES = "background_files"
     AVATAR_CONFIG_FILES = "avatar_config_files"
     AVATAR_CONFIG_SWITCHED = "avatar_config_switched"
     SET_MODEL_AND_CONF = "set_model_and_conf"
@@ -40,8 +39,8 @@ class BaseMessage(BaseModel):
     """Base WebSocket message structure."""
 
     type: MessageType
-    id: Optional[str] = Field(default=None, description="Message ID for tracking")
-    timestamp: Optional[float] = Field(default=None, description="Message timestamp")
+    id: str | None = Field(default=None, description="Message ID for tracking")
+    timestamp: float | None = Field(default=None, description="Message timestamp")
 
 
 # =================================================================================
@@ -62,6 +61,38 @@ class PongMessage(BaseMessage):
     type: MessageType = MessageType.PONG
 
 
+class ImageUrl(BaseModel):
+    """OpenAI-compatible image URL object."""
+
+    url: str = Field(..., description="Image URL or base64 data URI")
+    detail: str = Field(
+        default="auto", description="Image detail level: auto, low, or high"
+    )
+
+
+class ImageContent(BaseModel):
+    """OpenAI-compatible image content block."""
+
+    type: str = Field(
+        default="image_url", description="Content type, must be 'image_url'"
+    )
+    image_url: ImageUrl = Field(..., description="Image URL object")
+
+    @field_validator("image_url")
+    @classmethod
+    def validate_image_size(cls, v: ImageUrl) -> ImageUrl:
+        if v.url.startswith("data:"):
+            parts = v.url.split(",", 1)
+            if len(parts) == 2 and len(parts[1]) > _MAX_IMAGE_BASE64_BYTES:
+                size_mb = len(parts[1]) / 1024 / 1024
+                max_mb = _MAX_IMAGE_BASE64_BYTES // 1024 // 1024
+                raise ValueError(
+                    f"Image too large ({size_mb:.1f}MB base64, max {max_mb}MB). "
+                    "Please resize the image before sending."
+                )
+        return v
+
+
 class ChatMessage(BaseMessage):
     """Client chat message."""
 
@@ -69,23 +100,31 @@ class ChatMessage(BaseMessage):
     content: str = Field(..., description="Chat message content")
     agent_id: str = Field(..., description="Persistent agent identifier")
     user_id: str = Field(..., description="Persistent user/client identifier")
-    persona: str = Field(
-        default="You are a helpful 3D desktop assistant, Yuri who is the friendly but sometimes mischievous AI companion integrated into a 3D desktop environment. You assist users with various tasks, provide information, and engage in casual conversation, all while maintaining a playful and witty demeanor. You have to follow below rules:\n1. Always address the user as 'Master' in a respectful and endearing manner.\n2. Inject humor and wit into your responses to keep interactions light-hearted and entertaining.\n3. Be proactive in offering assistance, anticipating user needs based on context.\n4. Maintain a balance between professionalism and playfulness, ensuring you are helpful yet engaging.\n5. Use casual language and slang where appropriate to create a friendly atmosphere.\n6. Avoid overly technical jargon unless specifically requested by the user.\n7. Your response should be long sentence and can be split using '.' or ',' so that injecting to tts.",
-        description="Persona or behavior profile for the agent",
+    persona_id: str = Field(
+        default="yuri",
+        description="Persona identifier — matches a key in yaml_files/personas.yml",
     )
-    images: Optional[List[str]] = Field(
+    images: list[ImageContent] | None = Field(
         default=None,
-        description="Optional images included in the message, each as a URL or base64 string",
+        description="Optional images in OpenAI-compatible format",
     )
-    limit: Optional[int] = Field(
+    limit: int | None = Field(
         default=10,
         description="Optional limit for short-term memory messages",
     )
-    conversation_id: Optional[UUID] = Field(
+    tts_enabled: bool = Field(
+        default=True,
+        description="Whether TTS synthesis is enabled for this message",
+    )
+    reference_id: str | None = Field(
+        default=None,
+        description="TTS voice reference identifier",
+    )
+    session_id: UUID | None = Field(
         default=None,
         description="Persistent conversation identifier, First message in a new conversation if None, Note should be None or UUID",
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         default=None, description="Additional metadata for the message"
     )
 
@@ -94,29 +133,10 @@ class InterruptStreamMessage(BaseMessage):
     """Client message to interrupt active stream."""
 
     type: MessageType = MessageType.INTERRUPT_STREAM
-    turn_id: Optional[str] = Field(
+    turn_id: str | None = Field(
         default=None,
         description="Specific turn ID to interrupt, or None for all active turns",
     )
-
-
-class FetchBackgroundsMessage(BaseMessage):
-    """Client request to fetch available backgrounds."""
-
-    type: MessageType = MessageType.FETCH_BACKGROUNDS
-
-
-class FetchAvatarConfigsMessage(BaseMessage):
-    """Client request to fetch available avatar configurations."""
-
-    type: MessageType = MessageType.FETCH_AVATAR_CONFIGS
-
-
-class SwitchAvatarConfigMessage(BaseMessage):
-    """Client request to switch avatar configuration."""
-
-    type: MessageType = MessageType.SWITCH_AVATAR_CONFIG
-    file: str = Field(..., description="Configuration filename to switch to")
 
 
 # =================================================================================
@@ -149,7 +169,7 @@ class StreamStartMessage(BaseMessage):
 
     type: MessageType = MessageType.STREAM_START
     turn_id: str
-    conversation_id: str
+    session_id: str
 
 
 class StreamTokenMessage(BaseMessage):
@@ -157,7 +177,7 @@ class StreamTokenMessage(BaseMessage):
 
     type: MessageType = MessageType.STREAM_TOKEN
     chunk: str
-    node: Optional[str] = None
+    node: str | None = None
 
 
 class ToolCallMessage(BaseMessage):
@@ -166,7 +186,7 @@ class ToolCallMessage(BaseMessage):
     type: MessageType = MessageType.TOOL_CALL
     tool_name: str
     args: str
-    node: Optional[str] = None
+    node: str | None = None
 
 
 class ToolResultMessage(BaseMessage):
@@ -174,7 +194,7 @@ class ToolResultMessage(BaseMessage):
 
     type: MessageType = MessageType.TOOL_RESULT
     result: str
-    node: Optional[str] = None
+    node: str | None = None
 
 
 class StreamEndMessage(BaseMessage):
@@ -182,16 +202,40 @@ class StreamEndMessage(BaseMessage):
 
     type: MessageType = MessageType.STREAM_END
     turn_id: str
-    conversation_id: str
+    session_id: str
     content: str
 
 
-class TTSReadyChunkMessage(BaseMessage):
-    """Server message with a chunk of text ready for TTS."""
+# TimelineKeyframe matches desktop-homunculus POST /vrm/{entity}/speech/timeline format.
+# { "duration": float, "targets": { "expression_name": weight } }
+TimelineKeyframe = dict[str, float | dict[str, float]]
 
-    type: MessageType = MessageType.TTS_READY_CHUNK
-    chunk: str
-    emotion: Optional[str] = None
+
+class TtsChunkMessage(BaseMessage):
+    """Server message with TTS synthesis result and keyframe animation metadata.
+
+    Backend → desktop-homunculus. Sent after TTS synthesis completes for each sentence.
+    audio_base64 is None when TTS is disabled (tts_enabled=False) or synthesis failed.
+    keyframes drives the VRM expression timeline via POST /vrm/{entity}/speech/timeline.
+    """
+
+    type: MessageType = MessageType.TTS_CHUNK
+    sequence: int = Field(
+        ..., description="Sequence number within the turn, starting from 0"
+    )
+    text: str = Field(..., description="Text used for TTS synthesis")
+    audio_base64: str | None = Field(
+        default=None,
+        description="WAV audio encoded as base64. None means skip audio playback.",
+    )
+    emotion: str | None = Field(default=None, description="Detected emotion tag")
+    keyframes: list[TimelineKeyframe] = Field(
+        ...,
+        description=(
+            "Expression timeline keyframes for desktop-homunculus VRM animation. "
+            "Each entry: {duration: float, targets: {expression_name: weight}}."
+        ),
+    )
 
 
 class ErrorMessage(BaseMessage):
@@ -199,48 +243,7 @@ class ErrorMessage(BaseMessage):
 
     type: MessageType = MessageType.ERROR
     error: str
-    code: Optional[int] = None
-
-
-class BackgroundFilesMessage(BaseMessage):
-    """Server response with list of background files."""
-
-    type: MessageType = MessageType.BACKGROUND_FILES
-    files: List[str] = Field(..., description="List of background filenames")
-
-
-class AvatarConfigFile(BaseModel):
-    """Avatar configuration file info."""
-
-    filename: str
-    name: str
-
-
-class AvatarConfigFilesMessage(BaseMessage):
-    """Server response with list of avatar configuration files."""
-
-    type: MessageType = MessageType.AVATAR_CONFIG_FILES
-    configs: List[AvatarConfigFile] = Field(
-        ..., description="List of avatar configurations"
-    )
-
-
-class AvatarConfigSwitchedMessage(BaseMessage):
-    """Server confirmation of avatar configuration switch."""
-
-    type: MessageType = MessageType.AVATAR_CONFIG_SWITCHED
-    file: str = Field(..., description="Filename of the switched configuration")
-
-
-class SetModelAndConfMessage(BaseMessage):
-    """Server message to set model and configuration."""
-
-    type: MessageType = MessageType.SET_MODEL_AND_CONF
-    model_info: Dict[str, Any] = Field(..., description="Live2D model information")
-    conf_name: str = Field(..., description="Configuration name")
-    conf_uid: str = Field(..., description="Configuration UID")
-    client_uid: str = Field(..., description="Client UID")
-    persona_prompt: str = Field(..., description="Persona prompt for the agent")
+    code: int | None = None
 
 
 # =================================================================================
@@ -248,33 +251,21 @@ class SetModelAndConfMessage(BaseMessage):
 # =================================================================================
 
 # Union type for all possible client messages
-ClientMessage = Union[
-    AuthorizeMessage,
-    PongMessage,
-    ChatMessage,
-    InterruptStreamMessage,
-    FetchBackgroundsMessage,
-    FetchAvatarConfigsMessage,
-    SwitchAvatarConfigMessage,
-]
+ClientMessage = AuthorizeMessage | PongMessage | ChatMessage | InterruptStreamMessage
 
 # Union type for all possible server messages
-ServerMessage = Union[
-    AuthorizeSuccessMessage,
-    AuthorizeErrorMessage,
-    PingMessage,
-    StreamStartMessage,
-    StreamTokenMessage,
-    ToolCallMessage,
-    ToolResultMessage,
-    StreamEndMessage,
-    TTSReadyChunkMessage,
-    ErrorMessage,
-    BackgroundFilesMessage,
-    AvatarConfigFilesMessage,
-    AvatarConfigSwitchedMessage,
-    SetModelAndConfMessage,
-]
+ServerMessage = (
+    AuthorizeSuccessMessage
+    | AuthorizeErrorMessage
+    | PingMessage
+    | StreamStartMessage
+    | StreamTokenMessage
+    | ToolCallMessage
+    | ToolResultMessage
+    | StreamEndMessage
+    | TtsChunkMessage
+    | ErrorMessage
+)
 
 # Union type for all messages
-WebSocketMessage = Union[ClientMessage, ServerMessage]
+WebSocketMessage = ClientMessage | ServerMessage

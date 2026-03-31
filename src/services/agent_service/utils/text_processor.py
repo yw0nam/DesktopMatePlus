@@ -1,7 +1,10 @@
 import re
-from typing import NamedTuple, Optional
+from pathlib import Path
+from typing import NamedTuple
 
-EMOTION_KEYWORDS = [
+import yaml
+
+_DEFAULT_EMOTION_KEYWORDS = [
     # 핵심 감정 그룹
     "joyful",
     "sad",
@@ -23,20 +26,76 @@ EMOTION_KEYWORDS = [
     "hesitating",
 ]
 
+_DEFAULT_EMOTION_PROMPT_TEMPLATE = """
+[EMOTION INSTRUCTIONS]
+You MUST express your emotion using one of the following keywords in parentheses at the start of your response or when your emotion changes.
+Available Keywords: {keywords}
+Example: (joyful) I am so happy to see you!
+"""
+
+
+def load_emotion_keywords(config_path: str | None = None) -> list[str]:
+    """Load emotion keywords from a YAML configuration file."""
+    if config_path:
+        path = Path(config_path)
+    else:
+        # Default path: yaml_files/tts_rules.yml relative to project root
+        # Assuming this file is in src/services/agent_service/utils/
+        # Project root is 4 levels up
+        path = Path(__file__).resolve().parents[4] / "yaml_files" / "tts_rules.yml"
+
+    if not path.exists():
+        return _DEFAULT_EMOTION_KEYWORDS
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            return data.get("emotion_keywords", _DEFAULT_EMOTION_KEYWORDS)
+    except Exception as e:
+        print(f"Error loading emotion keywords: {e}")
+        return _DEFAULT_EMOTION_KEYWORDS
+
+
+def load_emotion_prompt_template(config_path: str | None = None) -> str:
+    """Load emotion prompt template from a YAML configuration file."""
+    if config_path:
+        path = Path(config_path)
+    else:
+        # Default path: yaml_files/tts_rules.yml relative to project root
+        # Assuming this file is in src/services/agent_service/utils/
+        # Project root is 4 levels up
+        path = Path(__file__).resolve().parents[4] / "yaml_files" / "tts_rules.yml"
+
+    if not path.exists():
+        return _DEFAULT_EMOTION_PROMPT_TEMPLATE
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            return data.get("emotion_prompt_template", _DEFAULT_EMOTION_PROMPT_TEMPLATE)
+    except Exception as e:
+        print(f"Error loading emotion prompt template: {e}")
+        return _DEFAULT_EMOTION_PROMPT_TEMPLATE
+
 
 class ProcessedText(NamedTuple):
     """처리된 텍스트의 구조화된 결과 (reasoning_text 필드 제거)"""
 
     filtered_text: str
-    emotion_tag: Optional[str]
+    emotion_tag: str | None
     # reasoning_text 필드를 제거하여 구조를 더 간단하게 만들었어요.
 
 
 class TTSTextProcessor:
-    def __init__(self):
+    def __init__(self, emotion_keywords: list[str] | None = None):
+        if emotion_keywords is None:
+            self.emotion_keywords = load_emotion_keywords()
+        else:
+            self.emotion_keywords = emotion_keywords
+
         # 감정 태그의 괄호 안 내용만 추출하도록 수정
         emotion_pattern_str = (
-            r"\(((" + "|".join(re.escape(k) for k in EMOTION_KEYWORDS) + r"))\)"
+            r"\(((" + "|".join(re.escape(k) for k in self.emotion_keywords) + r"))\)"
         )
         self.emotion_pattern = re.compile(emotion_pattern_str, re.IGNORECASE)
 
@@ -58,7 +117,7 @@ class TTSTextProcessor:
             # group(1)을 사용해 괄호 안의 키워드만 가져옵니다.
             emotion_tag = emotion_match.group(1)
             # 원본 텍스트에서 태그 전체(group(0))를 제거합니다.
-            # text_to_process = text_to_process.replace(emotion_match.group(0), "", 1)
+            text_to_process = text_to_process.replace(emotion_match.group(0), "", 1)
 
         # 2. 나머지 텍스트 정리 (예: *행동 지시*)
         filtered_text = self._clean_text(text_to_process)

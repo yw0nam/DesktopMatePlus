@@ -1,17 +1,19 @@
 # WebSocket: Tool Result
 
-Updated: 2025-11-28
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
-- **Purpose**: Report tool execution result
-- **I/O**: Server sends `{ type: "tool_result", result }`
+- **Purpose**: Internal event for tool execution result — logged server-side only; NOT forwarded to client
+- **I/O**: Agent emits `{ type: "tool_result", result }` → server logs it
+
+> **Server-internal only**: This event is never sent to the WebSocket client.
 
 ## 2. Core Logic
 
 ### Direction
 
-Server → Client
+Agent → Server (internal only)
 
 ### Payload
 
@@ -33,21 +35,9 @@ Server → Client
 
 ### Behavior
 
-- Informational (show tool data to user if desired)
+- Server logs the result for observability
 - Agent continues processing with result
-- More `stream_token` messages follow
-
-## 3. Usage
-
-```javascript
-socket.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
-  if (msg.type === 'tool_result') {
-    hideToolIndicator();
-    displayToolResult(JSON.parse(msg.result));
-  }
-};
-```
+- Client receives subsequent `tts_chunk` events (not this event)
 
 ---
 

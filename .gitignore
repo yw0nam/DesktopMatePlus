@@ -87,10 +87,30 @@ node_modules/
 .DS_Store
 
 # Task Master (keep configs but ignore reports)
-.taskmaster
-.taskmaster
+.taskmaster/
 # Qwen code
 .qwen/
 # Audio files
 *.wav
-resources/
+static
+
+# AI-related files
+.github/skills
+.gemini
+resources
+.worktrees
+tts_output
+.claude/settings.local.json
+
+# Claude harness
+.claude-code-harness/
+
+# Claude Memory Policy
+# Keep (shared SSOT): .claude/memory/decisions.md, .claude/memory/patterns.md
+# Ignore (local): .claude/state/, session-log.md
+agents-v3/
+.claude/agent-memory
+.claude/memory
+.claude/sessions
+.claude/state
+.claude/settings.json

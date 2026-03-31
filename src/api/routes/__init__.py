@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
-from src.api.routes import ltm, stm, tts, vlm, websocket
+from src.api.routes import callback, ltm, slack, stm, tts, websocket
 from src.models.responses import HealthResponse
 from src.services.health import HealthService, health_service
 
@@ -12,10 +12,11 @@ router = APIRouter()
 
 # Include service routes
 router.include_router(tts.router)
-router.include_router(vlm.router)
 router.include_router(websocket.router)
 router.include_router(stm.router)
 router.include_router(ltm.router)
+router.include_router(callback.router)
+router.include_router(slack.router)
 
 
 def get_health_service() -> HealthService:
@@ -27,7 +28,15 @@ def get_health_service() -> HealthService:
     return health_service
 
 
-@router.get("/", summary="Root endpoint", tags=["Root"])
+@router.get(
+    "/",
+    summary="Root endpoint",
+    status_code=status.HTTP_200_OK,
+    tags=["Root"],
+    responses={
+        200: {"description": "API is running"},
+    },
+)
 async def read_root():
     """Root endpoint that returns a welcome message.
 
@@ -49,11 +58,9 @@ async def read_root():
     responses={
         200: {
             "description": "All services are healthy",
-            "model": HealthResponse,
         },
         503: {
             "description": "One or more services are unhealthy",
-            "model": HealthResponse,
         },
     },
 )
@@ -63,7 +70,6 @@ async def health_check(
     """Check the health of all system modules.
 
     Returns health status for:
-    - VLM (Vision Language Model) service
     - TTS (Text-to-Speech) service
     - Agent (LangGraph) module
     - LTM (Long-Term Memory) service

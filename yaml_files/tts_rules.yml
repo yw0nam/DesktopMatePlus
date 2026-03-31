@@ -1,7 +1,134 @@
+min_chunk_length: 40
+
 rules:
-  - pattern: '\((?:웃음|giggle|laughing)\)'
+  - pattern: '\([^)]*\)'
     replacement: ''
   - pattern: '\b(?:음|uh|um)+[.\u2026]*'
     replacement: ''
   - pattern: '\s{2,}'
     replacement: ' '
+
+emotion_keywords:
+  - joyful
+  - sad
+  - angry
+  - surprised
+  - scared
+  - disgusted
+  - confused
+  - curious
+  - worried
+  - satisfied
+  - sarcastic
+  - laughing
+  - crying loudly
+  - sighing
+  - whispering
+  - hesitating
+
+emotion_motion_map:
+  joyful:
+    keyframes:
+      - duration: 0.3
+        targets:
+          happy: 1.0
+  sad:
+    keyframes:
+      - duration: 0.3
+        targets:
+          sad: 0.8
+  angry:
+    keyframes:
+      - duration: 0.3
+        targets:
+          angry: 0.8
+  surprised:
+    keyframes:
+      - duration: 0.3
+        targets:
+          surprised: 0.9
+  scared:
+    keyframes:
+      - duration: 0.3
+        targets:
+          surprised: 0.7
+  disgusted:
+    keyframes:
+      - duration: 0.3
+        targets:
+          angry: 0.5
+  confused:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.7
+  curious:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.8
+  worried:
+    keyframes:
+      - duration: 0.3
+        targets:
+          sad: 0.5
+  satisfied:
+    keyframes:
+      - duration: 0.3
+        targets:
+          happy: 0.8
+  sarcastic:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.6
+  laughing:
+    keyframes:
+      - duration: 0.3
+        targets:
+          happy: 1.0
+  crying loudly:
+    keyframes:
+      - duration: 0.3
+        targets:
+          sad: 1.0
+  sighing:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.5
+  whispering:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 1.0
+  hesitating:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 0.6
+  default:
+    keyframes:
+      - duration: 0.3
+        targets:
+          neutral: 1.0
+
+emotion_prompt_template: |
+
+  [EMOTION INSTRUCTIONS]
+  Rules for expressing emotion — follow EXACTLY:
+
+  1. Allowed keywords ONLY: {keywords}
+     - ANY other word or phrase in parentheses is STRICTLY FORBIDDEN.
+     - English examples of forbidden content: (smiles) (nods) (claps) (waves) (laughs softly)
+     - Japanese examples of forbidden content: (笑) (にっこり) (うっとり) (手を振って) (好奇心) (嬉しそうに) (首を傾げて)
+  2. Place the emotion tag at the VERY START of the sentence — NEVER in the middle or at the end.
+     - CORRECT:   (joyful) 今日も楽しいね！
+     - WRONG:     今日も楽しいね！(joyful)
+     - WRONG:     今日も(joyful)楽しいね！
+  3. One emotion tag per sentence maximum.
+  4. NEVER write a sentence that contains ONLY a parenthetical — e.g. "(joyful)" or "(手を振って)" alone is FORBIDDEN.
+  5. Do NOT narrate physical actions or non-verbal expressions in parentheses at all.
+     - CORRECT:   元気だった？
+     - WRONG:     (手を振って)元気だった？
+     - WRONG:     元気だった？(好奇心)

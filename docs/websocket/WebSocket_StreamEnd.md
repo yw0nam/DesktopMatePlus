@@ -1,6 +1,6 @@
 # WebSocket: Stream End
 
-Updated: 2025-11-28
+Updated: 2026-03-15
 
 ## 1. Synopsis
 
@@ -19,7 +19,7 @@ Server → Client
 {
   "type": "stream_end",
   "turn_id": "turn-uuid",
-  "conversation_id": "conv-uuid",
+  "session_id": "conv-uuid",
   "content": "Complete response text here."
 }
 ```
@@ -30,13 +30,14 @@ Server → Client
 |-------|------|----------|-------------|
 | `type` | string | Yes | Must be `"stream_end"` |
 | `turn_id` | string | Yes | Turn that completed |
-| `conversation_id` | string | Yes | Session identifier |
+| `session_id` | string | Yes | Session identifier |
 | `content` | string | Yes | Full aggregated response |
 
 ### Behavior
 
 - No more `stream_token` for this turn
 - `content` contains complete response (verify/replace streamed text)
+- All `tts_chunk` messages for this turn are **guaranteed to arrive before `stream_end`** (TTS barrier with 10s timeout)
 - Hide typing indicator, save to history
 
 ## 3. Usage
@@ -60,3 +61,4 @@ socket.onmessage = (event) => {
 
 - [Stream Start](./WebSocket_StreamStart.md)
 - [Stream Token](./WebSocket_StreamToken.md)
+- [TTS Chunk](./WebSocket_TtsChunk.md)

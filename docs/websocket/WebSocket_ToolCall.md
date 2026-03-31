@@ -1,17 +1,19 @@
 # WebSocket: Tool Call
 
-Updated: 2025-11-28
+Updated: 2026-03-18
 
 ## 1. Synopsis
 
-- **Purpose**: Inform client that agent is invoking a tool
-- **I/O**: Server sends `{ type: "tool_call", tool_name, args }`
+- **Purpose**: Internal event when agent invokes a tool — logged server-side only; NOT forwarded to client
+- **I/O**: Agent emits `{ type: "tool_call", tool_name, args }` → server logs it
+
+> **Server-internal only**: This event is never sent to the WebSocket client.
 
 ## 2. Core Logic
 
 ### Direction
 
-Server → Client
+Agent → Server (internal only)
 
 ### Payload
 
@@ -35,20 +37,8 @@ Server → Client
 
 ### Behavior
 
-- Informational message (no client action required)
-- Show UI indicator: "Searching for weather..."
-- Result follows in `tool_result`
-
-## 3. Usage
-
-```javascript
-socket.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
-  if (msg.type === 'tool_call') {
-    showToolIndicator(`Using ${msg.tool_name}...`);
-  }
-};
-```
+- Server logs tool name and args for observability
+- Client is not notified; no UI action needed
 
 ---
 

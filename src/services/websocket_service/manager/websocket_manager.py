@@ -2,24 +2,21 @@
 
 import asyncio
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID, uuid4
-from weakref import WeakSet
 
 from fastapi import WebSocket
 from loguru import logger
 from pydantic import ValidationError
 
+from src.configs.settings import get_settings
 from src.models.websocket import (
     AuthorizeMessage,
     ErrorMessage,
-    FetchAvatarConfigsMessage,
-    FetchBackgroundsMessage,
     InterruptStreamMessage,
     MessageType,
     PongMessage,
     ServerMessage,
-    SwitchAvatarConfigMessage,
 )
 
 from .connection import ConnectionState
@@ -30,33 +27,61 @@ from .heartbeat import HeartbeatMonitor
 class WebSocketManager:
     """Manages WebSocket connections, authentication, and message routing."""
 
-    def __init__(self, ping_interval: int = 30, pong_timeout: int = 10):
+    def __init__(
+        self,
+        ping_interval: int | None = None,
+        pong_timeout: int | None = None,
+        disconnect_timeout: float | None = None,
+    ):
         """Initialize WebSocket manager.
+
+        Configuration is loaded from application settings if available,
+        otherwise uses provided parameters or defaults.
 
         Args:
             ping_interval: Interval between ping messages in seconds.
             pong_timeout: Timeout for pong response in seconds.
+            disconnect_timeout: Timeout for graceful disconnect in seconds.
         """
-        self.connections: Dict[UUID, ConnectionState] = {}
-        self.ping_interval = ping_interval
-        self.pong_timeout = pong_timeout
-        self._heartbeat_tasks: WeakSet = WeakSet()
+        self.connections: dict[UUID, ConnectionState] = {}
+        self._heartbeat_tasks: set[asyncio.Task] = set()
+
+        # Load settings from config if available, otherwise use parameters or defaults
+        try:
+            settings = get_settings()
+            self.ping_interval = (
+                ping_interval or settings.websocket.ping_interval_seconds
+            )
+            self.pong_timeout = pong_timeout or settings.websocket.pong_timeout_seconds
+            self.disconnect_timeout = (
+                disconnect_timeout or settings.websocket.disconnect_timeout_seconds
+            )
+        except RuntimeError:
+            # Settings not initialized (e.g., in tests), use defaults
+            from src.configs.settings import WebSocketConfig
+
+            defaults = WebSocketConfig()
+            self.ping_interval = ping_interval or defaults.ping_interval_seconds
+            self.pong_timeout = pong_timeout or defaults.pong_timeout_seconds
+            self.disconnect_timeout = (
+                disconnect_timeout or defaults.disconnect_timeout_seconds
+            )
 
         # Initialize components
         self._message_handler = MessageHandler(
             get_connection_fn=self._get_connection,
             send_message_fn=self.send_message,
-            disconnect_fn=self.disconnect,
+            close_connection_fn=self._close_connection,
         )
         self._heartbeat_monitor = HeartbeatMonitor(
-            ping_interval=ping_interval,
-            pong_timeout=pong_timeout,
+            ping_interval=self.ping_interval,
+            pong_timeout=self.pong_timeout,
             get_connection_fn=self._get_connection,
             send_message_fn=self.send_message,
-            disconnect_fn=self.disconnect,
+            close_connection_fn=self._close_connection,
         )
 
-    def _get_connection(self, connection_id: UUID) -> Optional[ConnectionState]:
+    def _get_connection(self, connection_id: UUID) -> ConnectionState | None:
         """Get connection state by ID.
 
         Args:
@@ -88,25 +113,87 @@ class WebSocketManager:
             self._heartbeat_monitor.heartbeat_loop(connection_state)
         )
         self._heartbeat_tasks.add(heartbeat_task)
+        heartbeat_task.add_done_callback(self._heartbeat_tasks.discard)
 
         return connection_id
 
-    def disconnect(self, connection_id: UUID):
-        """Disconnect and cleanup a WebSocket connection.
+    async def _close_connection(
+        self,
+        connection_id: UUID,
+        code: int,
+        reason: str,
+        notify_client: bool = True,
+    ) -> None:
+        """Standardized connection closing with proper cleanup.
+
+        This method ensures consistent cleanup order:
+        1. Set closing flag to prevent new messages
+        2. Notify client (optional)
+        3. Shutdown MessageProcessor gracefully
+        4. Close WebSocket
+        5. Remove from connections dict
+
+        Args:
+            connection_id: Connection identifier to close.
+            code: WebSocket close code.
+            reason: Human-readable close reason.
+            notify_client: Whether to send close frame to client.
+        """
+        connection_state = self._get_connection(connection_id)
+        if not connection_state:
+            logger.debug(f"Connection {connection_id} already closed")
+            return
+
+        # Step 1: Set closing flag
+        connection_state.is_closing = True
+        logger.info(
+            f"Closing WebSocket connection {connection_id}: {reason} (code={code})"
+        )
+
+        # Step 2: Shutdown MessageProcessor gracefully
+        if connection_state.message_processor:
+            try:
+                await asyncio.wait_for(
+                    connection_state.message_processor.shutdown(),
+                    timeout=self.disconnect_timeout,
+                )
+                logger.debug(f"MessageProcessor shutdown complete: {connection_id}")
+            except TimeoutError:
+                logger.warning(
+                    f"MessageProcessor shutdown timeout ({self.disconnect_timeout}s): {connection_id}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error during MessageProcessor shutdown for {connection_id}: {e}"
+                )
+
+        # Step 3: Close WebSocket connection
+        if notify_client:
+            try:
+                await connection_state.websocket.close(code=code, reason=reason)
+                logger.debug(f"WebSocket closed with code {code}: {connection_id}")
+            except Exception as e:
+                logger.error(f"Error closing websocket for {connection_id}: {e}")
+
+        # Step 4: Remove from connections dict
+        if connection_id in self.connections:
+            del self.connections[connection_id]
+            logger.info(f"WebSocket connection cleanup complete: {connection_id}")
+
+    async def disconnect(self, connection_id: UUID) -> None:
+        """Gracefully disconnect a WebSocket connection.
+
+        This is a convenience method that calls _close_connection with default parameters.
 
         Args:
             connection_id: The connection identifier to disconnect.
         """
-        if connection_id in self.connections:
-            connection_state = self.connections[connection_id]
-
-            # Shutdown MessageProcessor if it exists
-            if connection_state.message_processor:
-                # Create a task to shutdown the message processor
-                asyncio.create_task(connection_state.message_processor.shutdown())
-
-            logger.info(f"WebSocket connection disconnected: {connection_id}")
-            del self.connections[connection_id]
+        await self._close_connection(
+            connection_id=connection_id,
+            code=1000,
+            reason="Normal closure",
+            notify_client=False,  # Assume client already disconnected
+        )
 
     async def send_message(self, connection_id: UUID, message: ServerMessage):
         """Send a message to a specific connection.
@@ -130,7 +217,12 @@ class WebSocketManager:
             logger.debug(f"Sent message to {connection_id}: {message.type}")
         except Exception as e:
             logger.error(f"Failed to send message to {connection_id}: {e}")
-            self.disconnect(connection_id)
+            await self._close_connection(
+                connection_id=connection_id,
+                code=1011,
+                reason="Failed to send message",
+                notify_client=False,
+            )
 
     async def broadcast_message(
         self, message: ServerMessage, authenticated_only: bool = True
@@ -149,7 +241,7 @@ class WebSocketManager:
         for connection_id in connections_to_send:
             await self.send_message(connection_id, message)
 
-    def validate_token(self, token: str) -> Optional[str]:
+    def validate_token(self, token: str) -> str | None:
         """Validate authentication token.
 
         Args:
@@ -190,7 +282,7 @@ class WebSocketManager:
         )
 
     async def interrupt_active_turn(
-        self, connection_id: UUID, turn_id: Optional[str] = None
+        self, connection_id: UUID, turn_id: str | None = None
     ) -> bool:
         """Interrupt an active conversation turn for a connection.
 
@@ -203,9 +295,7 @@ class WebSocketManager:
         """
         return await self._message_handler.handle_interrupt(connection_id, turn_id)
 
-    async def get_connection_stats(
-        self, connection_id: UUID
-    ) -> Optional[Dict[str, Any]]:
+    async def get_connection_stats(self, connection_id: UUID) -> dict[str, Any] | None:
         """Get statistics for a specific connection.
 
         Args:
@@ -293,7 +383,7 @@ class WebSocketManager:
                     await self.send_message(
                         connection_id,
                         ErrorMessage(
-                            error=f"Invalid chat message format: {str(chat_validation_error)}"
+                            error=f"Invalid chat message format: {chat_validation_error!s}"
                         ),
                     )
                     return
@@ -307,39 +397,6 @@ class WebSocketManager:
 
                 message = InterruptStreamMessage(**message_data)
                 await self.interrupt_active_turn(connection_id, message.turn_id)
-
-            elif message_type == MessageType.FETCH_BACKGROUNDS:
-                if not connection_state.is_authenticated:
-                    await self.send_message(
-                        connection_id, ErrorMessage(error="Authentication required")
-                    )
-                    return
-                message = FetchBackgroundsMessage(**message_data)
-                await self._message_handler.handle_fetch_backgrounds(
-                    connection_id, message
-                )
-
-            elif message_type == MessageType.FETCH_AVATAR_CONFIGS:
-                if not connection_state.is_authenticated:
-                    await self.send_message(
-                        connection_id, ErrorMessage(error="Authentication required")
-                    )
-                    return
-                message = FetchAvatarConfigsMessage(**message_data)
-                await self._message_handler.handle_fetch_avatar_configs(
-                    connection_id, message
-                )
-
-            elif message_type == MessageType.SWITCH_AVATAR_CONFIG:
-                if not connection_state.is_authenticated:
-                    await self.send_message(
-                        connection_id, ErrorMessage(error="Authentication required")
-                    )
-                    return
-                message = SwitchAvatarConfigMessage(**message_data)
-                await self._message_handler.handle_switch_avatar_config(
-                    connection_id, message
-                )
 
             else:
                 # Check if connection is authenticated for other message types

@@ -15,26 +15,22 @@ from src.models.stm import (
     UpdateSessionMetadataRequest,
     UpdateSessionMetadataResponse,
 )
-from src.models.tts import TTSRequest, TTSResponse
-from src.models.vlm import VLMRequest, VLMResponse
+from src.models.tts import VoicesResponse
 
 __all__ = [
-    "HealthResponse",
-    "ModuleStatus",
     "AddChatHistoryRequest",
     "AddChatHistoryResponse",
+    "DeleteSessionRequest",
+    "DeleteSessionResponse",
     "GetChatHistoryRequest",
     "GetChatHistoryResponse",
+    "HealthResponse",
     "ListSessionsRequest",
     "ListSessionsResponse",
     "MessageResponse",
+    "ModuleStatus",
     "SessionMetadata",
-    "DeleteSessionRequest",
-    "DeleteSessionResponse",
     "UpdateSessionMetadataRequest",
     "UpdateSessionMetadataResponse",
-    "TTSRequest",
-    "TTSResponse",
-    "VLMRequest",
-    "VLMResponse",
+    "VoicesResponse",
 ]

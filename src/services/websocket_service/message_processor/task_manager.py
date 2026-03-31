@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -58,7 +58,7 @@ class TaskManager:
             return
 
         current_task = asyncio.current_task()
-        tasks_to_cancel: List[asyncio.Task] = []
+        tasks_to_cancel: list[asyncio.Task] = []
 
         for task in list(turn.tasks):
             if not isinstance(task, asyncio.Task):
@@ -83,9 +83,7 @@ class TaskManager:
 
         if pending:
             logger.debug(
-                "Timed out waiting for %d tasks to cancel for turn %s",
-                len(pending),
-                turn_id,
+                f"Timed out waiting for {len(pending)} tasks to cancel for turn {turn_id}"
             )
 
     def drain_event_queue(self, turn_id: str) -> int:
@@ -104,6 +102,43 @@ class TaskManager:
                 break
 
         return drained
+
+    async def cleanup_turn(self, turn_id: str) -> None:
+        """Cancel and await all tasks for a turn, including the token consumer."""
+        turn = self.processor.turns.get(turn_id)
+        if not turn:
+            return
+
+        current_task = asyncio.current_task()
+        tasks_to_cancel: list[asyncio.Task] = []
+        token_consumer_task = turn.token_consumer_task
+
+        if token_consumer_task and token_consumer_task.done():
+            token_consumer_task = None
+
+        for task in list(turn.tasks):
+            if task is current_task:
+                continue
+            if token_consumer_task and task is token_consumer_task:
+                continue
+            if not task.done():
+                task.cancel()
+            tasks_to_cancel.append(task)
+
+        if token_consumer_task:
+            await asyncio.gather(token_consumer_task, return_exceptions=True)
+
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
+        for task in tasks_to_cancel:
+            self.processor.active_tasks.discard(task)
+            turn.tasks.discard(task)
+
+        if token_consumer_task:
+            self.processor.active_tasks.discard(token_consumer_task)
+            turn.tasks.discard(token_consumer_task)
+            turn.token_consumer_task = None
 
     def ensure_token_consumer(self, turn_id: str) -> None:
         """Ensure the token consumer task exists for the given turn."""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List
+from collections.abc import Iterable
+from typing import Any
 
 import psycopg2
 
@@ -8,12 +9,12 @@ import psycopg2
 class PostgreSQLVocabularyManager:
     """Controlled vocabulary manager backed by PostgreSQL."""
 
-    def __init__(self, db_config: Dict[str, Any]):
+    def __init__(self, db_config: dict[str, Any]):
         # db_config may contain ints for fields like port; accept Any and normalize
         self.db_config = self._normalize_config(db_config)
         self._initialize_database()
 
-    def _normalize_config(self, db_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_config(self, db_config: dict[str, Any]) -> dict[str, Any]:
         config = dict(db_config)
         if "database" in config and "dbname" not in config:
             config["dbname"] = config.pop("database")
@@ -40,22 +41,20 @@ class PostgreSQLVocabularyManager:
                 cur.execute(create_table_sql)
             conn.commit()
 
-    def get_all_terms(self) -> List[str]:
+    def get_all_terms(self) -> list[str]:
         """Returns all categories from the vocabulary, sorted alphabetically."""
         query = "SELECT category FROM controlled_vocabulary ORDER BY category;"
-        with self._get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query)
-                rows = cur.fetchall()
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
         return [row[0] for row in rows]
 
     def term_exists(self, term: str) -> bool:
         """Checks if a term exists in the vocabulary using an indexed lookup."""
         query = "SELECT 1 FROM controlled_vocabulary WHERE category = %s LIMIT 1;"
-        with self._get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, (term,))
-                row = cur.fetchone()
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(query, (term,))
+            row = cur.fetchone()
         return row is not None
 
     def add_term(self, term: str) -> bool:
@@ -75,9 +74,9 @@ class PostgreSQLVocabularyManager:
             conn.commit()
         return inserted is not None
 
-    def ensure_categories(self, categories: Iterable[str]) -> List[str]:
+    def ensure_categories(self, categories: Iterable[str]) -> list[str]:
         """Ensures each category exists in the vocabulary and returns cleaned names."""
-        cleaned: List[str] = []
+        cleaned: list[str] = []
         categories = list(categories)
         if not categories:
             return cleaned

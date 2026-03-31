@@ -10,7 +10,7 @@ from .service import TTSService
 from .tts_factory import TTSFactory
 
 __all__ = [
-    "TTSService",
     "FishSpeechTTS",
     "TTSFactory",
+    "TTSService",
 ]

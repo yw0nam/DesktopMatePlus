@@ -5,7 +5,7 @@ Updated: 2025-11-28
 ## 1. Synopsis
 
 - **Purpose**: Signal beginning of agent response
-- **I/O**: Server sends `{ type: "stream_start", turn_id, conversation_id }`
+- **I/O**: Server sends `{ type: "stream_start", turn_id, session_id }`
 
 ## 2. Core Logic
 
@@ -19,7 +19,7 @@ Server → Client
 {
   "type": "stream_start",
   "turn_id": "turn-uuid",
-  "conversation_id": "conv-uuid"
+  "session_id": "conv-uuid"
 }
 ```
 
@@ -29,7 +29,7 @@ Server → Client
 |-------|------|----------|-------------|
 | `type` | string | Yes | Must be `"stream_start"` |
 | `turn_id` | string | Yes | Unique ID for this response turn |
-| `conversation_id` | string | Yes | Session identifier |
+| `session_id` | string | Yes | Session identifier |
 
 ### Behavior
 

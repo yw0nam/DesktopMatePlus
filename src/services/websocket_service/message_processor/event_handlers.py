@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Optional
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from ..text_processors import TextChunkProcessor, TTSTextProcessor
+from src.services.tts_service.tts_pipeline import synthesize_chunk
+from src.services.websocket_service.text_processors import (
+    TextChunkProcessor,
+    TTSTextProcessor,
+)
+
 from .constants import INTERRUPT_WAIT_TIMEOUT, TOKEN_QUEUE_SENTINEL
 from .models import TurnStatus
 
@@ -26,10 +32,10 @@ class EventHandler:
             processor: The parent MessageProcessor instance.
         """
         self.processor = processor
-        self._tool_start_times: Dict[str, float] = {}  # Track tool call start times
+        self._tool_start_times: dict[str, float] = {}  # Track tool call start times
 
     async def produce_agent_events(
-        self, turn_id: str, agent_stream: AsyncIterator[Dict[str, Any]]
+        self, turn_id: str, agent_stream: AsyncIterator[dict[str, Any]]
     ) -> None:
         """Consume AgentService events and forward them to the queue."""
         try:
@@ -49,8 +55,20 @@ class EventHandler:
                     continue
 
                 if event_type == "stream_end":
+                    # Pop new_chats before forwarding — BaseMessage objects are not
+                    # JSON-serializable and must not reach the WebSocket client.
+                    event.pop("new_chats", [])
+
+                    # Capture turn metadata before complete_turn() in case the turn
+                    # is removed from the turns dict in the future.
+                    self.processor.turns.get(turn_id)
+
                     await self._signal_token_stream_closed(turn_id)
                     await self._wait_for_token_queue(turn_id)
+                    await self.processor._wait_for_tts_tasks(turn_id)
+                    logger.info(
+                        f"Emitting stream_end for turn {turn_id} (all TTS chunks processed)"
+                    )
                     await self.processor._put_event(turn_id, event)
                     await self.processor.complete_turn(turn_id)
                     continue
@@ -74,15 +92,13 @@ class EventHandler:
                     continue
 
                 logger.debug(
-                    "Dropping agent event %s from client stream for turn %s",
-                    event_type,
-                    turn_id,
+                    f"Dropping agent event {event.get('type', 'unknown')} from client stream for turn {turn_id}"
                 )
 
         except asyncio.CancelledError:
-            logger.debug("Producer cancelled for turn %s", turn_id)
+            logger.debug(f"Producer cancelled for turn {turn_id}")
             raise
-        except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+        except Exception as exc:  # pragma: no cover - defensive
             await self.processor.fail_turn(turn_id, str(exc))
             await self._signal_token_stream_closed(turn_id)
             await self._wait_for_token_queue(turn_id)
@@ -96,7 +112,7 @@ class EventHandler:
             )
         finally:
             await self._signal_token_stream_closed(turn_id)
-            logger.debug("Producer finished for turn %s", turn_id)
+            logger.debug(f"Producer finished for turn {turn_id}")
 
     async def consume_token_events(self, turn_id: str) -> None:
         """Consume token events and emit TTS ready chunks."""
@@ -120,13 +136,11 @@ class EventHandler:
                 finally:
                     queue.task_done()
         except asyncio.CancelledError:
-            logger.debug("Token consumer cancelled for turn %s", turn_id)
+            logger.debug(f"Token consumer cancelled for turn {turn_id}")
             raise
-        except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+        except Exception as exc:  # pragma: no cover - defensive
             logger.error(
-                "Error consuming token events for turn %s: %s",
-                turn_id,
-                exc,
+                f"Error consuming token events for turn {turn_id}: {exc}",
                 exc_info=True,
             )
         finally:
@@ -137,12 +151,12 @@ class EventHandler:
     async def _process_token_event(
         self,
         turn_id: str,
-        token_event: Dict[str, Any],
+        token_event: dict[str, Any],
     ) -> None:
         """Transform a single token event into zero or more TTS events."""
         turn = self.processor.turns.get(turn_id)
         if not turn:
-            logger.debug("Token event received for unknown turn %s", turn_id)
+            logger.debug(f"Token event received for unknown turn {turn_id}")
             return
 
         if not turn.chunk_processor:
@@ -152,78 +166,150 @@ class EventHandler:
 
         chunk = token_event.get("chunk")
         if not chunk:
-            logger.debug("Token event missing chunk data: %s", token_event)
+            logger.debug(f"Token event missing chunk data: {token_event}")
             return
 
+        logger.debug(
+            f"Processing token chunk for turn {turn_id}: {repr(chunk[:50]) if len(chunk) > 50 else repr(chunk)} (len={len(chunk)})"
+        )
+
+        sentence_count = 0
         for sentence in turn.chunk_processor.process(chunk):
+            sentence_count += 1
+            logger.debug(
+                f"Chunk processor yielded sentence {sentence_count} for turn {turn_id}: {repr(sentence[:50]) if len(sentence) > 50 else repr(sentence)} (len={len(sentence)})"
+            )
+
             processed = turn.tts_processor.process(sentence)
             text = processed.filtered_text
             if not text or not any(char.isalnum() for char in text):
+                logger.debug(
+                    f"Filtered text is empty or has no alnum chars for turn {turn_id}"
+                )
                 continue
-            tts_event = self._build_tts_event(
-                turn_id,
-                token_event,
-                text,
-                processed.emotion_tag,
+
+            task = asyncio.create_task(
+                self._synthesize_and_send(
+                    turn_id=turn_id,
+                    text=text,
+                    emotion=processed.emotion_tag,
+                    sequence=turn.tts_sequence,
+                    tts_enabled=turn.tts_enabled,
+                    reference_id=turn.reference_id,
+                )
             )
-            await self.processor._put_event(turn_id, tts_event)
+            turn.tts_sequence += 1
+            turn.tts_tasks.append(task)
+            self.processor._task_manager.track_task(turn_id, task)
+            logger.info(
+                f"Scheduled TTS task (seq={turn.tts_sequence - 1}) for turn {turn_id}: "
+                f"{repr(text[:50]) if len(text) > 50 else repr(text)}"
+            )
+
+        if sentence_count == 0:
+            logger.debug(
+                f"No sentences yielded from chunk for turn {turn_id} (chunk buffered)"
+            )
 
     async def _flush_tts_buffer(self, turn_id: str) -> None:
         """Flush any remaining buffered text for a turn."""
         turn = self.processor.turns.get(turn_id)
         if not turn or not turn.chunk_processor or not turn.tts_processor:
+            logger.debug(
+                f"Cannot flush TTS buffer for turn {turn_id} (missing turn/processors)"
+            )
             return
 
         remainder = turn.chunk_processor.flush()
         if not remainder:
+            logger.debug(f"No remainder to flush for turn {turn_id}")
             return
+
+        logger.info(
+            f"Flushing TTS buffer for turn {turn_id}: {repr(remainder[:50]) if len(remainder) > 50 else repr(remainder)} (len={len(remainder)})"
+        )
 
         processed = turn.tts_processor.process(remainder)
         text = processed.filtered_text
         if not text or not any(char.isalnum() for char in text):
+            logger.debug(
+                f"Flushed text is empty or has no alnum chars for turn {turn_id}"
+            )
             return
 
-        tts_event = self._build_tts_event(
-            turn_id,
-            {},
-            text,
-            processed.emotion_tag,
+        task = asyncio.create_task(
+            self._synthesize_and_send(
+                turn_id=turn_id,
+                text=text,
+                emotion=processed.emotion_tag,
+                sequence=turn.tts_sequence,
+                tts_enabled=turn.tts_enabled,
+                reference_id=turn.reference_id,
+            )
         )
-        await self.processor._put_event(turn_id, tts_event)
+        turn.tts_sequence += 1
+        turn.tts_tasks.append(task)
+        self.processor._task_manager.track_task(turn_id, task)
+        logger.info(
+            f"Scheduled flushed TTS task (seq={turn.tts_sequence - 1}) for turn {turn_id}: "
+            f"{repr(text[:50]) if len(text) > 50 else repr(text)}"
+        )
 
-    def _build_tts_event(
+    async def _synthesize_and_send(
         self,
         turn_id: str,
-        base_event: Dict[str, Any],
-        chunk: str,
-        emotion: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Construct a tts_ready_chunk event with optional emotion metadata."""
-        event = self.processor._normalize_event(turn_id, base_event)
-        tts_event = {
-            key: value for key, value in event.items() if key not in {"type", "chunk"}
-        }
-        tts_event["type"] = "tts_ready_chunk"
-        tts_event["chunk"] = chunk
-        if emotion:
-            tts_event["emotion"] = emotion
-        return tts_event
+        text: str,
+        emotion: str | None,
+        sequence: int,
+        tts_enabled: bool,
+        reference_id: str | None,
+    ) -> None:
+        """TTS synthesis + event enqueue. Silent drop if connection is closing."""
+        if self.processor.is_connection_closing():
+            return
 
-    async def _put_token_event(self, turn_id: str, event: Dict[str, Any]) -> None:
+        # guard against uninitialized services
+        if self.processor.tts_service is None or self.processor.mapper is None:
+            return
+
+        chunk_msg = await synthesize_chunk(
+            tts_service=self.processor.tts_service,
+            mapper=self.processor.mapper,
+            text=text,
+            emotion=emotion,
+            sequence=sequence,
+            tts_enabled=tts_enabled,
+            reference_id=reference_id,
+        )
+
+        if self.processor.is_connection_closing():
+            return
+
+        await self.processor._put_event(
+            turn_id,
+            {
+                "type": "tts_chunk",
+                "sequence": chunk_msg.sequence,
+                "text": chunk_msg.text,
+                "audio_base64": chunk_msg.audio_base64,
+                "emotion": chunk_msg.emotion,
+                "keyframes": chunk_msg.keyframes,
+            },
+        )
+
+    async def _put_token_event(self, turn_id: str, event: dict[str, Any]) -> None:
         """Send a token event to the internal token queue."""
         turn = self.processor.turns.get(turn_id)
         queue = turn.token_queue if turn else None
         if not queue:
             logger.debug(
-                "Dropping token event for turn %s due to missing queue", turn_id
+                f"Dropping token event for turn {turn_id} due to missing queue"
             )
             return
 
         await queue.put(event)
         logger.debug(
-            "Queued token event for turn %s (queue size=%d)",
-            turn_id,
-            queue.qsize(),
+            f"Queued token event for turn {turn_id} (queue size={queue.qsize()})"
         )
 
     async def _signal_token_stream_closed(self, turn_id: str) -> None:
@@ -241,29 +327,39 @@ class EventHandler:
         turn.token_stream_closed = True
 
     async def _wait_for_token_queue(self, turn_id: str) -> None:
-        """Wait for the token queue to drain pending items."""
+        """Wait for the token queue to drain and consumer to finish processing."""
         turn = self.processor.turns.get(turn_id)
         queue = turn.token_queue if turn else None
         if not queue:
             return
 
+        # First, wait for all items to be removed from queue
         try:
             await asyncio.wait_for(queue.join(), timeout=INTERRUPT_WAIT_TIMEOUT)
-        except asyncio.TimeoutError:
-            logger.debug(
-                "Timed out waiting for token queue join for turn %s",
-                turn_id,
-            )
+            logger.debug(f"Token queue drained for turn {turn_id}")
+        except TimeoutError:
+            logger.debug(f"Timed out waiting for token queue join for turn {turn_id}")
         except asyncio.CancelledError:  # pragma: no cover - defensive
             raise
-        except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
-            logger.debug(
-                "Error waiting for token queue for turn %s: %s",
-                turn_id,
-                exc,
-            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug(f"Error waiting for token queue for turn {turn_id}: {exc}")
 
-    async def _log_tool_call(self, turn_id: str, event: Dict[str, Any]) -> None:
+        # Then, wait for consumer task to finish (flush buffer, emit final chunks)
+        consumer_task = turn.token_consumer_task if turn else None
+        if consumer_task and not consumer_task.done():
+            try:
+                await asyncio.wait_for(consumer_task, timeout=INTERRUPT_WAIT_TIMEOUT)
+                logger.debug(f"Token consumer finished for turn {turn_id}")
+            except TimeoutError:
+                logger.debug(f"Timed out waiting for token consumer for turn {turn_id}")
+            except asyncio.CancelledError:  # pragma: no cover - defensive
+                raise
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(
+                    f"Error waiting for token consumer for turn {turn_id}: {exc}"
+                )
+
+    async def _log_tool_call(self, turn_id: str, event: dict[str, Any]) -> None:
         """Log tool call event with structured metadata.
 
         Tool events are not forwarded to clients - they are logged server-side only.
@@ -273,7 +369,7 @@ class EventHandler:
             event: The tool call event containing tool_name and args
         """
         turn = self.processor.turns.get(turn_id)
-        conversation_id = turn.conversation_id if turn else "unknown"
+        session_id = turn.session_id if turn else "unknown"
 
         # Extract tool information from event - handle both old nested and new flat structure
         # New flat structure
@@ -288,7 +384,7 @@ class EventHandler:
         logger.info(
             "Tool call started",
             extra={
-                "conversation_id": conversation_id,
+                "session_id": session_id,
                 "turn_id": turn_id,
                 "tool_name": tool_name,
                 "args": args,
@@ -296,7 +392,7 @@ class EventHandler:
             },
         )
 
-    async def _log_tool_result(self, turn_id: str, event: Dict[str, Any]) -> None:
+    async def _log_tool_result(self, turn_id: str, event: dict[str, Any]) -> None:
         """Log tool result event with structured metadata.
 
         Tool events are not forwarded to clients - they are logged server-side only.
@@ -306,7 +402,7 @@ class EventHandler:
             event: The tool result event
         """
         turn = self.processor.turns.get(turn_id)
-        conversation_id = turn.conversation_id if turn else "unknown"
+        session_id = turn.session_id if turn else "unknown"
 
         # Extract tool information - try to infer tool_name from recent calls
         data = event.get("result")
@@ -319,7 +415,7 @@ class EventHandler:
 
         # Try to find the most recent tool call for this turn
         matching_keys = [
-            k for k in self._tool_start_times.keys() if k.startswith(f"{turn_id}:")
+            k for k in self._tool_start_times if k.startswith(f"{turn_id}:")
         ]
         if matching_keys:
             # Use the most recent tool call
@@ -341,7 +437,7 @@ class EventHandler:
         logger.info(
             "Tool result received",
             extra={
-                "conversation_id": conversation_id,
+                "session_id": session_id,
                 "turn_id": turn_id,
                 "tool_name": tool_name,
                 "duration_ms": duration_ms,

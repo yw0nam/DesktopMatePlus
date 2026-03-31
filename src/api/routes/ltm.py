@@ -25,7 +25,6 @@ router = APIRouter(prefix="/v1/ltm", tags=["LTM"])
     responses={
         200: {
             "description": "Memory added successfully",
-            "model": AddMemoryResponse,
         },
         400: {
             "description": "Invalid input",
@@ -103,9 +102,7 @@ async def add_memory(request: AddMemoryRequest) -> AddMemoryResponse:
                 detail=f"Error adding memory: {result['error']}",
             )
 
-        logger.info(
-            f"Memory added successfully for user={request.user_id}, agent={request.agent_id}"
-        )
+        logger.info(f"Memory added: user={request.user_id}, agent={request.agent_id}")
 
         return AddMemoryResponse(
             success=True,
@@ -136,7 +133,6 @@ async def add_memory(request: AddMemoryRequest) -> AddMemoryResponse:
     responses={
         200: {
             "description": "Search completed successfully",
-            "model": SearchMemoryResponse,
         },
         500: {
             "description": "LTM service error",
@@ -193,9 +189,7 @@ async def search_memory(request: SearchMemoryRequest) -> SearchMemoryResponse:
                 detail=f"Error searching memories: {result['error']}",
             )
 
-        logger.info(
-            f"Search completed for query='{request.query}', user={request.user_id}, agent={request.agent_id}"
-        )
+        logger.info(f"Memory search: query='{request.query}', user={request.user_id}")
 
         return SearchMemoryResponse(
             success=True,
@@ -220,7 +214,6 @@ async def search_memory(request: SearchMemoryRequest) -> SearchMemoryResponse:
     responses={
         200: {
             "description": "Memory deleted successfully",
-            "model": DeleteMemoryResponse,
         },
         404: {
             "description": "Memory not found",
@@ -283,9 +276,7 @@ async def delete_memory(request: DeleteMemoryRequest) -> DeleteMemoryResponse:
                 detail=f"Error deleting memory: {result['error']}",
             )
 
-        logger.info(
-            f"Memory {request.memory_id} deleted for user={request.user_id}, agent={request.agent_id}"
-        )
+        logger.info(f"Memory deleted: id={request.memory_id}, user={request.user_id}")
 
         return DeleteMemoryResponse(
             success=True,

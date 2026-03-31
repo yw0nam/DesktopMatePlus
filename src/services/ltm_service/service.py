@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from langchain_core.messages import BaseMessage
 
@@ -8,7 +8,7 @@ MemoryClientType = TypeVar(
 )  # A generic type for memory client instances.
 
 
-class LTMService(ABC, Generic[MemoryClientType]):
+class LTMService[MemoryClientType](ABC):
     """Abstract base class for Long-Term memory services.
 
     Long Term memory service is responsible for storing and retrieving information over extended periods like preference, context, and user behavior.
@@ -52,7 +52,7 @@ class LTMService(ABC, Generic[MemoryClientType]):
 
     @abstractmethod
     def add_memory(
-        self, messages: list[BaseMessage], user_id: str, agent_id: str
+        self, messages: list[BaseMessage] | str, user_id: str, agent_id: str
     ) -> dict:
         """
         Add long term information to memory.

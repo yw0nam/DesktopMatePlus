@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     # 1. 서비스 인스턴스 생성
     # print(memory_config.model_dump())
-    with open("./yaml_files/services/ltm_service/mem0.yml", "r", encoding="utf-8") as f:
+    with open("./yaml_files/services/ltm_service/mem0.yml", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     memory_config = Mem0LongTermMemoryConfig(**config["ltm_config"]["configs"])
     service_type = config["ltm_config"]["type"]

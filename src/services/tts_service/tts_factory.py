@@ -23,6 +23,13 @@ class TTSFactory:
 
             tts_config = FishLocalTTSConfig(**kwargs)
             return FishSpeechTTS(**tts_config.model_dump())
+
+        elif engine_type == "vllm_omni":
+            from src.configs.tts import VLLMOmniTTSConfig
+            from src.services.tts_service.vllm_omni import VLLMOmniTTSService
+
+            tts_config = VLLMOmniTTSConfig(**kwargs)
+            return VLLMOmniTTSService(**tts_config.model_dump())
         else:
             raise ValueError(f"Unknown TTS engine type: {engine_type}")
 

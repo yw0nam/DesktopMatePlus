@@ -1,17 +1,15 @@
-import logging
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.utils import convert_to_openai_messages
 from langchain_openai import OpenAIEmbeddings
+from loguru import logger
 from mem0 import Memory
 from pydantic import BaseModel, Field
 
 from src.configs.ltm import Mem0LongTermMemoryConfig
+from src.services.agent_service.utils.message_util import strip_images_from_messages
 from src.services.ltm_service.service import LTMService
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class Mem0Relation(BaseModel):
@@ -42,31 +40,31 @@ class Mem0MemoryItem(BaseModel):
         ...,
         description="Memory content/text",
     )
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         default=None,
         description="Associated user ID",
     )
-    agent_id: Optional[str] = Field(
+    agent_id: str | None = Field(
         default=None,
         description="Associated agent ID",
     )
-    hash: Optional[str] = Field(
+    hash: str | None = Field(
         default=None,
         description="Memory hash for deduplication",
     )
-    metadata: Optional[dict] = Field(
+    metadata: dict | None = Field(
         default=None,
         description="Additional metadata associated with the memory",
     )
-    score: Optional[float] = Field(
+    score: float | None = Field(
         default=None,
         description="Similarity score for search results",
     )
-    created_at: Optional[str] = Field(
+    created_at: str | None = Field(
         default=None,
         description="Timestamp when the memory was created",
     )
-    updated_at: Optional[str] = Field(
+    updated_at: str | None = Field(
         default=None,
         description="Timestamp when the memory was last updated",
     )
@@ -93,8 +91,7 @@ class Mem0LTM(LTMService[Memory]):
         self.memory_config = memory_config
         super().__init__()
         logger.info(
-            "Long Term Memory Service is initialized. Memory client initialized: %s",
-            self.memory_client,
+            f"Long Term Memory Service is initialized. Memory client initialized: {self.memory_client is not None}"
         )
 
     def initialize_memory(self) -> Memory:
@@ -146,7 +143,7 @@ class Mem0LTM(LTMService[Memory]):
         return result
 
     def add_memory(
-        self, messages: list[BaseMessage], user_id: str, agent_id: str
+        self, messages: list[BaseMessage] | str, user_id: str, agent_id: str
     ) -> Mem0Response:
         """
         Add information to memory.
@@ -156,34 +153,40 @@ class Mem0LTM(LTMService[Memory]):
         """
         try:
             messages = convert_to_openai_messages(messages)
-            # Mem0 work better when each message is prefixed with user_id or agent_id
-            for msg in messages:
-                # Skip tool calls (assistant with tool_calls) and tool messages
-                if msg.get("role") == "tool" or msg.get("tool_calls"):
-                    continue
+            # !Decrepated: Prefixing messages with user_id or agent_id is no longer necessary
+            # # Mem0 work better when each message is prefixed with user_id or agent_id
+            # for msg in messages:
+            #     # Skip tool calls (assistant with tool_calls) and tool messages
+            #     if msg.get("role") == "tool" or msg.get("tool_calls"):
+            #         continue
 
-                # Process user and assistant messages
-                if msg.get("role") in ("user", "assistant"):
-                    prefix = (
-                        f"{user_id}: " if msg["role"] == "user" else f"{agent_id}: "
-                    )
-                    content = msg.get("content")
+            #     # Process user and assistant messages
+            #     if msg.get("role") in ("user", "assistant"):
+            #         prefix = (
+            #             f"{user_id}: " if msg["role"] == "user" else f"{agent_id}: "
+            #         )
+            #         content = msg.get("content")
 
-                    if content is None:
-                        continue
+            #         if content is None:
+            #             continue
 
-                    # Handle string content
-                    if isinstance(content, str):
-                        if not content.startswith(prefix):
-                            msg["content"] = prefix + content
-                    # Handle list content (multimodal)
-                    elif isinstance(content, list):
-                        for item in content:
-                            # Only add prefix to text items, skip image_url
-                            if isinstance(item, dict) and item.get("type") == "text":
-                                if not item["text"].startswith(prefix):
-                                    item["text"] = prefix + item["text"]
-                                break  # Only prefix the first text item
+            #         # Handle string content
+            #         if isinstance(content, str):
+            #             if not content.startswith(prefix):
+            #                 msg["content"] = prefix + content
+            #         # Handle list content (multimodal)
+            #         elif isinstance(content, list):
+            #             for item in content:
+            #                 # Only add prefix to text items, skip image_url
+            #                 if isinstance(item, dict) and item.get("type") == "text":
+            #                     if not item["text"].startswith(prefix):
+            #                         item["text"] = prefix + item["text"]
+            #                     break  # Only prefix the first text item
+
+            if (
+                not self.memory_config.llm.config.enable_vision
+            ):  # If vision is not enabled, remove image_url items from messages
+                messages = strip_images_from_messages(messages)
 
             result = self.memory_client.add(
                 messages,
@@ -233,6 +236,7 @@ class Mem0LTM(LTMService[Memory]):
             model=mem0_config.embedder.config.model_name,
             openai_api_base=mem0_config.embedder.config.openai_base_url,
             openai_api_key=mem0_config.embedder.config.openai_api_key,
+            # dimensions=mem0_config.embedder.config.embedding_dims,
         )
         embedding_dict = {
             "provider": "langchain",

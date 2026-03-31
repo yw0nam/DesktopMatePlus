@@ -1,6 +1,6 @@
 """LTM (Long-Term Memory) API request and response models."""
 
-from typing import Any, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -31,7 +31,7 @@ class AddMemoryRequest(BaseModel):
         description="Agent identifier",
         min_length=1,
     )
-    memory_dict: Union[list[MemoryMessageDict], str] = Field(
+    memory_dict: list[MemoryMessageDict] | str = Field(
         ...,
         description="Memory content - either a list of role-content dicts or a plain string",
     )
@@ -76,6 +76,11 @@ class SearchMemoryRequest(BaseModel):
         ...,
         description="Search query string",
         min_length=1,
+    )
+    limit: int = Field(
+        default=10,
+        description="Maximum number of search results to return",
+        ge=1,
     )
 
 

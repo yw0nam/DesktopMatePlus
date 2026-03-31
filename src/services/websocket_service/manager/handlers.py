@@ -2,51 +2,45 @@
 
 import asyncio
 import json
-from pathlib import Path
-from typing import Optional
 from uuid import UUID, uuid4
 
-import yaml
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from loguru import logger
 
 from src.models.websocket import (
     AuthorizeErrorMessage,
     AuthorizeMessage,
     AuthorizeSuccessMessage,
-    AvatarConfigFile,
-    AvatarConfigFilesMessage,
-    AvatarConfigSwitchedMessage,
-    BackgroundFilesMessage,
     ChatMessage,
     ErrorMessage,
-    FetchAvatarConfigsMessage,
-    FetchBackgroundsMessage,
     PongMessage,
-    SwitchAvatarConfigMessage,
 )
-from src.services import get_agent_service, get_ltm_service, get_stm_service
-from src.services.vlm_service.utils import prepare_image_for_vlm
+from src.services import get_agent_service
+from src.services.service_manager import (
+    get_emotion_motion_mapper,
+    get_session_registry,
+    get_tts_service,
+)
 from src.services.websocket_service.message_processor import MessageProcessor
 
 
 class MessageHandler:
     """Handles different types of WebSocket messages."""
 
-    def __init__(self, get_connection_fn, send_message_fn, disconnect_fn=None):
+    def __init__(self, get_connection_fn, send_message_fn, close_connection_fn):
         """Initialize message handler.
 
         Args:
             get_connection_fn: Function to get connection state by ID.
             send_message_fn: Function to send messages to connections.
-            disconnect_fn: Function to disconnect connections.
+            close_connection_fn: Function to close connections with code and reason.
         """
         self.get_connection = get_connection_fn
         self.send_message = send_message_fn
-        self.disconnect = disconnect_fn
+        self.close_connection = close_connection_fn
 
     @staticmethod
-    def validate_token(token: str) -> Optional[str]:
+    def validate_token(token: str) -> str | None:
         """Validate authentication token.
 
         Args:
@@ -77,7 +71,10 @@ class MessageHandler:
 
             # Initialize MessageProcessor for this connection
             connection_state.message_processor = MessageProcessor(
-                connection_id=connection_id, user_id=user_id
+                connection_id=connection_id,
+                user_id=user_id,
+                tts_service=get_tts_service(),
+                mapper=get_emotion_motion_mapper(),
             )
 
             response = AuthorizeSuccessMessage(connection_id=connection_id)
@@ -88,16 +85,13 @@ class MessageHandler:
             await self.send_message(connection_id, response)
             logger.warning(f"Authentication failed for connection {connection_id}")
 
-            # Close connection after sending error
-            try:
-                await connection_state.websocket.close(
-                    code=4001, reason="Authentication failed"
-                )
-            except Exception as e:
-                logger.error(f"Error closing websocket after auth failure: {e}")
-            finally:
-                if self.disconnect:
-                    self.disconnect(connection_id)
+            # Close connection after sending error using standardized method
+            await self.close_connection(
+                connection_id=connection_id,
+                code=4001,
+                reason="Authentication failed",
+                notify_client=True,
+            )
 
     async def handle_pong(self, connection_id: UUID, message: PongMessage):
         """Handle client pong response.
@@ -145,8 +139,6 @@ class MessageHandler:
             return
 
         agent_service = get_agent_service()
-        stm_service = get_stm_service()
-        ltm_service = get_ltm_service()
 
         if agent_service is None:
             logger.error("Agent service not initialized")
@@ -156,24 +148,20 @@ class MessageHandler:
             )
             return
 
-        if stm_service is None:
-            logger.error("STM service not initialized")
-            await self.send_message(
-                connection_id,
-                ErrorMessage(error="STM service not initialized"),
-            )
-            return
-
         try:
             # Extract message content and persistent identifiers
             content = message_data.get("content", "")
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
-            persona = message_data.get("persona")
-            conversation_id = message_data.get("conversation_id", str(uuid4()))
-            message_limit = message_data.get("limit", 10)
+            persona_id = message_data.get("persona_id", "yuri")
+            # Extract session_id from client (None for new conversations)
+            session_id = message_data.get("session_id")
+            message_data.get("limit", 10)
             images = message_data.get("images", None)
             metadata = dict(message_data.get("metadata", {}) or {})
+            tts_enabled = message_data.get("tts_enabled", True)
+            reference_id = message_data.get("reference_id", None)
+
             # Validate required persistent identifiers
             if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
                 await self.send_message(
@@ -193,57 +181,47 @@ class MessageHandler:
                 )
                 return
 
-            metadata.setdefault("conversation_id", conversation_id)
-            message_history = []
-            # Retrieve long-term memories if available
-            if ltm_service:
-                search_result = ltm_service.search_memory(
-                    query=content, user_id=user_id, agent_id=agent_id
+            # CRITICAL: Generate UUID for new conversations (when client sends None)
+            # This ensures a single UUID is used throughout the entire conversation turn
+            if session_id is None:
+                session_id = str(uuid4())
+                logger.info(
+                    f"Generated new session_id {session_id} for user {user_id}, agent {agent_id}"
                 )
-                if search_result.get("results", []) != []:
-                    result = json.dumps(search_result)
-                    # Prepend retrieved memories to the message history
-                    message_history.append(
-                        SystemMessage(content=f"Long-term memories: {result}")
-                    )
-            # Retrieve short-term memories if available
-            if stm_service:
-                message_history = stm_service.get_chat_history(
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    session_id=conversation_id,
-                    limit=message_limit,
+            else:
+                logger.info(
+                    f"Using existing session_id {session_id} for user {user_id}, agent {agent_id}"
                 )
+
+            session_id = str(session_id)
+            metadata.setdefault("session_id", session_id)
+
+            registry = get_session_registry()
+            if registry:
+                await asyncio.to_thread(registry.upsert, session_id, user_id, agent_id)
 
             content = [{"type": "text", "text": content}]
             if images and agent_service.support_image:
-                image_dicts = prepare_image_for_vlm(images)
-                # Ensure image_dicts is a list for extend
-                if isinstance(image_dicts, dict):
-                    content.append(image_dicts)
-                else:
-                    content.extend(image_dicts)
+                content.extend(images)
 
-            message_history.append(HumanMessage(content=content))
-            # TODO: Add tools support here
-            # Use persistent user_id for client_id instead of connection-based ID
+            metadata["user_id"] = user_id
+            metadata["agent_id"] = agent_id
 
             agent_stream = agent_service.stream(
-                messages=message_history,
-                conversation_id=conversation_id,
-                tools=[],  # TODO: support tools per agent
-                persona=persona,
+                messages=[HumanMessage(content=content)],
+                session_id=session_id,
+                persona_id=persona_id,
                 user_id=user_id,
                 agent_id=agent_id,
-                stm_service=stm_service,
-                ltm_service=ltm_service,
             )
 
             turn_id = await connection_state.message_processor.start_turn(
-                conversation_id=conversation_id,
+                session_id=session_id,
                 user_input=content,
                 agent_stream=agent_stream,
                 metadata=metadata,
+                tts_enabled=tts_enabled,
+                reference_id=reference_id,
             )
 
             forward_task = asyncio.create_task(
@@ -255,20 +233,41 @@ class MessageHandler:
             )
             if not added:
                 logger.debug(
-                    "Failed to register forward task for turn %s on connection %s",
-                    turn_id,
+                    f"Failed to register forward task for turn {turn_id} on connection {connection_id}"
+                )
+
+        except RuntimeError as e:
+            # Handle concurrent turn constraint violation
+            error_msg = str(e)
+            if "Another turn is already active" in error_msg:
+                logger.warning(
+                    f"Concurrent turn rejected for {connection_id}: {error_msg}"
+                )
+                await self.send_message(
                     connection_id,
+                    ErrorMessage(
+                        error=error_msg,
+                        code=4002,  # Custom code for concurrent turn rejection
+                    ),
+                )
+            else:
+                logger.error(
+                    f"Runtime error processing chat message from {connection_id}: {e}"
+                )
+                await self.send_message(
+                    connection_id,
+                    ErrorMessage(error=f"Failed to process message: {e!s}"),
                 )
 
         except Exception as e:
             logger.error(f"Error processing chat message from {connection_id}: {e}")
             await self.send_message(
                 connection_id,
-                ErrorMessage(error=f"Failed to process message: {str(e)}"),
+                ErrorMessage(error=f"Failed to process message: {e!s}"),
             )
 
     async def handle_interrupt(
-        self, connection_id: UUID, turn_id: Optional[str] = None
+        self, connection_id: UUID, turn_id: str | None = None
     ) -> bool:
         """Interrupt an active conversation turn for a connection.
 
@@ -337,160 +336,6 @@ class MessageHandler:
 
             return interrupted_count > 0
 
-    async def handle_fetch_backgrounds(
-        self, connection_id: UUID, message: FetchBackgroundsMessage
-    ):
-        """Handle fetch backgrounds request.
-
-        Args:
-            connection_id: Connection identifier.
-            message: Fetch backgrounds message.
-        """
-        try:
-            # TODO: Make this path configurable
-            bg_dir = Path("resources/backgrounds")
-            if not bg_dir.exists():
-                logger.warning(f"Backgrounds directory not found: {bg_dir}")
-                files = []
-            else:
-                files = [
-                    f"/bg/{f.name}"
-                    for f in bg_dir.iterdir()
-                    if f.is_file()
-                    and f.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}
-                ]
-
-            response = BackgroundFilesMessage(files=files)
-            await self.send_message(connection_id, response)
-            logger.info(f"Sent {len(files)} background files to {connection_id}")
-        except Exception as e:
-            logger.error(f"Error fetching backgrounds: {e}")
-            await self.send_message(connection_id, ErrorMessage(error=str(e)))
-
-    async def handle_fetch_avatar_configs(
-        self, connection_id: UUID, message: FetchAvatarConfigsMessage
-    ):
-        """Handle fetch avatar configs request.
-
-        Args:
-            connection_id: Connection identifier.
-            message: Fetch avatar configs message.
-        """
-        try:
-            # TODO: Make this path configurable
-            config_dir = Path("resources/characters")
-            configs = []
-
-            if config_dir.exists():
-                for file_path in config_dir.glob("*.yaml"):
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            data = yaml.safe_load(f)
-                            # Extract name from config, similar to reference implementation
-                            # Assuming structure: character_config: { conf_name: "Name" }
-                            name = file_path.name
-                            if data and "character_config" in data:
-                                name = data["character_config"].get(
-                                    "conf_name", file_path.name
-                                )
-
-                            configs.append(
-                                AvatarConfigFile(filename=file_path.name, name=name)
-                            )
-                    except Exception as e:
-                        logger.warning(f"Error reading config {file_path}: {e}")
-                        # Add with filename as fallback
-                        configs.append(
-                            AvatarConfigFile(
-                                filename=file_path.name, name=file_path.name
-                            )
-                        )
-            else:
-                logger.warning(f"Configs directory not found: {config_dir}")
-
-            response = AvatarConfigFilesMessage(configs=configs)
-            await self.send_message(connection_id, response)
-            logger.info(f"Sent {len(configs)} avatar configs to {connection_id}")
-        except Exception as e:
-            logger.error(f"Error fetching avatar configs: {e}")
-            await self.send_message(connection_id, ErrorMessage(error=str(e)))
-
-    async def handle_switch_avatar_config(
-        self, connection_id: UUID, message: SwitchAvatarConfigMessage
-    ):
-        """Handle switch avatar config request.
-
-        Args:
-            connection_id: Connection identifier.
-            message: Switch avatar config message.
-        """
-        try:
-            logger.info(
-                f"Switching avatar config to {message.file} for {connection_id}"
-            )
-
-            # Verify file exists
-            config_path = Path("resources/characters") / message.file
-            if not config_path.exists():
-                raise FileNotFoundError(f"Config file not found: {message.file}")
-
-            # Load the new configuration
-            with open(config_path, "r", encoding="utf-8") as f:
-                new_config_data = yaml.safe_load(f)
-
-            if not new_config_data or "character_config" not in new_config_data:
-                raise ValueError(f"Invalid config file format: {message.file}")
-
-            character_config = new_config_data["character_config"]
-            conf_name = character_config.get("conf_name", message.file)
-            conf_uid = character_config.get("conf_uid", str(uuid4()))
-
-            # TODO: In a full implementation, you would:
-            # 1. Update the connection's service context with new config
-            # For now, we'll send back the config info
-
-            # Extract model info and hydrate URL if missing
-            model_info = character_config.get("live2d_model_info", {}) or {}
-            model_name = character_config.get("live2d_model_name")
-            persona_prompt = character_config.get("persona_prompt", "")
-            if model_name and "url" not in model_info:
-                runtime_file = (
-                    Path("resources/live2d-models")
-                    / model_name
-                    / "runtime"
-                    / f"{model_name}.model3.json"
-                )
-                if runtime_file.exists():
-                    model_info["url"] = (
-                        f"/live2d/{model_name}/runtime/{runtime_file.name}"
-                    )
-                else:
-                    logger.warning(
-                        f"Live2D runtime file missing for model {model_name}: {runtime_file}"
-                    )
-
-            # Send set_model_and_conf message
-            from src.models.websocket import SetModelAndConfMessage
-
-            set_model_msg = SetModelAndConfMessage(
-                model_info=model_info,
-                conf_name=conf_name,
-                conf_uid=conf_uid,
-                client_uid=str(connection_id),
-                persona_prompt=persona_prompt,
-            )
-            await self.send_message(connection_id, set_model_msg)
-
-            # Send config switched confirmation
-            response = AvatarConfigSwitchedMessage(file=message.file)
-            await self.send_message(connection_id, response)
-
-            logger.info(f"Configuration switched to {message.file} for {connection_id}")
-
-        except Exception as e:
-            logger.error(f"Error switching avatar config: {e}")
-            await self.send_message(connection_id, ErrorMessage(error=str(e)))
-
 
 async def forward_turn_events(
     connection_id: UUID, turn_id: str, get_connection_fn
@@ -505,17 +350,14 @@ async def forward_turn_events(
     connection_state = get_connection_fn(connection_id)
     if not connection_state:
         logger.debug(
-            "Connection %s gone before forwarding events for turn %s",
-            connection_id,
-            turn_id,
+            f"Connection {connection_id} gone before forwarding events for turn {turn_id}"
         )
         return
 
     message_processor = connection_state.message_processor
     if not message_processor:
         logger.debug(
-            "No message processor available when forwarding events for turn %s",
-            turn_id,
+            f"No message processor available when forwarding events for turn {turn_id}"
         )
         return
 
@@ -523,21 +365,22 @@ async def forward_turn_events(
 
     try:
         async for event in message_processor.stream_events(turn_id):
+            event_type = event.get("type")
+            logger.debug(
+                f"Forwarding event {event_type} for turn {turn_id} to connection {connection_id}"
+            )
             try:
-                await websocket.send_text(json.dumps(event, default=str))
-            except Exception as send_error:  # noqa: BLE001
+                event_json = json.dumps(event, default=str)
+                await websocket.send_text(event_json)
+                logger.info(
+                    f"Sent {event_type} event to connection {connection_id} (turn {turn_id})"
+                )
+            except Exception as send_error:
                 logger.error(
-                    "Failed to send event %s for turn %s on connection %s: %s",
-                    event.get("type"),
-                    turn_id,
-                    connection_id,
-                    send_error,
+                    f"Failed to send event {event_type} for turn {turn_id} on connection {connection_id}: {send_error}"
                 )
                 break
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error(
-            "Error forwarding events for turn %s on connection %s: %s",
-            turn_id,
-            connection_id,
-            exc,
+            f"Error forwarding events for turn {turn_id} on connection {connection_id}: {exc}"
         )

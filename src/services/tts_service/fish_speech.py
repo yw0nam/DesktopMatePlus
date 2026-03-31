@@ -1,15 +1,13 @@
 import base64
-import logging
-from typing import Literal, Optional
+import contextlib
+from typing import Annotated, Literal
 
 import ormsgpack
 import requests  # type: ignore
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, conint, model_validator
-from typing_extensions import Annotated
 
 from src.services.tts_service.service import TTSService
-
-logger = logging.getLogger(__name__)
 
 
 class ServeReferenceAudio(BaseModel):
@@ -20,10 +18,8 @@ class ServeReferenceAudio(BaseModel):
     def decode_audio(cls, values):
         audio = values.get("audio")
         if isinstance(audio, str):
-            try:
+            with contextlib.suppress(Exception):
                 values["audio"] = base64.b64decode(audio)
-            except Exception:
-                pass
         return values
 
     def __repr__(self) -> str:
@@ -34,7 +30,7 @@ class ServeTTSRequest(BaseModel):
     text: str
     chunk_length: Annotated[int, conint(ge=100, le=300, strict=True)] = 200
     # Audio format
-    format: Literal["wav", "pcm", "mp3"] = "wav"
+    format: Literal["wav", "pcm", "mp3"] = "mp3"
     # References audios for in-context learning
     references: list[ServeReferenceAudio] = []
     # Reference id
@@ -103,9 +99,9 @@ class FishSpeechTTS(TTSService):
         self.repetition_penalty = repetition_penalty
         self.temperature = temperature
 
-        logger.info("FishTTS initialized at %s", self.base_url)
+        logger.info(f"FishTTS initialized at {self.base_url}")
 
-    def _request_tts_stream(self, request_payload: ServeTTSRequest) -> Optional[bytes]:
+    def _request_tts_stream(self, request_payload: ServeTTSRequest) -> bytes | None:
         """
         [내부 메서드] TTS 요청을 보내고 오디오 데이터를 바이트로 반환합니다.
 
@@ -141,10 +137,11 @@ class FishSpeechTTS(TTSService):
     def generate_speech(
         self,
         text: str,
-        reference_id: Optional[str] = None,
+        reference_id: str | None = None,
         output_format: Literal["bytes", "base64", "file"] = "bytes",
-        output_filename: Optional[str] = "output.wav",
-    ) -> Optional[bytes | str | bool]:
+        output_filename: str | None = "output.wav",
+        audio_format: Literal["wav", "mp3"] = "mp3",
+    ) -> bytes | str | bool | None:
         """
         [메인 메서드] 원본 텍스트를 받아 음성을 생성하고 지정된 포맷으로 반환합니다.
 
@@ -153,6 +150,7 @@ class FishSpeechTTS(TTSService):
             reference_id: 사용할 음성 레퍼런스 ID
             output_format: 반환할 오디오 데이터 형식 ('bytes', 'base64', 'file')
             output_filename: 'file' 포맷일 경우 저장할 파일명
+            audio_format: 오디오 코덱 형식 ('wav' 또는 'mp3')
 
         Returns:
             - "bytes": 오디오 데이터 (bytes)
@@ -168,7 +166,9 @@ class FishSpeechTTS(TTSService):
             return None
 
         # 3. API 요청 페이로드 생성
-        request_payload = ServeTTSRequest(text=tts_text, reference_id=reference_id)
+        request_payload = ServeTTSRequest(
+            text=tts_text, reference_id=reference_id, format=audio_format
+        )
 
         # 4. API 호출하여 오디오 데이터 획득
         audio_bytes = self._request_tts_stream(request_payload)
@@ -191,6 +191,10 @@ class FishSpeechTTS(TTSService):
         else:  # "bytes"가 기본값
             return audio_bytes
 
+    def list_voices(self) -> list[str]:
+        """FishSpeech does not manage reference voice directories."""
+        return []
+
     def is_healthy(self) -> tuple[bool, str]:
         """Check Fish Speech TTS health by attempting a minimal synthesis."""
         try:
@@ -201,13 +205,13 @@ class FishSpeechTTS(TTSService):
             else:
                 return False, "Fish Speech TTS returned empty result"
         except Exception as e:
-            return False, f"Fish Speech TTS health check failed: {str(e)}"
+            return False, f"Fish Speech TTS health check failed: {e!s}"
 
 
 # --- 사용 예제 ---
 if __name__ == "__main__":
     # TTS 서비스 URL (실제 URL로 변경 필요)
-    TTS_API_URL = "http://localhost:8080/v1/tts"
+    TTS_API_URL = "http://192.168.41:8080/v1/tts"
 
     # 1. 서비스 인스턴스 생성
     tts_service = FishSpeechTTS(base_url=TTS_API_URL)

@@ -1,6 +1,6 @@
 # WebSocket: Chat Message
 
-Updated: 2025-11-28
+Updated: 2026-03-15
 
 ## 1. Synopsis
 
@@ -21,7 +21,7 @@ Client → Server
   "content": "Hello, what's the weather?",
   "agent_id": "yuri-assistant",
   "user_id": "user-123",
-  "conversation_id": "optional-uuid"
+  "session_id": "optional-uuid"
 }
 ```
 
@@ -33,19 +33,60 @@ Client → Server
 | `content` | string | Yes | User's input text |
 | `agent_id` | string | Yes | Agent identifier |
 | `user_id` | string | Yes | User identifier |
-| `persona` | string | No | Custom persona/system prompt |
-| `images` | array | No | Image URLs or base64 strings |
+| `persona_id` | string | No | Persona identifier — matches a key in `yaml_files/personas.yml` (default: `"yuri"`) |
+| `images` | array | No | Images in OpenAI-compatible format (see below) |
 | `limit` | integer | No | STM message limit (default: 10) |
-| `conversation_id` | string | No | Session ID (new if omitted) |
+| `session_id` | string | No | Session ID (new if omitted) |
+| `tts_enabled` | bool | No | Enable TTS synthesis (default: `true`). `false` = skip audio, still send `tts_chunk` with motion |
+| `reference_id` | string | No | Voice reference ID for TTS. `null` = engine default voice |
 | `metadata` | object | No | Additional metadata |
 
 ### Response Flow
 
 1. `stream_start` - Response begins
-2. `stream_token` (multiple) - Text chunks
-3. `tool_call` / `tool_result` - If tools used
-4. `tts_ready_chunk` - TTS-ready text
-5. `stream_end` - Response complete
+2. `tts_chunk` (multiple) - TTS audio + motion per sentence
+3. `stream_end` - Response complete (all `tts_chunk` guaranteed delivered before this)
+
+> **Note**: `stream_token`, `tool_call`, and `tool_result` events are processed **server-internally only** (for TTS synthesis and logging). They are never forwarded to the WebSocket client.
+
+### Image Format
+
+Images must follow the OpenAI-compatible format. Each image is an object with `type` and `image_url`:
+
+```json
+{
+  "type": "chat_message",
+  "content": "What's in this image?",
+  "agent_id": "yuri-assistant",
+  "user_id": "user-123",
+  "images": [
+    {
+      "type": "image_url",
+      "image_url": {
+        "url": "data:image/png;base64,<base64_data>",
+        "detail": "auto"
+      }
+    }
+  ]
+}
+```
+
+`detail` is optional and defaults to `"auto"`. Accepted values: `"auto"`, `"low"`, `"high"`.
+
+Images are only processed when the agent has `support_image: true` in its config.
+
+### Image Size Constraints
+
+| Limit                      | Value   |
+|---------------------------|---------|
+| Max binary size per image  | ~4.5 MB |
+| Max base64 size per image  | 6 MB    |
+
+**Server enforcement**: `ImageContent` validates the base64 URL size on receipt. If exceeded, the server returns an `error` event with a descriptive message instead of silently closing the connection.
+
+**Client responsibility**: Resize images to under 4 MB binary before encoding. The reference demo (`examples/realtime_tts_streaming_demo.py`) handles this automatically using Pillow.
+
+> **Why**: Base64-encoding a large image (e.g. 27 MB PNG → 36 MB JSON) exceeds the WebSocket frame limit, causing a silent connection drop with no error log.
 
 ## 3. Usage
 
@@ -66,4 +107,5 @@ socket.send(JSON.stringify({
 
 - [Stream Start](./WebSocket_StreamStart.md)
 - [Stream Token](./WebSocket_StreamToken.md)
+- [TTS Chunk](./WebSocket_TtsChunk.md)
 - [Stream End](./WebSocket_StreamEnd.md)
