@@ -17,17 +17,6 @@ Keep this document lean but contain all critical information for capturing the a
 Director-Artisan 패턴의 **Director** 역할. 변경 순서: backend → nanoclaw → desktop-homunculus.
 Task tracking: `backend/Plans.md`. 상세: `nanoclaw/.claude/rules/team-local.md` 참조.
 
-## Agent Workflow (팀메이트로 실행 시)
-
-이 레포에 에이전트 팀메이트로 배치된 경우 **반드시** 아래 스킬을 먼저 로드할 것:
-
-```
-/teammate-workflow
-```
-
-스킬 위치: `.claude/skills/teammate-workflow/SKILL.md`
-내용: 구현 → 커밋 → 리드 에이전트 보고 절차, GP 준수 사항, 에스컬레이션 조건.
-
 ---
 
 ## Core Philosophy
