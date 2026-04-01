@@ -81,14 +81,24 @@ class TestIrodoriListVoices:
         from src.services.tts_service.irodori_tts import IrodoriTTSService
 
         tts = IrodoriTTSService(base_url="http://localhost:8000")
-        assert tts.list_voices() == ["no-reference"]
+        assert tts.list_voices() == []
 
-    def test_list_voices_with_reference(self, tmp_path):
+    def test_list_voices_with_ref_audio_dir(self, tmp_path):
         from src.services.tts_service.irodori_tts import IrodoriTTSService
 
-        ref = tmp_path / "natsume.wav"
-        ref.write_bytes(b"fake_wav")
+        voice_dir = tmp_path / "natsume"
+        voice_dir.mkdir()
+        (voice_dir / "audio.wav").write_bytes(b"RIFF")
         tts = IrodoriTTSService(
-            base_url="http://localhost:8000", reference_audio_path=str(ref)
+            base_url="http://localhost:8000", ref_audio_dir=str(tmp_path)
         )
         assert tts.list_voices() == ["natsume"]
+
+    def test_list_voices_nonexistent_dir_returns_empty(self, tmp_path):
+        from src.services.tts_service.irodori_tts import IrodoriTTSService
+
+        tts = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path / "does_not_exist"),
+        )
+        assert tts.list_voices() == []

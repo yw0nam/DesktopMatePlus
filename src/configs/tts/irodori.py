@@ -9,8 +9,9 @@ class IrodoriTTSConfig(BaseModel):
     base_url: str = Field(
         ..., description="Base URL for Irodori TTS server (e.g. http://localhost:8000)"
     )
-    reference_audio_path: str | None = Field(
-        None, description="Path to WAV reference audio file. None = no-reference mode."
+    ref_audio_dir: str | None = Field(
+        None,
+        description="Directory containing voice subdirs ({name}/audio.wav). None = no-reference mode.",
     )
     seconds: float = Field(30.0, description="Duration hint for synthesis in seconds")
     num_steps: int = Field(40, description="Number of diffusion steps")

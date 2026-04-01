@@ -6,7 +6,7 @@ tts_config:
   type: "irodori"
   configs:
     base_url: "http://localhost:8000"
-    reference_audio_path: null  # Path to WAV reference audio; null for no-reference mode
+    ref_audio_dir: null  # Path to voices dir ({name}/audio.wav); null for no-reference mode
     seconds: 30.0
     num_steps: 40
     cfg_scale_text: 3.0

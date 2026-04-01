@@ -1,4 +1,4 @@
-"""Tests for IrodoriTTSService client."""
+"""Tests for IrodoriTTSService client — Multi-Voice (ref_audio_dir) API."""
 
 import base64
 from pathlib import Path
@@ -18,7 +18,7 @@ class TestIrodoriTTSConfig:
     def test_defaults(self):
         config = IrodoriTTSConfig(base_url="http://localhost:8000")
         assert config.base_url == "http://localhost:8000"
-        assert config.reference_audio_path is None
+        assert config.ref_audio_dir is None
         assert config.seconds == 30.0
         assert config.num_steps == 40
         assert config.cfg_scale_text == 3.0
@@ -29,7 +29,7 @@ class TestIrodoriTTSConfig:
     def test_custom_values(self):
         config = IrodoriTTSConfig(
             base_url="http://myserver:9000",
-            reference_audio_path="/tmp/ref.wav",
+            ref_audio_dir="/tmp/voices",
             seconds=15.0,
             num_steps=20,
             cfg_scale_text=2.5,
@@ -37,7 +37,7 @@ class TestIrodoriTTSConfig:
             seed=42,
             timeout=30.0,
         )
-        assert config.reference_audio_path == "/tmp/ref.wav"
+        assert config.ref_audio_dir == "/tmp/voices"
         assert config.seconds == 15.0
         assert config.seed == 42
 
@@ -52,16 +52,87 @@ class TestIrodoriTTSServiceInit:
     def test_default_params(self):
         svc = IrodoriTTSService(base_url="http://localhost:8000")
         assert svc.base_url == "http://localhost:8000"
-        assert svc.reference_audio_path is None
+        assert svc.ref_audio_dir is None
 
-    def test_with_reference_audio(self, tmp_path):
-        ref = tmp_path / "ref.wav"
-        ref.write_bytes(b"RIFF")
+    def test_with_ref_audio_dir(self, tmp_path):
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
-            reference_audio_path=str(ref),
+            ref_audio_dir=str(tmp_path),
         )
-        assert svc.reference_audio_path == str(ref)
+        assert svc.ref_audio_dir == Path(tmp_path)
+
+    def test_scans_voices_on_init(self, tmp_path):
+        voice_dir = tmp_path / "natsume"
+        voice_dir.mkdir()
+        (voice_dir / "audio.wav").write_bytes(b"RIFF")
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        assert "natsume" in svc._available_voices
+
+
+class TestIrodoriTTSScanVoices:
+    """Test _scan_voices method."""
+
+    def test_no_ref_audio_dir_returns_empty(self):
+        svc = IrodoriTTSService(base_url="http://localhost:8000")
+        assert svc._scan_voices() == []
+
+    def test_nonexistent_dir_returns_empty(self, tmp_path):
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path / "does_not_exist"),
+        )
+        assert svc._scan_voices() == []
+
+    def test_empty_dir_returns_empty(self, tmp_path):
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        assert svc._scan_voices() == []
+
+    def test_voice_with_audio_wav_included(self, tmp_path):
+        d = tmp_path / "aria"
+        d.mkdir()
+        (d / "audio.wav").write_bytes(b"RIFF")
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        assert "aria" in svc._scan_voices()
+
+    def test_voice_dir_without_audio_wav_excluded(self, tmp_path):
+        d = tmp_path / "incomplete"
+        d.mkdir()
+        (d / "other.wav").write_bytes(b"RIFF")
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        assert "incomplete" not in svc._scan_voices()
+
+    def test_multiple_voices_returned_sorted(self, tmp_path):
+        for name in ("zebra", "alpha", "bravo"):
+            d = tmp_path / name
+            d.mkdir()
+            (d / "audio.wav").write_bytes(b"RIFF")
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        voices = svc._scan_voices()
+        assert voices == sorted(voices)
+        assert set(voices) == {"zebra", "alpha", "bravo"}
+
+    def test_file_at_root_level_ignored(self, tmp_path):
+        (tmp_path / "README.txt").write_text("not a voice")
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        assert svc._scan_voices() == []
 
 
 class TestIrodoriTTSServiceGenerateSpeech:
@@ -206,10 +277,13 @@ class TestIrodoriTTSServiceGenerateSpeech:
         assert int(data["seed"]) == 99
 
     @patch("src.services.tts_service.irodori_tts.httpx.Client")
-    def test_reference_audio_sent_in_multipart(self, mock_client_cls, tmp_path):
-        """When reference_audio_path is set, file is sent in multipart files."""
-        ref_audio = tmp_path / "ref.wav"
-        ref_audio.write_bytes(b"RIFF")
+    def test_reference_audio_sent_when_reference_id_given(
+        self, mock_client_cls, tmp_path
+    ):
+        """When ref_audio_dir + reference_id given, audio.wav is sent in multipart files."""
+        voice_dir = tmp_path / "natsume"
+        voice_dir.mkdir()
+        (voice_dir / "audio.wav").write_bytes(b"RIFF")
 
         wav_bytes = b"RIFF\x00\x00\x00\x00WAVE"
         mock_resp = MagicMock()
@@ -225,17 +299,20 @@ class TestIrodoriTTSServiceGenerateSpeech:
 
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
-            reference_audio_path=str(ref_audio),
+            ref_audio_dir=str(tmp_path),
         )
-        svc.generate_speech("Hello", output_format="bytes")
+        result = svc.generate_speech(
+            "Hello", reference_id="natsume", output_format="bytes"
+        )
 
+        assert result == wav_bytes
         call_kwargs = mock_client.post.call_args
         files = call_kwargs[1].get("files", {}) or call_kwargs.kwargs.get("files", {})
         assert "reference_audio" in files
 
     @patch("src.services.tts_service.irodori_tts.httpx.Client")
     def test_no_reference_audio_omits_field(self, mock_client_cls):
-        """When reference_audio_path is None, reference_audio field omitted."""
+        """When ref_audio_dir is None, reference_audio field omitted."""
         wav_bytes = b"RIFF\x00\x00\x00\x00WAVE"
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -271,7 +348,6 @@ class TestIrodoriTTSServiceGenerateSpeech:
 
         svc = self._make_service()
         result = svc.generate_speech("Hello", output_format="bytes")
-        # Empty bytes are falsy but we should return None, not b""
         assert result is None
 
     @patch("src.services.tts_service.irodori_tts.httpx.Client")
@@ -295,33 +371,62 @@ class TestIrodoriTTSServiceGenerateSpeech:
         )
         assert result is False
 
-    def test_missing_reference_audio_file_returns_none(self):
-        """reference_audio_path set to non-existent file → None (graceful)."""
+    def test_invalid_reference_id_returns_none(self, tmp_path):
+        """reference_id that does not exist in ref_audio_dir → None."""
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
-            reference_audio_path="/tmp/nonexistent_ref_abc123.wav",
+            ref_audio_dir=str(tmp_path),
         )
-        result = svc.generate_speech("Hello", output_format="bytes")
+        result = svc.generate_speech("Hello", reference_id="nonexistent_voice")
+        assert result is None
+
+    def test_reference_id_no_audio_wav_returns_none(self, tmp_path):
+        """reference_id dir exists but audio.wav missing → None."""
+        voice_dir = tmp_path / "empty_voice"
+        voice_dir.mkdir()
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        result = svc.generate_speech("Hello", reference_id="empty_voice")
         assert result is None
 
 
 class TestIrodoriTTSServiceListVoices:
     """Test list_voices method."""
 
-    def test_list_voices_with_reference(self, tmp_path):
-        ref = tmp_path / "narrator.wav"
-        ref.write_bytes(b"RIFF")
+    def test_list_voices_no_ref_audio_dir_returns_empty(self):
+        svc = IrodoriTTSService(base_url="http://localhost:8000")
+        assert svc.list_voices() == []
+
+    def test_list_voices_with_voices(self, tmp_path):
+        for name in ("natsume", "aria"):
+            d = tmp_path / name
+            d.mkdir()
+            (d / "audio.wav").write_bytes(b"RIFF")
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
-            reference_audio_path=str(ref),
+            ref_audio_dir=str(tmp_path),
         )
         voices = svc.list_voices()
-        assert voices == ["narrator"]
+        assert set(voices) == {"natsume", "aria"}
 
-    def test_list_voices_no_reference(self):
-        svc = IrodoriTTSService(base_url="http://localhost:8000")
-        voices = svc.list_voices()
-        assert voices == ["no-reference"]
+    def test_list_voices_nonexistent_dir_returns_empty(self, tmp_path):
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path / "does_not_exist"),
+        )
+        assert svc.list_voices() == []
+
+    def test_list_voices_returns_cached(self, tmp_path):
+        d = tmp_path / "voice1"
+        d.mkdir()
+        (d / "audio.wav").write_bytes(b"RIFF")
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            ref_audio_dir=str(tmp_path),
+        )
+        assert svc.list_voices() is svc.list_voices()
 
 
 class TestIrodoriTTSServiceIsHealthy:
