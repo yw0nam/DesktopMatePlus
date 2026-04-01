@@ -7,7 +7,7 @@ AI-powered desktop companion backend with real-time streaming, vision, speech, a
 This is the Python FastAPI backend for DesktopMatePlus, a 3D desktop AI companion (Yuri). The backend provides:
 
 - **Real-time Chat Streaming**: WebSocket-based streaming with automatic TTS chunk generation
-- **Text-to-Speech (TTS)**: Natural voice synthesis with voice cloning using Fish Speech / vLLM Omni
+- **Text-to-Speech (TTS)**: Natural voice synthesis with emoji-driven emotion control using IrodoriTTS
 - **Cognitive Agent**: OpenAI-based agent with tool calling, streaming, and image support
 - **Memory System**: Long-term memory (LTM) using mem0 and short-term memory (STM) using MongoDB
 - **Task Delegation**: Background task delegation to NanoClaw with automatic expired task cleanup
@@ -25,7 +25,7 @@ The backend is built as a FastAPI-based HTTP/WebSocket server designed for C# fr
 - **Service Architecture**: Modular design with independent TTS, Agent, and Memory services
 - **Task Delegation & Sweep**: Delegate tasks to NanoClaw; background sweep auto-fails expired tasks
 - **Customizable Personas**: Dynamic agent personality configuration per message
-- **External Model Servers**: Calls external APIs (OpenAI, vLLM, Fish Speech) - no GPU inference in backend process
+- **External Model Servers**: Calls external APIs (OpenAI, vLLM, IrodoriTTS) - no GPU inference in backend process
 
 ## Project Structure
 
@@ -37,7 +37,7 @@ src/
 │   ├── agent_service/            # OpenAI chat agent with tools
 │   ├── ltm_service/              # Long-term memory (mem0)
 │   ├── stm_service/              # Short-term memory (MongoDB)
-│   ├── tts_service/              # Text-to-speech (Fish Speech, vLLM Omni)
+│   ├── tts_service/              # Text-to-speech (IrodoriTTS, emoji emotion detection)
 │   ├── vlm_service/              # Vision language model (deprecated)
 │   ├── task_sweep_service/       # Background expired task cleanup
 │   ├── websocket_service/        # WebSocket streaming gateway
@@ -141,7 +141,7 @@ bash scripts/lint.sh
 
 ### Setup & Configuration
 - [Environment Variables](docs/setup/ENVIRONMENT.md) - Complete .env configuration
-- [External Dependencies](docs/setup/DEPENDENCIES.md) - MongoDB, Qdrant, vLLM, Fish Speech setup
+- [External Dependencies](docs/setup/DEPENDENCIES.md) - MongoDB, Qdrant, vLLM, IrodoriTTS setup
 - [Configuration System](docs/feature/config/README.md) - YAML config management
 
 ### API Reference
