@@ -89,8 +89,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 initialize_mongodb_client,
                 initialize_tts_service,
             )
-            from src.services.service_manager import get_tts_service
-            from src.services.tts_service.fish_speech import FishSpeechTTS
 
             print("\n📋 Loading service configurations...")
 
@@ -100,10 +98,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             else:
                 print("  - TTS config: Using default")
                 initialize_tts_service()
-
-            _tts = get_tts_service()
-            if isinstance(_tts, FishSpeechTTS):
-                await _tts.start_worker()
 
             initialize_emotion_motion_mapper()
 
@@ -220,15 +214,6 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
     ) -> None:
         if sweep_service is not None:
             await sweep_service.stop()
-        try:
-            from src.services.service_manager import get_tts_service
-            from src.services.tts_service.fish_speech import FishSpeechTTS
-
-            _tts = get_tts_service()
-            if isinstance(_tts, FishSpeechTTS):
-                await _tts.stop_worker()
-        except Exception:
-            pass
         print(f"👋 Shutting down {settings.app_name}")
 
     @asynccontextmanager

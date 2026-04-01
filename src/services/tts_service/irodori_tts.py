@@ -22,7 +22,7 @@ class IrodoriTTSService(TTSService):
     """HTTP client for Irodori TTS POST /synthesize endpoint.
 
     Multi-voice support: voices are discovered by scanning ref_audio_dir for
-    subdirectories that contain an audio.wav file ({ref_audio_dir}/{name}/audio.wav).
+    subdirectories that contain an merged_audio.mp3 file ({ref_audio_dir}/{name}/merged_audio.mp3).
     """
 
     def __init__(
@@ -51,19 +51,15 @@ class IrodoriTTSService(TTSService):
         )
 
     def _scan_voices(self) -> list[str]:
-        """Scan ref_audio_dir for voice subdirectories containing audio.wav.
-
-        Returns:
-            Sorted list of voice names (directory names with audio.wav present).
-        """
-        if self.ref_audio_dir is None or not self.ref_audio_dir.exists():
+        if not self.ref_audio_dir.exists():
             return []
-        voices: list[str] = [
-            d.name
-            for d in sorted(self.ref_audio_dir.iterdir())
-            if d.is_dir() and (d / "audio.wav").exists()
-        ]
+        voices: list[str] = []
+        for d in sorted(self.ref_audio_dir.iterdir()):
+            if d.is_dir():
+                if (d / "merged_audio.mp3").exists():
+                    voices.append(d.name)
         return voices
+
 
     def _post_synthesize(
         self, text: str, reference_audio_path: Path | None = None
@@ -122,7 +118,7 @@ class IrodoriTTSService(TTSService):
         Args:
             text: Text to synthesize. May contain emoji for emotion control.
             reference_id: Voice name under ref_audio_dir. Resolves to
-                {ref_audio_dir}/{reference_id}/audio.wav. None = no-reference mode.
+                {ref_audio_dir}/{reference_id}/merged_audio.mp3. None = no-reference mode.
                 Returns None when reference_id is given but file not found.
             output_format: 'bytes' | 'base64' | 'file'
             output_filename: Destination path when output_format == 'file'.
@@ -142,7 +138,7 @@ class IrodoriTTSService(TTSService):
                     f"IrodoriTTS: reference_id '{reference_id}' given but ref_audio_dir is not set"
                 )
                 return None
-            candidate = self.ref_audio_dir / reference_id / "audio.wav"
+            candidate = self.ref_audio_dir / reference_id / "merged_audio.mp3"
             if not candidate.exists():
                 logger.error(f"IrodoriTTS: reference audio not found: {candidate}")
                 return None

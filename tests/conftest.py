@@ -25,7 +25,7 @@ def test_settings_yaml():
     """Create a temporary YAML settings file for testing."""
     config = {
         "services": {
-            "tts_service": "fish_speech.yml",
+            "tts_service": "irodori.yml",
             "agent_service": "openai_chat_agent.yml",
             "ltm_service": "mem0.yml",
             "channel_service": "channel.yml",
