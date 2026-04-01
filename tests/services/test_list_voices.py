@@ -1,6 +1,5 @@
 """Unit tests for list_voices() on TTS service implementations."""
 
-from src.services.tts_service.fish_speech import FishSpeechTTS
 from src.services.tts_service.vllm_omni import VLLMOmniTTSService
 
 
@@ -77,11 +76,19 @@ class TestVLLMOmniListVoices:
         assert tts.list_voices() == []
 
 
-class TestFishSpeechListVoices:
-    def test_list_voices_returns_empty_list(self):
-        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
-        assert tts.list_voices() == []
+class TestIrodoriListVoices:
+    def test_list_voices_no_reference(self):
+        from src.services.tts_service.irodori_tts import IrodoriTTSService
 
-    def test_list_voices_return_type_is_list(self):
-        tts = FishSpeechTTS(base_url="http://localhost:8080/v1/tts")
-        assert isinstance(tts.list_voices(), list)
+        tts = IrodoriTTSService(base_url="http://localhost:8000")
+        assert tts.list_voices() == ["no-reference"]
+
+    def test_list_voices_with_reference(self, tmp_path):
+        from src.services.tts_service.irodori_tts import IrodoriTTSService
+
+        ref = tmp_path / "natsume.wav"
+        ref.write_bytes(b"fake_wav")
+        tts = IrodoriTTSService(
+            base_url="http://localhost:8000", reference_audio_path=str(ref)
+        )
+        assert tts.list_voices() == ["natsume"]

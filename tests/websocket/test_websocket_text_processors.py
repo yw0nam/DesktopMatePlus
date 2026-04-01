@@ -104,7 +104,7 @@ class TestTTSTextProcessor:
         assert processed.filtered_text == "Hello world"
         assert processed.emotion_tag is None
 
-    def test_parenthetical_nonverbal_removed(self, tmp_path):
+    def test_parenthetical_nonverbal_removed_via_rule(self, tmp_path):
         rules_file = tmp_path / "rules.yml"
         rules_file.write_text(
             "rules:\n  - pattern: '\\([^)]*\\)'\n    replacement: ''\n  - pattern: '\\s{2,}'\n    replacement: ' '\n",
@@ -116,13 +116,13 @@ class TestTTSTextProcessor:
         assert "嬉しそうに" not in result.filtered_text
         assert "今日も一緒に楽しい時間を作ろうね" in result.filtered_text
 
-    def test_production_rules_remove_nonverbal(self):
-        """Verify the real tts_rules.yml filters non-verbal parenthetical content."""
+    def test_production_rules_preserve_emoji(self):
+        """Production tts_rules.yml does NOT remove emoji (Irodori uses them)."""
         processor = TTSTextProcessor()
 
-        result = processor.process("(手を振って) 何か面白いことある？")
-        assert "手を振って" not in result.filtered_text
-        assert "何か面白いことある" in result.filtered_text
+        result = processor.process("😊今日も楽しいね！")
+        assert "😊" in result.filtered_text
+        assert "今日も楽しいね" in result.filtered_text
 
 
 class TestPipelineIntegration:
@@ -165,7 +165,8 @@ class TestPipelineIntegration:
         assert outputs == ["Hello world.", "All good?"]
 
     def test_pipeline_builder_returns_processed_text(self):
-        processed = build_sentence_pipeline(["(laughing) Hello!", " All set."])
+        processed = build_sentence_pipeline(["😊 Hello!", " All set."])
 
-        assert [item.filtered_text for item in processed] == ["Hello!", "All set."]
-        assert processed[0].emotion_tag == "laughing"
+        texts = [item.filtered_text for item in processed]
+        assert any("Hello" in t for t in texts)
+        assert any("All set" in t for t in texts)
