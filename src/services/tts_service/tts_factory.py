@@ -30,6 +30,13 @@ class TTSFactory:
 
             tts_config = VLLMOmniTTSConfig(**kwargs)
             return VLLMOmniTTSService(**tts_config.model_dump())
+
+        elif engine_type == "irodori":
+            from src.configs.tts.irodori import IrodoriTTSConfig
+            from src.services.tts_service.irodori_tts import IrodoriTTSService
+
+            tts_config = IrodoriTTSConfig(**kwargs)
+            return IrodoriTTSService(**tts_config.model_dump())
         else:
             raise ValueError(f"Unknown TTS engine type: {engine_type}")
 
