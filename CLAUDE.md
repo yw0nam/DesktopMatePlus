@@ -69,7 +69,8 @@ Task tracking: `backend/Plans.md`. 상세: `nanoclaw/.claude/rules/team-local.md
 - `src/main.py`: Application entry point and lifespan management.
 - `yaml_files/`: Service configuration files.
   - `personas.yml`: Persona definitions (system prompts keyed by `persona_id`).
-  - `tts_rules.yml`: TTS text chunking rules, emotion keywords, and `emotion_motion_map` (emotion → keyframes).
+  - `tts_rules.yml`: TTS text chunking rules, emoji emotion detection patterns, and `emotion_motion_map` (emotion → keyframes).
+  - `services/tts_service/irodori.yml`: IrodoriTTS client config (API URL, voice, timeout).
   - `services/checkpointer.yml`: MongoDB connection config for LangGraph `MongoDBSaver` checkpointer and `SessionRegistry`.
 - `tests/`: Unit and integration tests.
 

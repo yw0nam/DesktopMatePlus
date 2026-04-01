@@ -2,6 +2,16 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+## [2.4.0] - 2026-04-01
+
+### Added
+- IrodoriTTSService: new TTS client with `IrodoriTTSConfig` — API URL, voice ID, and timeout configurable via `yaml_files/services/tts_service/irodori.yml`
+- Emoji-based emotion detection: the model can now embed emojis (😊 😭 😠 etc.) directly in speech text to control IrodoriTTS voice style and expression; see `EMOJI_ANNOTATIONS.md` for the full reference table
+- Edge-case guards for `output_filename=None` in TTS synthesis pipeline
+
+### Removed
+- Fish Speech TTS backend (`fish_speech.py`, `FishLocalConfig`) — fully replaced by IrodoriTTS
+
 ## [2.3.0] - 2026-03-31
 
 ### Fixed
