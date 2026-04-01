@@ -141,10 +141,11 @@ async def test_agent_stream_events_forwarded(processor: MessageProcessor):
 
     assert [e["type"] for e in events] == [
         "stream_start",
+        "stream_token",
         "tts_chunk",
         "stream_end",
     ]
-    assert events[1]["text"] == "Hello"
+    assert events[2]["text"] == "Hello"
     assert processor.get_event_queue(turn_id) is None
     assert processor.turns[turn_id].status == TurnStatus.COMPLETED
 
