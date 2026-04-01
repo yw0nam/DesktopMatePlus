@@ -79,5 +79,5 @@ scripts/run.sh --stop
 
 ### Notes
 
-- Phase 3 requires real external services (MongoDB, Qdrant). Skip with `--no-slow` flag if not available.
+- Phase 3 requires real external services (MongoDB, Qdrant). If services are unavailable, the backend starts but `/health` returns 500; the TTS demo will fail and Phase 3 will be marked FAIL.
 - `check-task.sh` picks a random port (5000-9999) to avoid collisions with the main app on 5500.

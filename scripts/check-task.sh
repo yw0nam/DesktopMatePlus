@@ -77,6 +77,8 @@ fi
 echo ""
 echo "=== Phase 2: pytest -k '$KEYWORD' ==="
 PHASE2_STATUS="FAIL"
+# test_fish_speech.py is excluded: fish_speech module was removed but the test file
+# was not deleted. Skip it to prevent collection errors from blocking other tests.
 if uv run pytest -k "$KEYWORD" -v --ignore=tests/services/test_fish_speech.py; then
     PHASE2_STATUS="OK"
     echo "[check-task] Phase 2: PASSED"
@@ -144,13 +146,15 @@ else
     ERROR_LINES=$(grep -E '\|\s+ERROR\s+\|' "$LOG_FILE" 2>/dev/null || true)
     ERROR_COUNT=$(echo "$ERROR_LINES" | grep -c . || true)
 
-    if [[ "$ERROR_COUNT" -gt 0 ]]; then
+    if [[ "$DEMO_STATUS" == "FAIL" ]]; then
+        PHASE3_STATUS="FAIL (demo exited non-zero)"
+    elif [[ "$ERROR_COUNT" -gt 0 ]]; then
         echo "[check-task] Found $ERROR_COUNT ERROR line(s) in log:"
         echo "$ERROR_LINES"
         OVERALL_PASS=false
-        PHASE3_STATUS="FAIL (${ERROR_COUNT} ERROR lines, demo=${DEMO_STATUS})"
+        PHASE3_STATUS="FAIL (${ERROR_COUNT} app ERROR lines)"
     else
-        PHASE3_STATUS="OK (demo=${DEMO_STATUS})"
+        PHASE3_STATUS="OK"
     fi
 fi
 

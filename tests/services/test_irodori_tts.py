@@ -371,6 +371,12 @@ class TestIrodoriTTSServiceGenerateSpeech:
         )
         assert result is False
 
+    def test_reference_id_without_ref_audio_dir_returns_none(self):
+        """reference_id given but ref_audio_dir=None → None (graceful, no crash)."""
+        svc = IrodoriTTSService(base_url="http://localhost:8000")
+        result = svc.generate_speech("Hello", reference_id="some_voice")
+        assert result is None
+
     def test_invalid_reference_id_returns_none(self, tmp_path):
         """reference_id that does not exist in ref_audio_dir → None."""
         svc = IrodoriTTSService(
@@ -418,7 +424,8 @@ class TestIrodoriTTSServiceListVoices:
         )
         assert svc.list_voices() == []
 
-    def test_list_voices_returns_cached(self, tmp_path):
+    def test_list_voices_snapshot_not_live(self, tmp_path):
+        """Voices are scanned once at init — adding a dir later is NOT reflected."""
         d = tmp_path / "voice1"
         d.mkdir()
         (d / "audio.wav").write_bytes(b"RIFF")
@@ -426,7 +433,13 @@ class TestIrodoriTTSServiceListVoices:
             base_url="http://localhost:8000",
             ref_audio_dir=str(tmp_path),
         )
-        assert svc.list_voices() is svc.list_voices()
+        assert svc.list_voices() == ["voice1"]
+        # Add a new voice after construction
+        d2 = tmp_path / "voice2"
+        d2.mkdir()
+        (d2 / "audio.wav").write_bytes(b"RIFF")
+        # Still returns the snapshot from init
+        assert "voice2" not in svc.list_voices()
 
 
 class TestIrodoriTTSServiceIsHealthy:

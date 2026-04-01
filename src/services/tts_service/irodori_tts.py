@@ -176,7 +176,7 @@ class IrodoriTTSService(TTSService):
         Returns:
             Sorted list of voice names, or [] when ref_audio_dir is not set.
         """
-        return self._available_voices
+        return list(self._available_voices)
 
     def is_healthy(self) -> tuple[bool, str]:
         """Check Irodori TTS server health via GET /health.
