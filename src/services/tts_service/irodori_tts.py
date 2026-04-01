@@ -19,12 +19,16 @@ from src.services.tts_service.service import TTSService
 
 
 class IrodoriTTSService(TTSService):
-    """HTTP client for Irodori TTS POST /synthesize endpoint."""
+    """HTTP client for Irodori TTS POST /synthesize endpoint.
+
+    Multi-voice support: voices are discovered by scanning ref_audio_dir for
+    subdirectories that contain an audio.wav file ({ref_audio_dir}/{name}/audio.wav).
+    """
 
     def __init__(
         self,
         base_url: str,
-        reference_audio_path: str | None = None,
+        ref_audio_dir: str | None = None,
         seconds: float = 30.0,
         num_steps: int = 40,
         cfg_scale_text: float = 3.0,
@@ -33,16 +37,37 @@ class IrodoriTTSService(TTSService):
         timeout: float = 60.0,
     ):
         self.base_url = base_url.rstrip("/")
-        self.reference_audio_path = reference_audio_path
+        self.ref_audio_dir = Path(ref_audio_dir) if ref_audio_dir is not None else None
         self.seconds = seconds
         self.num_steps = num_steps
         self.cfg_scale_text = cfg_scale_text
         self.cfg_scale_speaker = cfg_scale_speaker
         self.seed = seed
         self.timeout = timeout
-        logger.info(f"IrodoriTTS initialized at {self.base_url}")
+        self._available_voices: list[str] = self._scan_voices()
+        logger.info(
+            f"IrodoriTTS initialized at {self.base_url} "
+            f"(voices={self._available_voices})"
+        )
 
-    def _post_synthesize(self, text: str) -> bytes | None:
+    def _scan_voices(self) -> list[str]:
+        """Scan ref_audio_dir for voice subdirectories containing audio.wav.
+
+        Returns:
+            Sorted list of voice names (directory names with audio.wav present).
+        """
+        if self.ref_audio_dir is None or not self.ref_audio_dir.exists():
+            return []
+        voices: list[str] = [
+            d.name
+            for d in sorted(self.ref_audio_dir.iterdir())
+            if d.is_dir() and (d / "audio.wav").exists()
+        ]
+        return voices
+
+    def _post_synthesize(
+        self, text: str, reference_audio_path: Path | None = None
+    ) -> bytes | None:
         """Send POST /synthesize and return raw WAV bytes, or None on failure."""
         url = f"{self.base_url}/synthesize"
         data: dict[str, str | int | float] = {
@@ -56,11 +81,11 @@ class IrodoriTTSService(TTSService):
             data["seed"] = self.seed
 
         try:
-            if self.reference_audio_path:
-                with Path(self.reference_audio_path).open("rb") as ref_handle:
+            if reference_audio_path is not None:
+                with reference_audio_path.open("rb") as ref_handle:
                     files = {
                         "reference_audio": (
-                            Path(self.reference_audio_path).name,
+                            reference_audio_path.name,
                             ref_handle,
                             "audio/wav",
                         )
@@ -96,7 +121,9 @@ class IrodoriTTSService(TTSService):
 
         Args:
             text: Text to synthesize. May contain emoji for emotion control.
-            reference_id: Ignored — ABC compatibility only. Use reference_audio_path at init.
+            reference_id: Voice name under ref_audio_dir. Resolves to
+                {ref_audio_dir}/{reference_id}/audio.wav. None = no-reference mode.
+                Returns None when reference_id is given but file not found.
             output_format: 'bytes' | 'base64' | 'file'
             output_filename: Destination path when output_format == 'file'.
             audio_format: Ignored — Irodori always returns WAV.
@@ -108,7 +135,20 @@ class IrodoriTTSService(TTSService):
         if not tts_text:
             return None
 
-        audio_bytes = self._post_synthesize(tts_text)
+        reference_audio_path: Path | None = None
+        if reference_id is not None:
+            if self.ref_audio_dir is None:
+                logger.error(
+                    f"IrodoriTTS: reference_id '{reference_id}' given but ref_audio_dir is not set"
+                )
+                return None
+            candidate = self.ref_audio_dir / reference_id / "audio.wav"
+            if not candidate.exists():
+                logger.error(f"IrodoriTTS: reference audio not found: {candidate}")
+                return None
+            reference_audio_path = candidate
+
+        audio_bytes = self._post_synthesize(tts_text, reference_audio_path)
         if not audio_bytes:
             return None
 
@@ -131,14 +171,12 @@ class IrodoriTTSService(TTSService):
             return audio_bytes
 
     def list_voices(self) -> list[str]:
-        """Return available voice identifiers.
+        """Return available voice identifiers discovered from ref_audio_dir.
 
-        Returns the stem of reference_audio_path when set,
-        otherwise ['no-reference'].
+        Returns:
+            Sorted list of voice names, or [] when ref_audio_dir is not set.
         """
-        if self.reference_audio_path:
-            return [Path(self.reference_audio_path).stem]
-        return ["no-reference"]
+        return list(self._available_voices)
 
     def is_healthy(self) -> tuple[bool, str]:
         """Check Irodori TTS server health via GET /health.
