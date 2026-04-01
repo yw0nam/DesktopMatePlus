@@ -23,10 +23,6 @@ from src.services.agent_service.middleware.delegate_middleware import (
 from src.services.agent_service.service import AgentService
 from src.services.agent_service.state import CustomAgentState
 from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
-from src.services.agent_service.utils.text_processor import (
-    load_emotion_keywords,
-    load_emotion_prompt_template,
-)
 
 load_dotenv()
 
@@ -86,14 +82,8 @@ class OpenAIChatAgent(AgentService):
 
     async def initialize_async(self) -> None:
         """Fetch MCP tools once and create the single agent instance."""
-        # 1. Load persona texts + append emotion instructions
-        raw_personas = _load_personas()
-        keywords = load_emotion_keywords()
-        template = load_emotion_prompt_template()
-        emotion_instructions = template.format(keywords=", ".join(keywords))
-        self._personas = {
-            pid: text + emotion_instructions for pid, text in raw_personas.items()
-        }
+        # 1. Load persona texts (emoji emotion guide is already embedded in personas.yml)
+        self._personas = _load_personas()
         logger.info(f"Loaded {len(self._personas)} personas: {list(self._personas)}")
 
         # 2. Fetch MCP tools once

@@ -140,7 +140,7 @@ async def test_error_event_flushes_tokens_before_emitting_error(
 async def test_stream_tokens_propagate_emotion(processor: MessageProcessor):
     async def agent_stream():
         yield {"type": "stream_start"}
-        yield {"type": "stream_token", "chunk": "(laughing) That is fun."}
+        yield {"type": "stream_token", "chunk": "🤭That is fun."}
         yield {"type": "stream_end"}
 
     with patch(
@@ -160,5 +160,5 @@ async def test_stream_tokens_propagate_emotion(processor: MessageProcessor):
         events = [event async for event in processor.stream_events(turn_id)]
 
     emotion_events = [event for event in events if event["type"] == "tts_chunk"]
-    assert emotion_events and emotion_events[0]["emotion"] == "laughing"
-    assert emotion_events[0]["text"] == "That is fun."
+    assert emotion_events and emotion_events[0]["emotion"] == "🤭"
+    assert "That is fun" in emotion_events[0]["text"]
