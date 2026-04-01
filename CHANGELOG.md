@@ -2,6 +2,13 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+## [2.3.1] - 2026-04-01
+
+### Fixed
+- Fish Speech error logs are no longer silently swallowed — `logger.error` restored in the `except` block so TTS failures are visible ([3fe1836])
+- Fish Speech TTS now serializes synthesis requests through an `asyncio.Queue` worker — concurrent synthesis calls no longer race, and hung requests time out after 120s ([3fe1836])
+- `stream_token` events are now forwarded to WebSocket clients in addition to the internal STM event bus — the frontend can display text as it streams ([3fe1836])
+
 ## [2.3.0] - 2026-03-31
 
 ### Fixed
