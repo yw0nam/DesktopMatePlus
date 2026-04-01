@@ -255,6 +255,55 @@ class TestIrodoriTTSServiceGenerateSpeech:
         files = call_kwargs[1].get("files") or call_kwargs.kwargs.get("files")
         assert not files or "reference_audio" not in files
 
+    @patch("src.services.tts_service.irodori_tts.httpx.Client")
+    def test_empty_200_response_returns_none(self, mock_client_cls):
+        """Server returns HTTP 200 with empty body → None (not empty bytes)."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b""
+        mock_resp.raise_for_status.return_value = None
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.return_value = mock_resp
+        mock_client_cls.return_value = mock_client
+
+        svc = self._make_service()
+        result = svc.generate_speech("Hello", output_format="bytes")
+        # Empty bytes are falsy but we should return None, not b""
+        assert result is None
+
+    @patch("src.services.tts_service.irodori_tts.httpx.Client")
+    def test_file_format_with_none_filename_returns_false(self, mock_client_cls):
+        """output_format='file' with output_filename=None → False (not TypeError)."""
+        wav_bytes = b"RIFF\x00\x00\x00\x00WAVE"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = wav_bytes
+        mock_resp.raise_for_status.return_value = None
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.return_value = mock_resp
+        mock_client_cls.return_value = mock_client
+
+        svc = self._make_service()
+        result = svc.generate_speech(
+            "Hello", output_format="file", output_filename=None
+        )
+        assert result is False
+
+    def test_missing_reference_audio_file_returns_none(self):
+        """reference_audio_path set to non-existent file → None (graceful)."""
+        svc = IrodoriTTSService(
+            base_url="http://localhost:8000",
+            reference_audio_path="/tmp/nonexistent_ref_abc123.wav",
+        )
+        result = svc.generate_speech("Hello", output_format="bytes")
+        assert result is None
+
 
 class TestIrodoriTTSServiceListVoices:
     """Test list_voices method."""

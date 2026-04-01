@@ -115,6 +115,11 @@ class IrodoriTTSService(TTSService):
         if output_format == "base64":
             return base64.b64encode(audio_bytes).decode("utf-8")
         elif output_format == "file":
+            if not output_filename:
+                logger.error(
+                    "IrodoriTTS file save error: output_filename is required for 'file' output_format"
+                )
+                return False
             try:
                 with open(output_filename, "wb") as f:
                     f.write(audio_bytes)
