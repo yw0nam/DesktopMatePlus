@@ -45,6 +45,7 @@ class EventHandler:
 
                 if event_type == "stream_token":
                     await self._put_token_event(turn_id, event)
+                    await self.processor._put_event(turn_id, event)
                     continue
 
                 if event_type == "stream_start":

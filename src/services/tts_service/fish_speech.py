@@ -1,5 +1,7 @@
+import asyncio
 import base64
 import contextlib
+from concurrent.futures import Future as ConcurrentFuture
 from typing import Annotated, Literal
 
 import ormsgpack
@@ -54,6 +56,7 @@ class FishSpeechTTS(TTSService):
     """
     외부 TTS API와 통신하여 텍스트로부터 음성을 생성하는 서비스입니다.
     텍스트 처리부터 API 요청까지 모든 과정을 캡슐화합니다.
+    직렬 큐 워커를 통해 동시 요청을 순차적으로 처리합니다.
     """
 
     def __init__(
@@ -99,7 +102,43 @@ class FishSpeechTTS(TTSService):
         self.repetition_penalty = repetition_penalty
         self.temperature = temperature
 
+        # Serial queue worker — initialized by start_worker() in async lifespan
+        self._queue: asyncio.Queue | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._worker_task: asyncio.Task | None = None
+
         logger.info(f"FishTTS initialized at {self.base_url}")
+
+    async def start_worker(self) -> None:
+        """Start the serial TTS queue worker. Must be called from async context (lifespan)."""
+        self._loop = asyncio.get_running_loop()
+        self._queue = asyncio.Queue()
+        self._worker_task = asyncio.create_task(self._serial_worker())
+        logger.info("FishSpeechTTS serial queue worker started")
+
+    async def stop_worker(self) -> None:
+        """Stop the serial queue worker."""
+        if self._worker_task:
+            self._worker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._worker_task
+            self._worker_task = None
+        self._queue = None
+        self._loop = None
+
+    async def _serial_worker(self) -> None:
+        """Process TTS HTTP requests one at a time from the queue."""
+        while True:
+            payload, loop_future = await self._queue.get()
+            try:
+                result = await asyncio.to_thread(self._request_tts_stream, payload)
+                if not loop_future.done():
+                    loop_future.set_result(result)
+            except Exception as e:
+                if not loop_future.done():
+                    loop_future.set_exception(e)
+            finally:
+                self._queue.task_done()
 
     def _request_tts_stream(self, request_payload: ServeTTSRequest) -> bytes | None:
         """
@@ -122,16 +161,15 @@ class FishSpeechTTS(TTSService):
                     "authorization": f"Bearer {self.api_key or ''}",
                     "content-type": "application/msgpack",
                 },
-                timeout=30,
+                timeout=120,
             )
             response.raise_for_status()
-            # logger.info(f"음성 데이터 생성 성공 ({len(response.content)} bytes)")
             return bytes(response.content)
-        except requests.exceptions.RequestException:
-            # logger.error(f"TTS API 요청 실패: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"TTS API 요청 실패: {e}")
             return None
-        except Exception:
-            # logger.error(f"TTS 처리 중 예상치 못한 오류: {e}")
+        except Exception as e:
+            logger.error(f"TTS 처리 중 예상치 못한 오류: {e}")
             return None
 
     def generate_speech(
@@ -144,6 +182,7 @@ class FishSpeechTTS(TTSService):
     ) -> bytes | str | bool | None:
         """
         [메인 메서드] 원본 텍스트를 받아 음성을 생성하고 지정된 포맷으로 반환합니다.
+        큐 워커가 실행 중이면 직렬 처리, 아니면 직접 호출합니다.
 
         Args:
             raw_text: LLM으로부터 받은 원본 텍스트
@@ -162,7 +201,6 @@ class FishSpeechTTS(TTSService):
         # 1. TTS로 처리할 텍스트가 있는지 확인
         tts_text = text.strip()
         if not tts_text:
-            # logger.info("TTS로 처리할 내용이 없어 스킵합니다.")
             return None
 
         # 3. API 요청 페이로드 생성
@@ -170,8 +208,15 @@ class FishSpeechTTS(TTSService):
             text=tts_text, reference_id=reference_id, format=audio_format
         )
 
-        # 4. API 호출하여 오디오 데이터 획득
-        audio_bytes = self._request_tts_stream(request_payload)
+        # 4. 큐 워커가 활성화된 경우 직렬 처리, 아니면 직접 호출
+        if (
+            self._loop is not None
+            and self._queue is not None
+            and self._loop.is_running()
+        ):
+            audio_bytes = self._enqueue_and_wait(request_payload)
+        else:
+            audio_bytes = self._request_tts_stream(request_payload)
 
         if not audio_bytes:
             return None
@@ -183,13 +228,30 @@ class FishSpeechTTS(TTSService):
             try:
                 with open(output_filename, "wb") as f:
                     f.write(audio_bytes)
-                # logger.info(f"음성 파일이 성공적으로 생성되었습니다: {output_filename}")
                 return True
             except Exception:
-                # logger.error(f"파일 저장 오류: {e}")
                 return False
         else:  # "bytes"가 기본값
             return audio_bytes
+
+    def _enqueue_and_wait(self, request_payload: ServeTTSRequest) -> bytes | None:
+        """Submit payload to async queue from sync thread context and wait for result."""
+        loop = self._loop
+        queue = self._queue
+
+        async def _submit() -> bytes | None:
+            loop_future: asyncio.Future = loop.create_future()
+            await queue.put((request_payload, loop_future))
+            return await loop_future
+
+        try:
+            concurrent_future: ConcurrentFuture = asyncio.run_coroutine_threadsafe(
+                _submit(), loop
+            )
+            return concurrent_future.result(timeout=120)
+        except Exception as e:
+            logger.error(f"TTS 큐 처리 중 오류: {e}")
+            return None
 
     def list_voices(self) -> list[str]:
         """FishSpeech does not manage reference voice directories."""
