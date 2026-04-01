@@ -215,7 +215,7 @@ def initialize_tts_service(
 
     _tts_service_instance = _initialize_service(
         service_name="TTS",
-        default_config_path=_BASE_YAML / "services" / "tts_service" / "fish_speech.yml",
+        default_config_path=_BASE_YAML / "services" / "tts_service" / "irodori.yml",
         config_key="tts_config",
         factory_fn=TTSFactory.get_tts_engine,
         config_path=config_path,

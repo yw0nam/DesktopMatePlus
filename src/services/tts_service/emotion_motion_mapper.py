@@ -23,7 +23,7 @@ _HARDCODED_DEFAULT: list[TimelineKeyframe] = [
 
 
 class EmotionMotionMapper:
-    """Maps emotion keyword strings to desktop-homunculus timeline keyframes."""
+    """Maps emotion keyword/emoji strings to desktop-homunculus timeline keyframes."""
 
     def __init__(self, config: dict[str, dict]):
         self._map = config
@@ -31,6 +31,14 @@ class EmotionMotionMapper:
         self._default: list[TimelineKeyframe] = (
             default_entry.get("keyframes") or _HARDCODED_DEFAULT
         )
+        self._known_emojis: frozenset[str] = frozenset(
+            k for k in config if k != "default"
+        )
+
+    @property
+    def known_emojis(self) -> frozenset[str]:
+        """Return frozenset of all registered emotion keys (emojis)."""
+        return self._known_emojis
 
     def map(self, emotion: str | None) -> list[TimelineKeyframe]:
         """Return keyframes list for the given emotion.

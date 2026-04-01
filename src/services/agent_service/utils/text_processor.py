@@ -4,27 +4,29 @@ from typing import NamedTuple
 
 import yaml
 
-_DEFAULT_EMOTION_KEYWORDS = [
-    # 핵심 감정 그룹
-    "joyful",
-    "sad",
-    "angry",
-    "surprised",
-    "scared",
-    "disgusted",
-    # 대화/반응 그룹
-    "confused",
-    "curious",
-    "worried",
-    "satisfied",
-    "sarcastic",
-    # 행동/표현 그룹
-    "laughing",
-    "crying loudly",
-    "sighing",
-    "whispering",
-    "hesitating",
-]
+_DEFAULT_EMOJI_SET: frozenset[str] = frozenset(
+    [
+        "😊",
+        "😭",
+        "😠",
+        "😮",
+        "😪",
+        "🤭",
+        "😰",
+        "😆",
+        "😱",
+        "😟",
+        "😌",
+        "🤔",
+        "😲",
+        "😖",
+        "🥺",
+        "😏",
+        "🫶",
+        "😒",
+        "🥵",
+    ]
+)
 
 _DEFAULT_EMOTION_PROMPT_TEMPLATE = """
 [EMOTION INSTRUCTIONS]
@@ -34,26 +36,26 @@ Example: (joyful) I am so happy to see you!
 """
 
 
-def load_emotion_keywords(config_path: str | None = None) -> list[str]:
-    """Load emotion keywords from a YAML configuration file."""
+def _load_emojis_from_yaml(config_path: str | None = None) -> frozenset[str]:
+    """Load known emojis from emotion_motion_map keys in tts_rules.yml."""
     if config_path:
         path = Path(config_path)
     else:
-        # Default path: yaml_files/tts_rules.yml relative to project root
-        # Assuming this file is in src/services/agent_service/utils/
-        # Project root is 4 levels up
         path = Path(__file__).resolve().parents[4] / "yaml_files" / "tts_rules.yml"
 
     if not path.exists():
-        return _DEFAULT_EMOTION_KEYWORDS
+        return _DEFAULT_EMOJI_SET
 
     try:
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data = yaml.safe_load(f)
-            return data.get("emotion_keywords", _DEFAULT_EMOTION_KEYWORDS)
-    except Exception as e:
-        print(f"Error loading emotion keywords: {e}")
-        return _DEFAULT_EMOTION_KEYWORDS
+        if isinstance(data, dict):
+            motion_map = data.get("emotion_motion_map", {})
+            keys = frozenset(k for k in motion_map if k != "default")
+            return keys if keys else _DEFAULT_EMOJI_SET
+    except Exception:
+        pass
+    return _DEFAULT_EMOJI_SET
 
 
 def load_emotion_prompt_template(config_path: str | None = None) -> str:
@@ -61,43 +63,36 @@ def load_emotion_prompt_template(config_path: str | None = None) -> str:
     if config_path:
         path = Path(config_path)
     else:
-        # Default path: yaml_files/tts_rules.yml relative to project root
-        # Assuming this file is in src/services/agent_service/utils/
-        # Project root is 4 levels up
         path = Path(__file__).resolve().parents[4] / "yaml_files" / "tts_rules.yml"
 
     if not path.exists():
         return _DEFAULT_EMOTION_PROMPT_TEMPLATE
 
     try:
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data = yaml.safe_load(f)
             return data.get("emotion_prompt_template", _DEFAULT_EMOTION_PROMPT_TEMPLATE)
-    except Exception as e:
-        print(f"Error loading emotion prompt template: {e}")
+    except Exception:
         return _DEFAULT_EMOTION_PROMPT_TEMPLATE
 
 
 class ProcessedText(NamedTuple):
-    """처리된 텍스트의 구조화된 결과 (reasoning_text 필드 제거)"""
+    """처리된 텍스트의 구조화된 결과"""
 
     filtered_text: str
     emotion_tag: str | None
-    # reasoning_text 필드를 제거하여 구조를 더 간단하게 만들었어요.
 
 
 class TTSTextProcessor:
-    def __init__(self, emotion_keywords: list[str] | None = None):
-        if emotion_keywords is None:
-            self.emotion_keywords = load_emotion_keywords()
+    def __init__(
+        self,
+        known_emojis: frozenset[str] | None = None,
+        config_path: str | None = None,
+    ):
+        if known_emojis is not None:
+            self.known_emojis = known_emojis
         else:
-            self.emotion_keywords = emotion_keywords
-
-        # 감정 태그의 괄호 안 내용만 추출하도록 수정
-        emotion_pattern_str = (
-            r"\(((" + "|".join(re.escape(k) for k in self.emotion_keywords) + r"))\)"
-        )
-        self.emotion_pattern = re.compile(emotion_pattern_str, re.IGNORECASE)
+            self.known_emojis = _load_emojis_from_yaml(config_path)
 
         self.cleanup_patterns = [
             re.compile(r"\*[^*]*\*"),
@@ -108,24 +103,23 @@ class TTSTextProcessor:
         if not text or not text.strip():
             return ProcessedText("", None)
 
-        text_to_process = text
-        emotion_tag = None
+        emotion_tag: str | None = None
 
-        # 1. 감정 태그 추출 및 제거
-        emotion_match = self.emotion_pattern.search(text_to_process)
-        if emotion_match:
-            # group(1)을 사용해 괄호 안의 키워드만 가져옵니다.
-            emotion_tag = emotion_match.group(1)
-            # 원본 텍스트에서 태그 전체(group(0))를 제거합니다.
-            text_to_process = text_to_process.replace(emotion_match.group(0), "", 1)
+        # 텍스트에서 첫 번째로 등장하는 known emoji를 emotion_tag로 추출
+        # 이모지는 텍스트에서 제거하지 않음 (Irodori가 직접 사용)
+        if self.known_emojis:
+            first_pos = len(text)
+            for emoji in self.known_emojis:
+                pos = text.find(emoji)
+                if pos != -1 and pos < first_pos:
+                    first_pos = pos
+                    emotion_tag = emoji
 
-        # 2. 나머지 텍스트 정리 (예: *행동 지시*)
-        filtered_text = self._clean_text(text_to_process)
-
+        filtered_text = self._clean_text(text)
         return ProcessedText(filtered_text, emotion_tag)
 
     def _clean_text(self, text: str) -> str:
-        """불필요한 패턴 제거 (기존과 동일)"""
+        """불필요한 패턴 제거 (*행동 지시*, [메타] 등)"""
         cleaned = text
         for pattern in self.cleanup_patterns:
             cleaned = pattern.sub("", cleaned)

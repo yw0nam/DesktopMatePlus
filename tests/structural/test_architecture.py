@@ -251,14 +251,12 @@ class TestCodeConventions:
         "services/agent_service/utils/message_util.py",
         "services/agent_service/utils/text_processor.py",
         "services/ltm_service/ltm_factory.py",
-        "services/tts_service/fish_speech.py",
         "services/tts_service/tts_factory.py",
         "services/tts_service/vllm_omni.py",
     }
 
     # Factory defaults and delegate URLs — TODO: move to YAML config
     _KNOWN_LOCALHOST_FILES: set[str] = {
-        "services/tts_service/fish_speech.py",
         "services/tts_service/vllm_omni.py",
         "services/tts_service/tts_factory.py",
         "services/agent_service/agent_factory.py",

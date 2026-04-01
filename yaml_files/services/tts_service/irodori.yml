@@ -1,0 +1,14 @@
+# Irodori TTS Service Configuration
+# Irodori API server should be running separately:
+#   python irodori_api_server.py --port 8000
+
+tts_config:
+  type: "irodori"
+  configs:
+    base_url: "http://localhost:8000"
+    reference_audio_path: null  # Path to WAV reference audio; null for no-reference mode
+    seconds: 30.0
+    num_steps: 40
+    cfg_scale_text: 3.0
+    cfg_scale_speaker: 5.0
+    seed: null
