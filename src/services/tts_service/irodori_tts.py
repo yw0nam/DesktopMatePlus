@@ -55,11 +55,9 @@ class IrodoriTTSService(TTSService):
             return []
         voices: list[str] = []
         for d in sorted(self.ref_audio_dir.iterdir()):
-            if d.is_dir():
-                if (d / "merged_audio.mp3").exists():
-                    voices.append(d.name)
+            if d.is_dir() and (d / "merged_audio.mp3").exists():
+                voices.append(d.name)
         return voices
-
 
     def _post_synthesize(
         self, text: str, reference_audio_path: Path | None = None

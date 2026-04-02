@@ -6,6 +6,9 @@
 #   scripts/run.sh --bg      — background (PID -> .run.pid)
 #   scripts/run.sh --stop    — stop via .run.pid
 #   scripts/run.sh --port    — print computed port only
+#
+# Environment:
+#   BACKEND_PORT             — override computed port (used by e2e.sh)
 
 set -euo pipefail
 
@@ -25,6 +28,11 @@ if [[ "$BASENAME" == "backend" || "$BASENAME" == "feat/claude_harness" ]]; then
 else
     CKSUM=$(echo "$BASENAME" | cksum | cut -d' ' -f1)
     PORT=$(( 5500 + CKSUM % 100 ))
+fi
+
+# Allow override via BACKEND_PORT env var (used by e2e.sh for random port isolation)
+if [[ -n "${BACKEND_PORT:-}" ]]; then
+    PORT="$BACKEND_PORT"
 fi
 
 # Handle --port first (no side effects)

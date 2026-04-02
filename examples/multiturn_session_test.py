@@ -1,3 +1,5 @@
+# DEPRECATED: Use examples/test_websocket.py instead.
+# This file uses a hardcoded port and is not suitable for e2e.sh.
 """
 Multi-turn Session Continuity Test
 
