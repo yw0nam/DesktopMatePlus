@@ -139,7 +139,7 @@ if [[ "${1:-}" == "--bg" ]]; then
     BG_MODE=true
 fi
 
-CMD_ARGS=(uv run uvicorn src.main:app --port "$PORT" --reload)
+CMD_ARGS=(uv run uvicorn "src.main:get_app" --factory --port "$PORT" --reload)
 
 if $BG_MODE; then
     LOG_FILE="$LOG_DIR/app_$(date +%Y-%m-%d).log"

@@ -117,10 +117,11 @@ if [[ -n "$MONGO_URI" ]]; then
     HOST="${HOSTPORT%%:*}"
     PORT_NUM="${HOSTPORT##*:}"
     PORT_NUM="${PORT_NUM%%/*}"
+    MONGO_URI_SAFE=$(echo "$MONGO_URI" | sed 's|://[^@]*@|://***@|')
     if nc -z -w2 "$HOST" "$PORT_NUM" 2>/dev/null; then
-        echo "[e2e] MongoDB OK ($MONGO_URI)"
+        echo "[e2e] MongoDB OK ($MONGO_URI_SAFE)"
     else
-        echo "[e2e] FAILED: MongoDB not reachable ($MONGO_URI)" >&2
+        echo "[e2e] FAILED: MongoDB not reachable ($MONGO_URI_SAFE)" >&2
         MONGO_OK=false
     fi
 else
@@ -259,7 +260,7 @@ if $HEALTH_OK; then
     P3_STATUS="OK"
     echo "[e2e] Phase 3: PASSED"
 else
-    if [[ "$P3_STATUS" == "FAIL" ]]; then
+    if [[ "$P3_STATUS" == "FAIL (process died)" ]]; then
         : # Already set above (process died)
     else
         OVERALL_PASS=false
