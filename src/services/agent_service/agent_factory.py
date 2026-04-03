@@ -37,13 +37,22 @@ class AgentFactory:
 if __name__ == "__main__":
     import asyncio
 
-    load_dotenv()
-    # 1. 서비스 인스턴스 생성
+    import yaml
+    from loguru import logger
 
+    load_dotenv()
+
+    with open(
+        "./yaml_files/services/agent_service/openai_chat_agent.yml", encoding="utf-8"
+    ) as _f:
+        _cfg = yaml.safe_load(_f)
+    _openai_api_base = _cfg["llm_config"]["configs"]["openai_api_base"]
+
+    # 1. 서비스 인스턴스 생성
     agent_service = AgentFactory.get_agent_service(
         "openai_chat_agent",
         openai_api_key=os.getenv("LLM_API_KEY"),
-        openai_api_base="http://localhost:55120/v1",
+        openai_api_base=_openai_api_base,
         model_name="chat_model",
     )
 
@@ -55,6 +64,6 @@ if __name__ == "__main__":
     # 3. 서비스의 메인메서드 하나 호출하여 이미지 description 받기
     test = asyncio.run(main())
     if test:
-        print(f"성공! 에이전트 상태: {test}")
+        logger.info(f"성공! 에이전트 상태: {test}")
     else:
-        print("실패.")
+        logger.warning("실패.")

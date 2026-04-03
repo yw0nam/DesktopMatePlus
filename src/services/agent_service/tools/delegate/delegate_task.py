@@ -1,6 +1,5 @@
 """DelegateTaskTool — async, uses ToolRuntime to read/write agent state."""
 
-import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -12,8 +11,6 @@ from langgraph.types import Command
 from src.services.agent_service.state import PendingTask
 from src.services.agent_service.tools.delegate.schemas import DelegateTaskInput
 
-NANOCLAW_URL = os.getenv("NANOCLAW_URL", "http://localhost:3000")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 NANOCLAW_WEBHOOK_PATH = "/api/webhooks/fastapi"
 CALLBACK_PATH = "/v1/callback/nanoclaw"
 HTTP_TIMEOUT = 5.0
@@ -34,6 +31,8 @@ class DelegateTaskTool(BaseTool):
         raise NotImplementedError("Use _arun")
 
     async def _arun(self, task: str, runtime=None, **kwargs) -> Command:
+        from src.configs.settings import get_settings
+
         task_id = str(uuid4())
         now = datetime.now(UTC).isoformat()
 
@@ -51,17 +50,18 @@ class DelegateTaskTool(BaseTool):
         }
         pending.append(task_record)
 
+        _settings = get_settings()
         payload = {
             "task": task,
             "task_id": task_id,
-            "callback_url": f"{BACKEND_URL}{CALLBACK_PATH}/{task_id}",
+            "callback_url": f"{_settings.backend_url}{CALLBACK_PATH}/{task_id}",
         }
         msg_content = f"팀에 작업을 지시했습니다. (task_id: {task_id})"
 
         try:
             async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
                 await client.post(
-                    f"{NANOCLAW_URL}{NANOCLAW_WEBHOOK_PATH}", json=payload
+                    f"{_settings.nanoclaw_url}{NANOCLAW_WEBHOOK_PATH}", json=payload
                 )
         except Exception:
             msg_content = f"작업을 팀에 지시했지만, NanoClaw과의 통신에 실패했습니다. (task_id: {task_id})"

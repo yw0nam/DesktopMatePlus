@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import yaml
+from loguru import logger
 
 _DEFAULT_EMOJI_SET: frozenset[str] = frozenset(
     [
@@ -133,20 +134,18 @@ if __name__ == "__main__":
     # 예제 1: 영어 텍스트 (감정 태그)
     text1 = "I should check the user's mood first. (curious) So, how are you feeling today? *smiles warmly*"
     processed1 = processor.process_text(text1)
-    print("--- 예제 1 ---")
-    print(f"원본 텍스트: '{text1}'")
-    print(f"필터링된 텍스트: '{processed1.filtered_text}'")
-    print(f"감정 태그: {processed1.emotion_tag}")
-    print("-" * 20)
+    logger.debug("--- 예제 1 ---")
+    logger.debug(f"원본 텍스트: '{text1}'")
+    logger.debug(f"필터링된 텍스트: '{processed1.filtered_text}'")
+    logger.debug(f"감정 태그: {processed1.emotion_tag}")
 
     # 예제 2: 일본어 텍스트 (감정 태그 + 행동 지시)
     text2 = "(joyful)やったー！これで勝てる！ *ガッツポーズをする*"
     processed2 = processor.process_text(text2)
-    print("--- 예제 2 ---")
-    print(f"원본 텍스트: '{text2}'")
-    print(f"필터링된 텍스트: '{processed2.filtered_text}'")
-    print(f"감정 태그: {processed2.emotion_tag}")
-    print("-" * 20)
+    logger.debug("--- 예제 2 ---")
+    logger.debug(f"원본 텍스트: '{text2}'")
+    logger.debug(f"필터링된 텍스트: '{processed2.filtered_text}'")
+    logger.debug(f"감정 태그: {processed2.emotion_tag}")
 
     # TODO: 여러개의 감정태그를 처리할수 있도록 바꿔야할수도?
     # 예제 3: 톤 마커 및 웃음소리가 포함된 경우
@@ -154,8 +153,7 @@ if __name__ == "__main__":
         "(whispering) I think I found a clue... (laughing) Ha,ha,ha, this is hilarious!"
     )
     processed3 = processor.process_text(text3)
-    print("--- 예제 3 ---")
-    print(f"원본 텍스트: '{text3}'")
-    print(f"필터링된 텍스트: '{processed3.filtered_text}'")
-    print(f"감정 태그: {processed3.emotion_tag}")
-    print("-" * 20)
+    logger.debug("--- 예제 3 ---")
+    logger.debug(f"원본 텍스트: '{text3}'")
+    logger.debug(f"필터링된 텍스트: '{processed3.filtered_text}'")
+    logger.debug(f"감정 태그: {processed3.emotion_tag}")

@@ -17,7 +17,7 @@ class VLLMOmniTTSService(TTSService):
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:5517",
+        base_url: str,
         api_key: str = "token-abc123",
         model: str = "chat_model",
         task_type: str = "Base",
@@ -261,7 +261,7 @@ if __name__ == "__main__":
     llm_output_text = "That's wonderful news! I'm so happy for you!"
 
     # 3. 서비스의 메인 메서드 하나만 호출하여 오디오 데이터 받기
-    print("--- 'bytes' 포맷으로 오디오 생성 시도 ---")
+    logger.info("--- 'bytes' 포맷으로 오디오 생성 시도 ---")
     audio_data = tts_service.generate_speech(
         text=llm_output_text,
         reference_id="ナツメ",
@@ -269,11 +269,11 @@ if __name__ == "__main__":
     )
 
     if audio_data and isinstance(audio_data, bytes):
-        print(f"성공! 오디오 데이터 수신 (크기: {len(audio_data)} bytes)")
+        logger.info(f"성공! 오디오 데이터 수신 (크기: {len(audio_data)} bytes)")
     else:
-        print("실패.")
+        logger.warning("실패.")
 
-    print("\n--- 'file' 포맷으로 오디오 생성 시도 ---")
+    logger.info("\n--- 'file' 포맷으로 오디오 생성 시도 ---")
     file_audio = tts_service.generate_speech(
         text=llm_output_text,
         output_format="file",
@@ -283,11 +283,11 @@ if __name__ == "__main__":
     )
 
     if file_audio:
-        print("성공! 파일로 저장되었습니다: output.wav")
+        logger.info("성공! 파일로 저장되었습니다: output.wav")
     else:
-        print("실패.")
+        logger.warning("실패.")
 
-    print("\n--- 'file' 포맷으로 오디오 생성 시도 ---")
+    logger.info("\n--- 'file' 포맷으로 오디오 생성 시도 ---")
     file_audio = tts_service.generate_speech(
         text=llm_output_text,
         output_format="file",
@@ -297,8 +297,8 @@ if __name__ == "__main__":
     )
 
     if file_audio:
-        print("성공! 파일로 저장되었습니다: output.mp3")
+        logger.info("성공! 파일로 저장되었습니다: output.mp3")
     else:
-        print("실패.")
+        logger.warning("실패.")
 
-    print(tts_service._ref_cache)
+    logger.debug(f"ref_cache: {tts_service._ref_cache}")

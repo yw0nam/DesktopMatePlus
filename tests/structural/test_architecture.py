@@ -243,26 +243,9 @@ class TestFileSizeLimits:
 class TestCodeConventions:
     """Enforce conventions that static linters cannot check."""
 
-    # main.py: intentional startup messages — TODO: replace with structured logger
-    # service files: debugging artifacts — TODO: replace with logger.debug()
-    _KNOWN_PRINT_FILES: set[str] = {
-        "main.py",
-        "services/agent_service/agent_factory.py",
-        "services/agent_service/utils/message_util.py",
-        "services/agent_service/utils/text_processor.py",
-        "services/ltm_service/ltm_factory.py",
-        "services/tts_service/tts_factory.py",
-        "services/tts_service/vllm_omni.py",
-    }
+    _KNOWN_PRINT_FILES: set[str] = set()
 
-    # Factory defaults and delegate URLs — TODO: move to YAML config
-    _KNOWN_LOCALHOST_FILES: set[str] = {
-        "services/tts_service/vllm_omni.py",
-        "services/tts_service/tts_factory.py",
-        "services/agent_service/agent_factory.py",
-        "services/agent_service/tools/delegate/delegate_task.py",
-        "services/websocket_service/manager/disconnect_handler.py",
-    }
+    _KNOWN_LOCALHOST_FILES: set[str] = set()
 
     def test_no_bare_print_in_src(self):
         """

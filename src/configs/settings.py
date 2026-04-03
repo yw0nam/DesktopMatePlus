@@ -1,5 +1,6 @@
 """Application settings and configuration."""
 
+import os
 from pathlib import Path
 
 import yaml
@@ -69,6 +70,16 @@ class Settings(BaseModel):
     # Health check settings
     health_check_timeout: int = Field(
         default=5, description="Timeout for health checks in seconds"
+    )
+
+    # Integration URLs (override via env vars BACKEND_URL / NANOCLAW_URL)
+    backend_url: str = Field(
+        default_factory=lambda: os.getenv("BACKEND_URL", "http://localhost:8000"),
+        description="Backend base URL for internal callback and STM endpoints",
+    )
+    nanoclaw_url: str = Field(
+        default_factory=lambda: os.getenv("NANOCLAW_URL", "http://localhost:3000"),
+        description="NanoClaw base URL for task delegation webhook",
     )
 
     # WebSocket configuration
