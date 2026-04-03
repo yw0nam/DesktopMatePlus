@@ -31,7 +31,7 @@ async def run_turn(
 ) -> tuple[bool, str | None]:
     """Run one conversation turn. Returns (success, session_id)."""
     async with websockets.connect(
-        ws_url, ping_interval=20, ping_timeout=10, close_timeout=5
+        ws_url, open_timeout=10, ping_interval=20, ping_timeout=10, close_timeout=5
     ) as ws:
         await ws.send(json.dumps({"type": "authorize", "token": TOKEN}))
 
