@@ -69,6 +69,15 @@ LOG_RETENTION="30 days"  # Loguru retention period
 DEBUG=false              # Enable FastAPI debug mode
 ```
 
+### Integration URLs
+
+URLs for internal service-to-service calls. Override when backend and NanoClaw run on non-default ports or hosts.
+
+```bash
+BACKEND_URL=http://localhost:8000   # Backend base URL (callback + STM endpoints)
+NANOCLAW_URL=http://localhost:3000  # NanoClaw webhook URL (task delegation)
+```
+
 ### CORS Configuration
 
 ```bash
