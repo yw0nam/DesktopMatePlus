@@ -203,8 +203,8 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             except Exception:
                 logger.exception("Failed to start background sweep service")
 
-        except Exception as e:
-            logger.exception(f"⚠️  Failed to initialize services: {e}")
+        except Exception:
+            logger.exception("⚠️  Failed to initialize services")
 
         return sweep_service
 
@@ -319,8 +319,8 @@ Example usage:
     try:
         config_paths = load_main_config(args.yaml_file)
         logger.info(f"✅ Loaded configuration from: {args.yaml_file}")
-    except Exception as e:
-        logger.exception(f"⚠️  Failed to load configuration from {args.yaml_file}: {e}")
+    except Exception:
+        logger.exception(f"⚠️  Failed to load configuration from {args.yaml_file}")
         exit(1)
 
     # Export YAML_FILE so get_app() factory can pick it up on (re)import

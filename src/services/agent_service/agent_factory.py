@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -42,9 +43,14 @@ if __name__ == "__main__":
 
     load_dotenv()
 
-    with open(
-        "./yaml_files/services/agent_service/openai_chat_agent.yml", encoding="utf-8"
-    ) as _f:
+    _yaml_path = (
+        Path(__file__).resolve().parents[3]
+        / "yaml_files"
+        / "services"
+        / "agent_service"
+        / "openai_chat_agent.yml"
+    )
+    with open(_yaml_path, encoding="utf-8") as _f:
         _cfg = yaml.safe_load(_f)
     _openai_api_base = _cfg["llm_config"]["configs"]["openai_api_base"]
 
