@@ -73,10 +73,12 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         log_retention = os.getenv("LOG_RETENTION", "30 days")
         setup_logging(level=log_level, retention=log_retention)
 
-        print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
-        print(f"📝 API Documentation: http://{settings.host}:{settings.port}/docs")
-        print(f"🔧 Debug mode: {settings.debug}")
-        print(f"📊 Log level: {log_level} | Retention: {log_retention}")
+        logger.info(f"🚀 Starting {settings.app_name} v{settings.app_version}")
+        logger.info(
+            f"📝 API Documentation: http://{settings.host}:{settings.port}/docs"
+        )
+        logger.info(f"🔧 Debug mode: {settings.debug}")
+        logger.info(f"📊 Log level: {log_level} | Retention: {log_retention}")
 
         sweep_service: BackgroundSweepService | None = None
 
@@ -90,13 +92,13 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 initialize_tts_service,
             )
 
-            print("\n📋 Loading service configurations...")
+            logger.info("📋 Loading service configurations...")
 
             if config_paths.get("tts_config_path"):
-                print(f"  - TTS config: {config_paths['tts_config_path']}")
+                logger.info(f"  - TTS config: {config_paths['tts_config_path']}")
                 initialize_tts_service(config_path=config_paths["tts_config_path"])
             else:
-                print("  - TTS config: Using default")
+                logger.info("  - TTS config: Using default")
                 initialize_tts_service()
 
             initialize_emotion_motion_mapper()
@@ -110,19 +112,19 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 initialize_mongodb_client()
 
             if config_paths.get("agent_config_path"):
-                print(f"  - Agent config: {config_paths['agent_config_path']}")
+                logger.info(f"  - Agent config: {config_paths['agent_config_path']}")
                 initialize_agent_service(
                     config_path=config_paths["agent_config_path"],
                 )
             else:
-                print("  - Agent config: Using default")
+                logger.info("  - Agent config: Using default")
                 initialize_agent_service()
 
             if config_paths.get("ltm_config_path"):
-                print(f"  - LTM config: {config_paths['ltm_config_path']}")
+                logger.info(f"  - LTM config: {config_paths['ltm_config_path']}")
                 initialize_ltm_service(config_path=config_paths["ltm_config_path"])
             else:
-                print("  - LTM config: Using default")
+                logger.info("  - LTM config: Using default")
                 initialize_ltm_service()
 
             # Async initialization: MCP tools + agent creation
@@ -202,10 +204,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 logger.exception("Failed to start background sweep service")
 
         except Exception as e:
-            print(f"⚠️  Failed to initialize services: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.exception(f"⚠️  Failed to initialize services: {e}")
 
         return sweep_service
 
@@ -214,7 +213,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
     ) -> None:
         if sweep_service is not None:
             await sweep_service.stop()
-        print(f"👋 Shutting down {settings.app_name}")
+        logger.info(f"👋 Shutting down {settings.app_name}")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -319,12 +318,9 @@ Example usage:
     # Load main configuration
     try:
         config_paths = load_main_config(args.yaml_file)
-        print(f"✅ Loaded configuration from: {args.yaml_file}")
+        logger.info(f"✅ Loaded configuration from: {args.yaml_file}")
     except Exception as e:
-        print(f"⚠️  Failed to load configuration from {args.yaml_file}: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception(f"⚠️  Failed to load configuration from {args.yaml_file}: {e}")
         exit(1)
 
     # Export YAML_FILE so get_app() factory can pick it up on (re)import

@@ -1,3 +1,5 @@
+from loguru import logger
+
 from src.services.tts_service.service import TTSService
 
 
@@ -35,12 +37,16 @@ class TTSFactory:
 
 
 if __name__ == "__main__":
-    IRODORI_URL = "http://localhost:8000"
+    import yaml
+
+    with open("./yaml_files/services/tts_service/irodori.yml", encoding="utf-8") as _f:
+        _cfg = yaml.safe_load(_f)
+    IRODORI_URL = _cfg["tts_config"]["configs"]["base_url"]
 
     tts_service = TTSFactory.get_tts_engine("irodori", base_url=IRODORI_URL)
     llm_output_text = "😊That's wonderful news! I'm so happy for you!"
 
-    print("--- 'bytes' 포맷으로 오디오 생성 시도 ---")
+    logger.info("--- 'bytes' 포맷으로 오디오 생성 시도 ---")
     audio_data = tts_service.generate_speech(
         text=llm_output_text,
         reference_id="ナツメ",
@@ -48,6 +54,6 @@ if __name__ == "__main__":
     )
 
     if audio_data and isinstance(audio_data, bytes):
-        print(f"성공! 오디오 데이터 수신 (크기: {len(audio_data)} bytes)")
+        logger.info(f"성공! 오디오 데이터 수신 (크기: {len(audio_data)} bytes)")
     else:
-        print("실패.")
+        logger.warning("실패.")

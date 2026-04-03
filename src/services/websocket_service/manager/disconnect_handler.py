@@ -1,6 +1,5 @@
 """Disconnect-time delegate trigger for knowledge summary."""
 
-import os
 from collections.abc import Awaitable, Callable
 
 from langchain_core.messages import HumanMessage as HMsg
@@ -8,7 +7,6 @@ from loguru import logger
 
 MIN_TURNS_FOR_SUMMARY: int = 3
 STM_INLINE_MAX_TURNS: int = 30
-BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
 def build_delegate_payload(
@@ -30,7 +28,11 @@ def build_delegate_payload(
     if human_count < STM_INLINE_MAX_TURNS:
         base["stm_messages"] = convert_to_openai_messages(messages)
     else:
-        base["stm_fetch_url"] = f"{BACKEND_URL}/v1/stm/{session_id}/messages"
+        from src.configs.settings import get_settings
+
+        base["stm_fetch_url"] = (
+            f"{get_settings().backend_url}/v1/stm/{session_id}/messages"
+        )
     return base
 
 

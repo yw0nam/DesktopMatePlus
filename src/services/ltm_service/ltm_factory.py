@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from loguru import logger
 
 from src.services.ltm_service.service import LTMService
 
@@ -37,7 +38,6 @@ if __name__ == "__main__":
     from src.configs.ltm import Mem0LongTermMemoryConfig
 
     # 1. 서비스 인스턴스 생성
-    # print(memory_config.model_dump())
     with open("./yaml_files/services/ltm_service/mem0.yml", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     memory_config = Mem0LongTermMemoryConfig(**config["ltm_config"]["configs"])
@@ -47,6 +47,6 @@ if __name__ == "__main__":
     healthy, message = ltm_service.is_healthy()
 
     if healthy:
-        print("LTM Service is healthy:", message)
+        logger.info(f"LTM Service is healthy: {message}")
     else:
-        print("LTM Service is not healthy:", message)
+        logger.error(f"LTM Service is not healthy: {message}")

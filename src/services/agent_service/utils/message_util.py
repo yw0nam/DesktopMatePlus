@@ -6,6 +6,7 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+from loguru import logger
 
 
 def trim_messages(
@@ -61,7 +62,7 @@ def check_table_exists(conn, table_name, schema_name="public"):
         cursor.close()
         return exists
     except psycopg.Error as e:
-        print(f"Error checking table existence: {e}")
+        logger.error(f"Error checking table existence: {e}")
         return False
 
 
