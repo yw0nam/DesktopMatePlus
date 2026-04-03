@@ -2,6 +2,13 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+## [2.4.2] - 2026-04-04
+
+### Fixed
+
+- Removed redundant `{e}` interpolation from two `logger.exception()` calls in `src/main.py` — `logger.exception` already captures and appends the exception automatically
+- Replaced hardcoded relative paths (`"./yaml_files/..."`) with `pathlib.Path(__file__).resolve().parents[3] / ...` in `agent_factory.py` and `tts_factory.py` `__main__` blocks — fixes CWD-dependent path resolution
+
 ## [2.4.1] - 2026-04-03
 
 ### Fixed
