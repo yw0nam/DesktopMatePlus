@@ -2,6 +2,14 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+## [2.4.1] - 2026-04-03
+
+### Fixed
+
+- Moved 5 hardcoded network URLs (vLLM TTS, Irodori TTS, backend, NanoClaw, OpenAI agent) to YAML config or Pydantic `Settings` with env var overrides — eliminates GP-4 violations
+- Replaced all bare `print()` calls in `src/` with Loguru logger — `logger.info/warning/error/exception` — eliminates GP-3 violations
+- Cleared `_KNOWN_PRINT_FILES` and `_KNOWN_LOCALHOST_FILES` technical-debt sets in structural architecture tests
+
 ## [2.4.0] - 2026-04-01
 
 ### Added
