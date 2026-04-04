@@ -50,7 +50,7 @@ async def speak(body: SpeakRequest) -> SpeakResponse:
         audio_base64 = await to_thread(
             tts_service.generate_speech,
             body.text,
-            None,
+            body.reference_id,
             "base64",
             audio_format="wav",
         )

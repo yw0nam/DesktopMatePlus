@@ -33,6 +33,38 @@ class TestSpeakEndpoint:
         )
 
     @patch("src.api.routes.tts.get_tts_service")
+    def test_passes_reference_id_to_generate_speech(self, mock_get_tts, client):
+        mock_tts = Mock()
+        mock_tts.generate_speech.return_value = "audio=="
+        mock_get_tts.return_value = mock_tts
+
+        client.post(
+            "/v1/tts/speak", json={"text": "hello", "reference_id": "voice-001"}
+        )
+
+        mock_tts.generate_speech.assert_called_once_with(
+            "hello",
+            "voice-001",
+            "base64",
+            audio_format="wav",
+        )
+
+    @patch("src.api.routes.tts.get_tts_service")
+    def test_reference_id_defaults_to_none(self, mock_get_tts, client):
+        mock_tts = Mock()
+        mock_tts.generate_speech.return_value = "audio=="
+        mock_get_tts.return_value = mock_tts
+
+        client.post("/v1/tts/speak", json={"text": "hello"})
+
+        mock_tts.generate_speech.assert_called_once_with(
+            "hello",
+            None,
+            "base64",
+            audio_format="wav",
+        )
+
+    @patch("src.api.routes.tts.get_tts_service")
     def test_returns_503_when_service_none(self, mock_get_tts, client):
         mock_get_tts.return_value = None
 
