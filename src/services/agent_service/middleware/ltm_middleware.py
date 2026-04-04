@@ -52,11 +52,24 @@ async def ltm_retrieve_hook(state, runtime):
             agent_id=agent_id,
         )
         if result.get("results"):
-            return {
-                "messages": [
-                    SystemMessage(content=f"Long-term memories: {json.dumps(result)}")
-                ]
-            }
+            ltm_section = f"Long-term memories: {json.dumps(result)}"
+            msgs = state.get("messages", [])
+            # Only update a SystemMessage that already sits at position 0.
+            # add_messages only replaces messages with matching non-None ids;
+            # injecting a new SystemMessage anywhere else would produce a
+            # SystemMessage after non-system messages, which OpenAI rejects.
+            if msgs and isinstance(msgs[0], SystemMessage) and msgs[0].id:
+                base_content = str(msgs[0].content).split("\n\nLong-term memories:")[0]
+                return {
+                    "messages": [
+                        SystemMessage(
+                            id=msgs[0].id,
+                            content=f"{base_content}\n\n{ltm_section}",
+                        )
+                    ]
+                }
+            # No SystemMessage with id at position 0 — skip injection to avoid
+            # violating message ordering constraints.
     except Exception as e:
         logger.error(f"LTM retrieve failed (user={user_id}): {e}")
     return None

@@ -74,10 +74,20 @@ async def get_chat_history(
 )
 async def add_chat_history(request: AddChatHistoryRequest):
     svc = _agent_or_raise()
+    registry = get_session_registry()
     config = {"configurable": {"thread_id": request.session_id}}
     try:
         messages = convert_to_messages(request.messages)
         svc.agent.update_state(config, {"messages": messages})
+        if registry:
+            import asyncio
+
+            await asyncio.to_thread(
+                registry.upsert,
+                request.session_id,
+                request.user_id,
+                request.agent_id,
+            )
         return AddChatHistoryResponse(
             session_id=request.session_id, message_count=len(messages)
         )
@@ -137,10 +147,15 @@ async def list_sessions(user_id: str, agent_id: str):
     },
 )
 async def delete_session(session_id: str, user_id: str, agent_id: str):
-    _agent_or_raise()
+    svc = _agent_or_raise()
     registry = get_session_registry()
     if not (registry and registry.delete(session_id)):
         raise HTTPException(404, "Session not found")
+    checkpointer = getattr(svc.agent, "checkpointer", None)
+    if checkpointer and hasattr(checkpointer, "delete_thread"):
+        import asyncio
+
+        await asyncio.to_thread(checkpointer.delete_thread, session_id)
     return DeleteSessionResponse(success=True, message="Session deleted successfully")
 
 

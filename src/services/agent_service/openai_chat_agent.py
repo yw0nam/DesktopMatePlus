@@ -151,13 +151,18 @@ class OpenAIChatAgent(AgentService):
         try:
             # Only inject persona SystemMessage for new sessions.
             # For continuing sessions, persona is already at the start of checkpointed history.
+            # Assign an explicit id so ltm_retrieve_hook can update it in-place via
+            # add_messages (None-id messages are always appended, never replaced).
             persona_text = self._personas.get(persona_id, "")
             if persona_text and not session_id:
                 full_persona = (
                     persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
                 )
-                messages = [SystemMessage(content=full_persona), *list(messages)]
+                messages = [
+                    SystemMessage(content=full_persona, id=str(uuid4())),
+                    *list(messages),
+                ]
 
             turn_id = str(uuid4())
             config = {"configurable": {"thread_id": session_id}}
@@ -211,12 +216,15 @@ class OpenAIChatAgent(AgentService):
         logger.debug(f"Starting LLM invoke: {len(messages)} messages")
         try:
             persona_text = self._personas.get(persona_id, "")
-            if persona_text:
+            if persona_text and not session_id:
                 full_persona = (
                     persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
                 )
-                messages = [SystemMessage(content=full_persona), *list(messages)]
+                messages = [
+                    SystemMessage(content=full_persona, id=str(uuid4())),
+                    *list(messages),
+                ]
 
             config = {"configurable": {"thread_id": session_id}}
             input_count = len(messages)
