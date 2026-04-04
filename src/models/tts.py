@@ -9,4 +9,16 @@ class VoicesResponse(BaseModel):
     voices: list[str]
 
 
-__all__ = ["VoicesResponse"]
+class SpeakRequest(BaseModel):
+    """Request model for the speak endpoint."""
+
+    text: str
+
+
+class SpeakResponse(BaseModel):
+    """Response model for the speak endpoint."""
+
+    audio_base64: str
+
+
+__all__ = ["SpeakRequest", "SpeakResponse", "VoicesResponse"]
