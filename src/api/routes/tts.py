@@ -46,13 +46,16 @@ async def speak(body: SpeakRequest) -> SpeakResponse:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="TTS service not available",
         )
-    audio_base64 = await to_thread(
-        tts_service.generate_speech,
-        body.text,
-        None,
-        "base64",
-        audio_format="wav",
-    )
+    try:
+        audio_base64 = await to_thread(
+            tts_service.generate_speech,
+            body.text,
+            None,
+            "base64",
+            audio_format="wav",
+        )
+    except Exception:
+        audio_base64 = None
     if not isinstance(audio_base64, str):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

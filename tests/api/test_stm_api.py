@@ -244,6 +244,23 @@ def test_delete_session_not_found(client):
     assert "Session not found" in response.json()["detail"]
 
 
+def test_delete_session_registry_unavailable(client):
+    """Test deleting session when session registry is not initialized — should return 503."""
+    svc = _agent_svc()
+
+    with (
+        patch("src.api.routes.stm.get_agent_service", return_value=svc),
+        patch("src.api.routes.stm.get_session_registry", return_value=None),
+    ):
+        response = client.delete(
+            "/v1/stm/sessions/session123",
+            params={"user_id": "user123", "agent_id": "agent456"},
+        )
+
+    assert response.status_code == 503
+    assert "Session registry not initialized" in response.json()["detail"]
+
+
 # ---------- PATCH /sessions/{session_id}/metadata ----------
 
 

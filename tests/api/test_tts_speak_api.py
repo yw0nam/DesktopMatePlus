@@ -63,6 +63,17 @@ class TestSpeakEndpoint:
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         assert "TTS synthesis failed" in response.json()["detail"]
 
+    @patch("src.api.routes.tts.get_tts_service")
+    def test_returns_503_when_generate_speech_raises(self, mock_get_tts, client):
+        mock_tts = Mock()
+        mock_tts.generate_speech.side_effect = RuntimeError("synthesis error")
+        mock_get_tts.return_value = mock_tts
+
+        response = client.post("/v1/tts/speak", json={"text": "hello"})
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "TTS synthesis failed" in response.json()["detail"]
+
     def test_returns_422_when_text_missing(self, client):
         response = client.post("/v1/tts/speak", json={})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
