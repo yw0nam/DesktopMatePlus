@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from loguru import logger
 
 from src.services.tts_service.service import TTSService
@@ -39,7 +41,14 @@ class TTSFactory:
 if __name__ == "__main__":
     import yaml
 
-    with open("./yaml_files/services/tts_service/irodori.yml", encoding="utf-8") as _f:
+    _yaml_path = (
+        Path(__file__).resolve().parents[3]
+        / "yaml_files"
+        / "services"
+        / "tts_service"
+        / "irodori.yml"
+    )
+    with open(_yaml_path, encoding="utf-8") as _f:
         _cfg = yaml.safe_load(_f)
     IRODORI_URL = _cfg["tts_config"]["configs"]["base_url"]
 
