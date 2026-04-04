@@ -1,5 +1,7 @@
 """STM-compatible API routes — backed by LangGraph checkpointer + session_registry."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from langchain_core.messages import convert_to_messages, convert_to_openai_messages
 
@@ -80,8 +82,6 @@ async def add_chat_history(request: AddChatHistoryRequest):
         messages = convert_to_messages(request.messages)
         svc.agent.update_state(config, {"messages": messages})
         if registry:
-            import asyncio
-
             await asyncio.to_thread(
                 registry.upsert,
                 request.session_id,
@@ -149,12 +149,12 @@ async def list_sessions(user_id: str, agent_id: str):
 async def delete_session(session_id: str, user_id: str, agent_id: str):
     svc = _agent_or_raise()
     registry = get_session_registry()
-    if not (registry and registry.delete(session_id)):
+    if registry is None:
+        raise HTTPException(503, "Session registry not initialized")
+    if not registry.delete(session_id):
         raise HTTPException(404, "Session not found")
     checkpointer = getattr(svc.agent, "checkpointer", None)
     if checkpointer and hasattr(checkpointer, "delete_thread"):
-        import asyncio
-
         await asyncio.to_thread(checkpointer.delete_thread, session_id)
     return DeleteSessionResponse(success=True, message="Session deleted successfully")
 

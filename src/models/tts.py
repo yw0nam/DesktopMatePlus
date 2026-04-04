@@ -13,6 +13,7 @@ class SpeakRequest(BaseModel):
     """Request model for the speak endpoint."""
 
     text: str
+    reference_id: str | None = None
 
 
 class SpeakResponse(BaseModel):

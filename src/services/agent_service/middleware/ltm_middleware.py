@@ -58,8 +58,13 @@ async def ltm_retrieve_hook(state, runtime):
             # add_messages only replaces messages with matching non-None ids;
             # injecting a new SystemMessage anywhere else would produce a
             # SystemMessage after non-system messages, which OpenAI rejects.
-            if msgs and isinstance(msgs[0], SystemMessage) and msgs[0].id:
-                base_content = str(msgs[0].content).split("\n\nLong-term memories:")[0]
+            if (
+                msgs
+                and isinstance(msgs[0], SystemMessage)
+                and isinstance(msgs[0].content, str)
+                and msgs[0].id
+            ):
+                base_content = msgs[0].content.split("\n\nLong-term memories:")[0]
                 return {
                     "messages": [
                         SystemMessage(
