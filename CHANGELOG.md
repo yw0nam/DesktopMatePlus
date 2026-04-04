@@ -2,6 +2,12 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+## [2.4.3] - 2026-04-04
+
+### Added
+
+- `POST /v1/tts/speak` endpoint — accepts `{ "text": "..." }` and returns `{ "audio_base64": "..." }` using the active TTS service. Returns 503 if service is unavailable or synthesis fails (including non-string return values like `False`).
+
 ## [2.4.2] - 2026-04-04
 
 ### Fixed
