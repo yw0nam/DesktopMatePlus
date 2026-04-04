@@ -128,3 +128,52 @@ async def test_stream_injects_persona_for_new_session():
     assert isinstance(
         captured_messages["messages"][0], SystemMessage
     ), "First message must be SystemMessage for a new session"
+
+
+async def test_invoke_injects_persona_only_for_new_session():
+    """invoke() must NOT inject persona SystemMessage for a continuing session (session_id set)."""
+
+    svc = _agent()
+    svc._personas = {"yuri": "You are Yuri."}
+    captured_input = {}
+
+    async def capturing_ainvoke(input, config=None, context=None, **kw):
+        captured_input["messages"] = input.get("messages", [])
+        return {"messages": [MagicMock(content="reply")]}
+
+    svc.agent.ainvoke = capturing_ainvoke
+
+    await svc.invoke(
+        messages=[HumanMessage("hi")],
+        session_id="existing-session",
+        persona_id="yuri",
+    )
+    types = [type(m).__name__ for m in captured_input["messages"]]
+    assert (
+        "SystemMessage" not in types
+    ), "SystemMessage must not be injected for a continuing session in invoke()"
+
+
+async def test_invoke_injects_persona_for_new_session():
+    """invoke() MUST inject persona SystemMessage when session_id is empty (new session)."""
+    from langchain_core.messages import SystemMessage
+
+    svc = _agent()
+    svc._personas = {"yuri": "You are Yuri."}
+    captured_input = {}
+
+    async def capturing_ainvoke(input, config=None, context=None, **kw):
+        captured_input["messages"] = input.get("messages", [])
+        return {"messages": [MagicMock(content="reply")]}
+
+    svc.agent.ainvoke = capturing_ainvoke
+
+    await svc.invoke(
+        messages=[HumanMessage("hi")],
+        session_id="",
+        persona_id="yuri",
+    )
+    assert captured_input["messages"], "Expected messages to be captured"
+    assert isinstance(
+        captured_input["messages"][0], SystemMessage
+    ), "First message must be SystemMessage for a new session in invoke()"
