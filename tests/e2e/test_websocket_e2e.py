@@ -116,7 +116,9 @@ class TestWebSocketE2E:
         result = await _run_ws_turn(e2e_session["ws_url"], None, TURN1_MSG)
 
         token_events = [e for e in result["events"] if e["type"] == "stream_token"]
-        stream_end = next(e for e in result["events"] if e["type"] == "stream_end")
+        stream_end_events = [e for e in result["events"] if e["type"] == "stream_end"]
+        assert stream_end_events, "No stream_end event found in received events"
+        stream_end = stream_end_events[0]
 
         concatenated = "".join(e.get("content", "") for e in token_events)
         end_content = stream_end.get("content", "")

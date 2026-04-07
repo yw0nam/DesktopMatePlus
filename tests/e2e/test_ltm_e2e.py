@@ -75,6 +75,10 @@ class TestLtmE2E:
         assert result.get("success") is True, (
             f"search_memory returned success=False: {result}"
         )
+        memories = result.get("results") or result.get("memories") or []
+        assert len(memories) > 0, (
+            f"search_memory returned success=True but no results after add: {result}"
+        )
 
     async def test_ltm_search_memory_structure(self, e2e_session):
         """search_memory response has expected top-level keys."""
