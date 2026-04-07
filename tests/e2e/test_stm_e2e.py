@@ -50,7 +50,7 @@ class TestStmE2E:
 
         async with httpx.AsyncClient(base_url=base_url, timeout=15) as client:
             # Add first
-            await client.post(
+            add_resp = await client.post(
                 "/v1/stm/add-chat-history",
                 json={
                     "user_id": USER_ID,
@@ -62,6 +62,7 @@ class TestStmE2E:
                     ],
                 },
             )
+            assert add_resp.status_code == 201, f"Setup add failed: {add_resp.status_code} {add_resp.text}"
 
             # Then get
             resp = await client.get(

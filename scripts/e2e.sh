@@ -51,7 +51,6 @@ P4_STATUS="SKIP"
 P5_STATUS="SKIP"
 OVERALL_PASS=true
 TTS_SKIPPED=false
-LTM_SKIPPED=false
 
 # ---------------------------------------------------------------------------
 # Helpers: read YAML fields (same pattern as run.sh)
@@ -277,7 +276,6 @@ echo "=== Phase 4: Run Examples ==="
 P4_STATUS="FAIL"
 
 BASE_URL="http://127.0.0.1:${RAND_PORT}"
-WS_URL="ws://127.0.0.1:${RAND_PORT}/v1/chat/stream"
 
 # Read LOG_DIR from .run.logdir (written by run.sh)
 LOGDIR_FILE="$REPO_ROOT/.run.logdir"
@@ -286,8 +284,6 @@ if [[ -f "$LOGDIR_FILE" ]]; then
     LOG_DIR_PATH=$(cat "$LOGDIR_FILE")
     LOG_FILE="$LOG_DIR_PATH/app_$(date +%Y-%m-%d).log"
 fi
-
-EXAMPLES_PASS=true
 
 if [[ "$P3_STATUS" != "OK" ]]; then
     echo "[e2e] Skipping examples — backend not healthy"
@@ -350,11 +346,6 @@ printf "  %-14s %s\n" "Phase 2"   "$P2_STATUS"
 printf "  %-14s %s\n" "Phase 3"   "$P3_STATUS"
 printf "  %-14s %s\n" "Phase 4"   "$P4_STATUS"
 printf "  %-14s %s\n" "Phase 5"   "$P5_STATUS"
-
-if $LTM_SKIPPED; then
-    echo ""
-    echo "  NOTE: LTM SKIPPED (Qdrant not running)"
-fi
 
 echo ""
 if $OVERALL_PASS; then
