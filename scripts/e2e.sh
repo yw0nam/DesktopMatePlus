@@ -293,39 +293,8 @@ if [[ "$P3_STATUS" != "OK" ]]; then
     echo "[e2e] Skipping examples — backend not healthy"
     P4_STATUS="SKIP (backend not healthy)"
 else
-    # test_stm.py
-    echo "[e2e] Running test_stm.py..."
-    if uv run python examples/test_stm.py --base-url "$BASE_URL"; then
-        echo "[e2e] test_stm.py: OK"
-    else
-        echo "[e2e] test_stm.py: FAILED" >&2
-        EXAMPLES_PASS=false
-    fi
-
-    # test_ltm.py
-    echo "[e2e] Running test_ltm.py..."
-    LTM_OUTPUT=$(uv run python examples/test_ltm.py --base-url "$BASE_URL" 2>&1 || true)
-    echo "$LTM_OUTPUT"
-    if echo "$LTM_OUTPUT" | grep -q "LTM SKIPPED"; then
-        echo "[e2e] test_ltm.py: SKIPPED (Qdrant not running)"
-        LTM_SKIPPED=true
-    elif echo "$LTM_OUTPUT" | grep -q "LTM PASSED"; then
-        echo "[e2e] test_ltm.py: OK"
-    else
-        echo "[e2e] test_ltm.py: FAILED" >&2
-        EXAMPLES_PASS=false
-    fi
-
-    # test_websocket.py
-    echo "[e2e] Running test_websocket.py..."
-    if uv run python examples/test_websocket.py --ws-url "$WS_URL"; then
-        echo "[e2e] test_websocket.py: OK"
-    else
-        echo "[e2e] test_websocket.py: FAILED" >&2
-        EXAMPLES_PASS=false
-    fi
-
-    if $EXAMPLES_PASS; then
+    echo "[e2e] Running pytest -m e2e..."
+    if FASTAPI_URL="$BASE_URL" uv run pytest -m e2e --tb=long -v; then
         P4_STATUS="OK"
         echo "[e2e] Phase 4: PASSED"
     else
