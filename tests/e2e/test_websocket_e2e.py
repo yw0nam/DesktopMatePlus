@@ -32,53 +32,61 @@ async def _run_ws_turn(
     captured_session_id: str | None = session_id
     authorized = False
 
-    async with websockets.connect(
-        ws_url,
-        open_timeout=CONNECT_TIMEOUT,
-        ping_interval=20,
-        ping_timeout=10,
-        close_timeout=5,
-    ) as ws:
-        await ws.send(json.dumps({"type": "authorize", "token": TOKEN}))
+    try:
+        async with websockets.connect(
+            ws_url,
+            open_timeout=CONNECT_TIMEOUT,
+            ping_interval=20,
+            ping_timeout=10,
+            close_timeout=5,
+        ) as ws:
+            await ws.send(json.dumps({"type": "authorize", "token": TOKEN}))
 
-        while True:
-            raw = await asyncio.wait_for(ws.recv(), timeout=RECV_TIMEOUT)
-            data = json.loads(raw)
-            event_type = data.get("type")
+            while True:
+                raw = await asyncio.wait_for(ws.recv(), timeout=RECV_TIMEOUT)
+                data = json.loads(raw)
+                event_type = data.get("type")
 
-            if event_type == "ping":
-                await ws.send(json.dumps({"type": "pong"}))
-                continue
+                if event_type == "ping":
+                    await ws.send(json.dumps({"type": "pong"}))
+                    continue
 
-            events.append(data)
+                events.append(data)
 
-            if event_type == "authorize_error":
-                pytest.fail(f"WebSocket authorization failed: {data.get('error')}")
+                if event_type == "authorize_error":
+                    pytest.fail(f"WebSocket authorization failed: {data.get('error')}")
 
-            if event_type == "authorize_success" and not authorized:
-                authorized = True
-                payload = {
-                    "type": "chat_message",
-                    "content": message,
-                    "session_id": session_id,
-                    "agent_id": AGENT_ID,
-                    "user_id": USER_ID,
-                    "persona_id": PERSONA_ID,
-                    "tts_enabled": tts_enabled,
-                }
-                await ws.send(json.dumps(payload))
-                continue
+                if event_type == "authorize_success" and not authorized:
+                    authorized = True
+                    payload = {
+                        "type": "chat_message",
+                        "content": message,
+                        "session_id": session_id,
+                        "agent_id": AGENT_ID,
+                        "user_id": USER_ID,
+                        "persona_id": PERSONA_ID,
+                        "tts_enabled": tts_enabled,
+                    }
+                    await ws.send(json.dumps(payload))
+                    continue
 
-            if event_type == "stream_start":
-                captured_session_id = data.get("session_id") or captured_session_id
-                continue
+                if event_type == "stream_start":
+                    captured_session_id = data.get("session_id") or captured_session_id
+                    continue
 
-            if event_type == "stream_end":
-                captured_session_id = data.get("session_id") or captured_session_id
-                break
+                if event_type == "stream_end":
+                    captured_session_id = data.get("session_id") or captured_session_id
+                    break
 
-            if event_type == "error":
-                pytest.fail(f"Backend returned error event: {data.get('error')}")
+                if event_type == "error":
+                    pytest.fail(f"Backend returned error event: {data.get('error')}")
+
+    except TimeoutError:
+        received = [e.get("type") for e in events]
+        pytest.fail(
+            f"WebSocket timed out after {RECV_TIMEOUT}s waiting for stream_end. "
+            f"session_id={captured_session_id!r}, events received: {received}"
+        )
 
     return {"events": events, "session_id": captured_session_id}
 
@@ -128,9 +136,10 @@ class TestWebSocketE2E:
 
         tts_events = [e for e in result["events"] if e["type"] == "tts_chunk"]
         if not tts_events:
-            pytest.skip("No tts_chunk events received — TTS may not be configured")
-
-        assert len(tts_events) > 0, "Expected tts_chunk events when tts_enabled=True"
+            pytest.fail(
+                "Expected tts_chunk events when tts_enabled=True, but none received. "
+                "If TTS server is unavailable, ensure the backend is configured before running e2e tests."
+            )
 
         # Verify all chunks have audio_base64
         for chunk in tts_events:
@@ -152,3 +161,6 @@ class TestWebSocketE2E:
 
         event_types2 = [e["type"] for e in result2["events"]]
         assert "stream_end" in event_types2, "Turn 2 did not receive stream_end"
+        assert result2["session_id"] == session_id, (
+            f"Turn 2 session_id mismatch: expected {session_id!r}, got {result2['session_id']!r}"
+        )

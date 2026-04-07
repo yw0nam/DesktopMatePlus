@@ -95,4 +95,4 @@ class TestLtmE2E:
 
         assert resp.status_code == 200
         result = resp.json()
-        assert "success" in result, f"Missing 'success' key in response: {result}"
+        assert result.get("success") is True, f"search_memory returned success != True: {result}"

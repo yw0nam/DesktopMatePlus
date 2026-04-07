@@ -85,7 +85,7 @@ class TestStmE2E:
 
         async with httpx.AsyncClient(base_url=base_url, timeout=15) as client:
             # Add
-            await client.post(
+            add_resp = await client.post(
                 "/v1/stm/add-chat-history",
                 json={
                     "user_id": USER_ID,
@@ -96,6 +96,7 @@ class TestStmE2E:
                     ],
                 },
             )
+            assert add_resp.status_code == 201, f"Setup add failed: {add_resp.status_code} {add_resp.text}"
 
             # Delete
             resp = await client.delete(
@@ -141,7 +142,7 @@ class TestStmE2E:
                     ],
                 },
             )
-            assert add_resp.status_code == 201
+            assert add_resp.status_code == 201, f"CRUD add failed: {add_resp.status_code} {add_resp.text}"
 
             # GET
             get_resp = await client.get(
@@ -152,7 +153,7 @@ class TestStmE2E:
                     "agent_id": AGENT_ID,
                 },
             )
-            assert get_resp.status_code == 200
+            assert get_resp.status_code == 200, f"CRUD get failed: {get_resp.status_code} {get_resp.text}"
             assert len(get_resp.json().get("messages", [])) >= 2
 
             # CLEAR
@@ -160,7 +161,7 @@ class TestStmE2E:
                 f"/v1/stm/sessions/{session_id}",
                 params={"user_id": USER_ID, "agent_id": AGENT_ID},
             )
-            assert del_resp.status_code == 200
+            assert del_resp.status_code == 200, f"CRUD delete failed: {del_resp.status_code} {del_resp.text}"
 
             # VERIFY empty
             verify_resp = await client.get(
