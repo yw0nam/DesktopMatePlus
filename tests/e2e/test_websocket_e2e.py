@@ -143,12 +143,13 @@ class TestWebSocketE2E:
                 "If TTS server is unavailable, ensure the backend is configured before running e2e tests."
             )
 
-        # Verify all chunks have audio_base64
+        # Verify all chunks have audio_base64 and seq
         for chunk in tts_events:
             assert "audio_base64" in chunk, f"tts_chunk missing audio_base64: {chunk}"
+            assert "seq" in chunk, f"tts_chunk missing seq: {chunk}"
 
         # Verify sequence numbers are ordered (monotonically non-decreasing)
-        seq_numbers = [e.get("seq", 0) for e in tts_events]
+        seq_numbers = [e["seq"] for e in tts_events]
         assert seq_numbers == sorted(seq_numbers), (
             f"tts_chunk sequence numbers are not ordered: {seq_numbers}"
         )
