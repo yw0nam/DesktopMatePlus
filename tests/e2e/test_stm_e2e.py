@@ -34,14 +34,16 @@ class TestStmE2E:
                 },
             )
 
-        assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
+        assert (
+            resp.status_code == 201
+        ), f"Expected 201, got {resp.status_code}: {resp.text}"
         body = resp.json()
-        assert body.get("session_id") == session_id, (
-            f"session_id mismatch: {body.get('session_id')!r} != {session_id!r}"
-        )
-        assert body.get("message_count", 0) >= 2, (
-            f"Expected message_count >= 2, got {body.get('message_count')}"
-        )
+        assert (
+            body.get("session_id") == session_id
+        ), f"session_id mismatch: {body.get('session_id')!r} != {session_id!r}"
+        assert (
+            body.get("message_count", 0) >= 2
+        ), f"Expected message_count >= 2, got {body.get('message_count')}"
 
     async def test_stm_get_chat_history(self, e2e_session):
         """GET /v1/stm/get-chat-history returns the added messages."""
@@ -62,7 +64,9 @@ class TestStmE2E:
                     ],
                 },
             )
-            assert add_resp.status_code == 201, f"Setup add failed: {add_resp.status_code} {add_resp.text}"
+            assert (
+                add_resp.status_code == 201
+            ), f"Setup add failed: {add_resp.status_code} {add_resp.text}"
 
             # Then get
             resp = await client.get(
@@ -74,7 +78,9 @@ class TestStmE2E:
                 },
             )
 
-        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        assert (
+            resp.status_code == 200
+        ), f"Expected 200, got {resp.status_code}: {resp.text}"
         messages = resp.json().get("messages", [])
         assert len(messages) >= 2, f"Expected >= 2 messages, got {len(messages)}"
 
@@ -96,16 +102,18 @@ class TestStmE2E:
                     ],
                 },
             )
-            assert add_resp.status_code == 201, f"Setup add failed: {add_resp.status_code} {add_resp.text}"
+            assert (
+                add_resp.status_code == 201
+            ), f"Setup add failed: {add_resp.status_code} {add_resp.text}"
 
             # Delete
             resp = await client.delete(
                 f"/v1/stm/sessions/{session_id}",
                 params={"user_id": USER_ID, "agent_id": AGENT_ID},
             )
-            assert resp.status_code == 200, (
-                f"DELETE failed: {resp.status_code} {resp.text}"
-            )
+            assert (
+                resp.status_code == 200
+            ), f"DELETE failed: {resp.status_code} {resp.text}"
 
             # Verify empty after delete
             resp = await client.get(
@@ -119,9 +127,9 @@ class TestStmE2E:
 
         assert resp.status_code == 200
         messages_after = resp.json().get("messages", [])
-        assert len(messages_after) == 0, (
-            f"Expected 0 messages after delete, got {len(messages_after)}"
-        )
+        assert (
+            len(messages_after) == 0
+        ), f"Expected 0 messages after delete, got {len(messages_after)}"
 
     async def test_stm_full_crud_cycle(self, e2e_session):
         """Full STM CRUD: add → get → clear → verify empty."""
@@ -142,7 +150,9 @@ class TestStmE2E:
                     ],
                 },
             )
-            assert add_resp.status_code == 201, f"CRUD add failed: {add_resp.status_code} {add_resp.text}"
+            assert (
+                add_resp.status_code == 201
+            ), f"CRUD add failed: {add_resp.status_code} {add_resp.text}"
 
             # GET
             get_resp = await client.get(
@@ -153,7 +163,9 @@ class TestStmE2E:
                     "agent_id": AGENT_ID,
                 },
             )
-            assert get_resp.status_code == 200, f"CRUD get failed: {get_resp.status_code} {get_resp.text}"
+            assert (
+                get_resp.status_code == 200
+            ), f"CRUD get failed: {get_resp.status_code} {get_resp.text}"
             assert len(get_resp.json().get("messages", [])) >= 2
 
             # CLEAR
@@ -161,7 +173,9 @@ class TestStmE2E:
                 f"/v1/stm/sessions/{session_id}",
                 params={"user_id": USER_ID, "agent_id": AGENT_ID},
             )
-            assert del_resp.status_code == 200, f"CRUD delete failed: {del_resp.status_code} {del_resp.text}"
+            assert (
+                del_resp.status_code == 200
+            ), f"CRUD delete failed: {del_resp.status_code} {del_resp.text}"
 
             # VERIFY empty
             verify_resp = await client.get(

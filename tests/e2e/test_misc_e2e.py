@@ -17,9 +17,9 @@ class TestMiscE2E:
         ) as client:
             resp = await client.get("/health")
 
-        assert resp.status_code == 200, (
-            f"Health check failed: {resp.status_code} {resp.text}"
-        )
+        assert (
+            resp.status_code == 200
+        ), f"Health check failed: {resp.status_code} {resp.text}"
 
     async def test_health_check_body_has_status(self, e2e_session):
         """GET /health response body contains a 'status' field."""
@@ -40,9 +40,9 @@ class TestMiscE2E:
             resp = await client.get("/health")
 
         assert resp.status_code == 200
-        assert resp.json().get("status") == "healthy", (
-            f"Unexpected health status: {resp.json()}"
-        )
+        assert (
+            resp.json().get("status") == "healthy"
+        ), f"Unexpected health status: {resp.json()}"
 
     async def test_unknown_route_returns_404(self, e2e_session):
         """GET on a non-existent route returns 404."""

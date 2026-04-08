@@ -219,6 +219,7 @@ class RealtimeTTSDemo:
                 ping_interval=20,  # Send ping every 20 seconds
                 ping_timeout=10,  # Wait 10 seconds for pong
                 close_timeout=5,  # Wait 5 seconds when closing
+                max_size=None,  # No limit on message size (TTS chunks contain large base64 audio)
             ) as websocket:
                 print(f"✓ Connected to {self.websocket_url}\n")
 
@@ -292,7 +293,9 @@ class RealtimeTTSDemo:
                         turn_id = data.get("turn_id", "")
                         srv_session_id = data.get("session_id", "")
                         print("\n" + "─" * 70)
-                        print(f"🚀 Agent stream started (turn={turn_id}, session={srv_session_id})")
+                        print(
+                            f"🚀 Agent stream started (turn={turn_id}, session={srv_session_id})"
+                        )
                         print("─" * 70)
                         continue
 
@@ -304,7 +307,9 @@ class RealtimeTTSDemo:
 
                     if event_type == "tool_result":
                         result = data.get("result", "")
-                        print(f"\n📋 Tool result: {result[:120]}{'...' if len(result) > 120 else ''}")
+                        print(
+                            f"\n📋 Tool result: {result[:120]}{'...' if len(result) > 120 else ''}"
+                        )
                         continue
 
                     # ⭐ THIS IS THE KEY EVENT: tts_chunk
@@ -352,9 +357,13 @@ class RealtimeTTSDemo:
                         srv_session_id = data.get("session_id", "")
                         final_content = data.get("content", "")
                         print("\n" + "─" * 70)
-                        print(f"✅ Agent stream completed (turn={turn_id}, session={srv_session_id})")
+                        print(
+                            f"✅ Agent stream completed (turn={turn_id}, session={srv_session_id})"
+                        )
                         if final_content:
-                            print(f"📄 Full response: {final_content[:200]}{'...' if len(final_content) > 200 else ''}")
+                            print(
+                                f"📄 Full response: {final_content[:200]}{'...' if len(final_content) > 200 else ''}"
+                            )
                         print("─" * 70)
                         break
 
@@ -429,7 +438,7 @@ Example usage:
 
   # Custom API endpoints
   python examples/realtime_tts_streaming_demo.py \\
-    --ws-url ws://localhost:8000/v1/chat/stream
+    --ws-url ws://localhost:5600/v1/chat/stream
         """,
     )
     parser.add_argument(
@@ -446,7 +455,7 @@ Example usage:
     )
     parser.add_argument(
         "--ws-url",
-        default="ws://localhost:5500/v1/chat/stream",
+        default="ws://localhost:5600/v1/chat/stream",
         help="WebSocket endpoint URL",
     )
     parser.add_argument(

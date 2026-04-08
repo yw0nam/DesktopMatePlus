@@ -12,13 +12,6 @@ Keep this document lean but contain all critical information for capturing the a
 - If there is too much detail, split into subdirectory `CLAUDE.md` files (e.g., `src/CLAUDE.md`, `tests/CLAUDE.md`, `docs/CLAUDE.md`) — Claude Code auto-loads these context-sensitively when entering that directory.
 - But, this document must contain the information for capturing the overall architecture, design patterns, and coding conventions that are critical for maintaining consistency across the codebase.
 
-## Cross-Repo Context
-
-Director-Artisan 패턴의 **Director** 역할. 변경 순서: backend → nanoclaw → desktop-homunculus.
-Task tracking: `backend/Plans.md`. 상세: `nanoclaw/.claude/rules/team-local.md` 참조.
-
----
-
 ## Core Philosophy
 
 - Question every requirement. Is it really necessary? Is there a simpler way?
@@ -165,3 +158,16 @@ uv run pytest tests/structural/ -v   # layer boundary + file size + convention t
 - `tests/structural/test_architecture.py` — 9개 구조적 테스트
 - Known-debt: `_KNOWN_*` sets에 기존 위반 추적. 신규 위반 → 즉시 fail. 해결 후 set에서 제거.
 - Ruff 추가 규칙: `UP` (pyupgrade) / `SIM` (simplify) / `RUF` / `A` (builtins) / `TID` (tidy-imports)
+
+## Task Tracking
+
+- Tasks tracked in `TODO.md` with `cc:TODO` / `cc:WIP` / `cc:DONE` markers.
+
+## Appendix
+
+- [TODO](./TODO.md): Active task checklist (cc:TODO / cc:WIP / cc:DONE markers).
+- [Golden Principles](./docs/GOLDEN_PRINCIPLES.md): 13 architectural invariants enforced by garden.sh.
+- [Quality Score](./docs/QUALITY_SCORE.md): GP verification grade matrix.
+- [Known Issues](./docs/known_issues/KNOWN_ISSUES.md): 기술 부채 추적.
+- [Scripts Reference](./docs/scripts-reference.md): scripts/clean/ 스크립트 레퍼런스.
+- [/babysit](./.claude/commands/babysit.md) · [/post-merge-sweeper](./.claude/commands/post-merge-sweeper.md) · [/pr-pruner](./.claude/commands/pr-pruner.md): Workflow command references.

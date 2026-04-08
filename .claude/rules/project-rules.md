@@ -8,7 +8,6 @@
 
 ## Architecture Rules
 
-- Director role in Director-Artisan pattern — changes go backend → nanoclaw → desktop-homunculus (never reverse)
 - Services live under `src/services/<name>/`; register in `src/services/__init__.py` AND `src/main.py` lifespan
 - No hardcoded config values — use `settings` object or YAML under `yaml_files/`
 - Logging: Loguru via `src/core/logger` — no bare `print()`
@@ -21,4 +20,4 @@
 
 ## Task Tracking
 
-- Tasks tracked in `Plans.md` with `cc:TODO` / `cc:WIP` / `cc:DONE` markers
+- Tasks tracked in `TODO.md` with `cc:TODO` / `cc:WIP` / `cc:DONE` markers

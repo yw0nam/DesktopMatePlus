@@ -1,0 +1,143 @@
+# Golden Principles
+
+> **Purpose**: Invariants that must hold across all repos at all times.
+> The Background Gardening Agent uses this as its checklist — each principle has a machine-verifiable DoD.
+> When a violation is detected, a refactoring PR is opened automatically.
+
+> **CONTRIBUTING**: This document is a protected invariant. Direct commits to this file are forbidden.
+> All changes (adding, modifying, or removing a principle) **must go through a PR** and require explicit human approval before merge.
+
+---
+
+## GP-1: Architecture Layering
+
+**Rule**: Dependency direction is strictly enforced. No reverse imports.
+
+| Repo | Layer order (lower → higher) |
+|------|------------------------------|
+| `backend/` | core → models → services → api |
+
+**Verify**: `uv run pytest tests/structural/test_architecture.py`
+
+**Severity**: Critical — structural test failure blocks merge.
+
+---
+
+## GP-2: File Size Limits
+
+**Rule**: No source file exceeds its repo's line limit.
+
+| Repo | Limit | Exception |
+|------|-------|-----------|
+| `backend/` | 300 lines | — |
+
+New violations must be fixed immediately — never added to `_KNOWN_*` sets without a remediation plan.
+
+**Verify**: `uv run pytest tests/structural/test_architecture.py::test_file_sizes`
+
+**Severity**: Major — lint fails on new violations.
+
+---
+
+## GP-3: No Bare Logging
+
+**Rule**: No `print()` in `backend/` source files.
+
+| Repo | Required | Banned |
+|------|----------|--------|
+| `backend/` | `from src.core.logger import logger` (Loguru) | `print()` |
+
+**Verify**: `ruff check src/` (backend)
+
+**Severity**: Major.
+
+---
+
+## GP-4: No Hardcoded Config
+
+**Rule**: No magic strings, ports, URLs, or credentials in source code.
+
+- `backend/`: all config via `settings` object or `yaml_files/`. No hardcoded `localhost`, port numbers, or API keys.
+
+**Verify**: `grep -rn "localhost\|127\.0\.0\.1\|mongodb://" src/` must return zero hits (excluding test files and config loaders).
+
+**Severity**: Critical (credential exposure) / Major (config values).
+
+---
+
+## GP-5: CLAUDE.md as Map, Not Encyclopedia
+
+**Rule**: `CLAUDE.md` stays under 200 lines.
+Detail goes in `docs/`, `docs/faq/`, or sub-directory `CLAUDE.md` files.
+
+**Verify**: `wc -l CLAUDE.md` (≤ 200).
+
+**Severity**: Minor — triggers a split suggestion PR.
+
+---
+
+## GP-6: TODO as First-Class Artifact
+
+**Rule**: Every task must exist in `TODO.md` with `cc:TODO` before implementation starts.
+TODO.md changes must be committed in the same session as the task they track.
+
+**Verify**: No `cc:WIP` task in `TODO.md` without a corresponding commit on the feature branch.
+
+**Severity**: Minor.
+
+---
+
+## GP-7: Worktree Isolation for Implementation
+
+**Rule**: All implementation work happens inside a `git worktree` on a `feat/{slug}` branch.
+Direct commits to `main`/`master` are forbidden during implementation.
+
+**Verify**: `git log --oneline master..HEAD` should only show merge commits from worktree branches.
+
+**Severity**: Major — work done on master branch must be rebased to a feature branch.
+
+---
+
+## GP-8: Lint Before Merge
+
+**Rule**: `sh scripts/lint.sh` must pass (exit 0) in `backend/` before any merge.
+
+**Verify**: CI / pre-merge gate.
+
+**Severity**: Critical — blocks merge.
+
+---
+
+## GP-9: Archive Freshness
+
+**Rule**: Completed specs in `docs/TODO.md` must be reflected in TODO.md. When a spec's Status becomes `DONE` in `docs/TODO.md`, all corresponding TODO.md tasks must be `cc:DONE`, and the spec row must remain in `docs/TODO.md` under a Completed section (not deleted).
+
+- Active specs: Status = `TODO` in `docs/TODO.md`
+- Completed specs: Status = `DONE` in `docs/TODO.md`; all linked TODO.md tasks are `cc:DONE`
+- If a `DONE` spec still has open (`cc:TODO`) TODO.md tasks, it triggers a warning.
+
+**Verify**: `scripts/clean/garden.sh --gp GP-9` — lists DONE specs with open TODO.md tasks.
+
+**Severity**: WARN — garden.sh reports only; PM agent handles status updates.
+
+---
+
+## GP-10: TODO.md Auto-Archive
+
+**Rule**: Completed Phases in TODO.md (all tasks `cc:DONE`) must be collapsed to a single summary line. TODO.md retains only the Phase title with a `[completed]` annotation; task details are removed.
+
+- Already-collapsed Phases (single line with `[completed]` annotation) are skipped.
+- garden.sh detects unarchived completed Phases in dry-run mode; quality-agent performs the actual collapse.
+- `docs/superpowers/` paths are legacy — no new archives go there.
+
+**Verify**: `scripts/clean/garden.sh --gp GP-10` — lists uncollapsed completed Phases.
+
+**Severity**: WARN — garden.sh reports only; no merge block.
+
+---
+
+## Appendix: Gardening Agent Usage
+
+The Background Gardening Agent runs each principle's **Verify** command and opens a PR when violations are found.
+Priority order for automated remediation: GP-8 → GP-3 → GP-10 → GP-2 → GP-5 → GP-6.
+GP-1 requires human review before auto-merge.
