@@ -21,12 +21,12 @@ ltm_config:
     vector_store:
       provider: "qdrant"
       config:
-        url: "localhost"
+        url: "http://192.168.0.43:6333"
         embedding_model_dims: 2560
         collection_name: "ltm_collection"
     graph_store:
       provider: "neo4j"
       config:
-        url: "bolt://localhost:7687"
+        url: "bolt://192.168.0.43:7687"
         # username: ${NEO4J_USER}
         # password: ${NEO4J_PASSWORD}
