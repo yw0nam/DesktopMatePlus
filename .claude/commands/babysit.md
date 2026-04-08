@@ -42,7 +42,7 @@ UNRESOLVED  <bot>  <path>  <요약>  # UNRESOLVED > 0 일 때만
 
 ### 4. 미승인 PR (`REVIEW_DECISION=""`) → 자동 리뷰 후 승인
 
-`reviewer` 에이전트를 스폰하여 `/review` + `/cso` 실행.
+`oh-my-claudecode:code-reviewer` + `oh-my-claudecode:security-reviewer` 서브에이전트를 스폰하여 리뷰.
 
 - **Pass**: GitHub API로 APPROVE 후 Step 5로 진행
 - **Fail**: 이슈 목록 코멘트 남기고 대기 (머지 안 함)
@@ -51,19 +51,43 @@ UNRESOLVED  <bot>  <path>  <요약>  # UNRESOLVED > 0 일 때만
 # pass 판정 시:
 gh api repos/<repo>/pulls/<number>/reviews \
   -X POST \
-  -f body="Automated review passed (/review + /cso). Auto-approving." \
+  -f body="Automated review passed (code-reviewer + security-reviewer). Auto-approving." \
   -f event="APPROVE"
 ```
 
-### 5. APPROVED + CI 통과 PR → 머지
+### 5. APPROVED + CI 통과 PR → 머지 + CHANGELOG 업데이트
 
 `REVIEW_DECISION=APPROVED`이고 CI 통과한 PR:
 
 ```bash
-gh pr merge <number> --repo <repo> --merge
+gh pr merge <number> --merge
 ```
 
-머지 후 `/document-release` 실행 (CHANGELOG, README, docs/ 업데이트 필요 시).
+머지 완료 후 CHANGELOG.md를 업데이트한다.
+
+#### CHANGELOG 업데이트 방법
+
+```bash
+# 머지된 PR의 커밋 목록 조회
+git log --oneline ORIG_HEAD..HEAD
+```
+
+1. 커밋 메시지의 type 접두사로 변경 분류:
+   - `feat:` → `### Added`
+   - `fix:` → `### Fixed`
+   - `refactor:` / `chore:` → `### Changed`
+   - `docs:` → `### Changed`
+   - `BREAKING CHANGE` 포함 → MAJOR bump 필요 명시
+
+2. `CHANGELOG.md`의 `## [Unreleased]` 섹션 아래에 해당 항목 추가.
+   - CHANGELOG.md가 없으면 `changelog_guideline.md` 형식으로 신규 생성.
+   - 이미 같은 내용이 있으면 중복 추가 금지.
+
+3. 변경 후 커밋:
+```bash
+git add CHANGELOG.md
+git commit -m "chore: update changelog for #<number>"
+```
 
 ### 6. 머지된 브랜치 · 워크트리 정리
 
