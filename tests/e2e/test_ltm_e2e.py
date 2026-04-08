@@ -33,9 +33,9 @@ class TestLtmE2E:
         if resp.status_code == 503:
             pytest.skip(_LTM_UNAVAILABLE_MSG)
 
-        assert resp.status_code == 200, (
-            f"add_memory failed: {resp.status_code} {resp.text}"
-        )
+        assert (
+            resp.status_code == 200
+        ), f"add_memory failed: {resp.status_code} {resp.text}"
 
     async def test_ltm_search_memory_returns_results(self, e2e_session):
         """POST /v1/ltm/search_memory returns success=True with results."""
@@ -68,17 +68,17 @@ class TestLtmE2E:
         if resp.status_code == 503:
             pytest.skip(_LTM_UNAVAILABLE_MSG)
 
-        assert resp.status_code == 200, (
-            f"search_memory failed: {resp.status_code} {resp.text}"
-        )
+        assert (
+            resp.status_code == 200
+        ), f"search_memory failed: {resp.status_code} {resp.text}"
         result = resp.json()
-        assert result.get("success") is True, (
-            f"search_memory returned success=False: {result}"
-        )
+        assert (
+            result.get("success") is True
+        ), f"search_memory returned success=False: {result}"
         memories = result.get("results") or result.get("memories") or []
-        assert len(memories) > 0, (
-            f"search_memory returned success=True but no results after add: {result}"
-        )
+        assert (
+            len(memories) > 0
+        ), f"search_memory returned success=True but no results after add: {result}"
 
     async def test_ltm_search_memory_structure(self, e2e_session):
         """search_memory response has expected top-level keys."""
@@ -99,4 +99,6 @@ class TestLtmE2E:
 
         assert resp.status_code == 200
         result = resp.json()
-        assert result.get("success") is True, f"search_memory returned success != True: {result}"
+        assert (
+            result.get("success") is True
+        ), f"search_memory returned success != True: {result}"
