@@ -153,7 +153,7 @@ Write report to `$REPORT_FILE` (set in Step 0):
 
 ## Archive Bloat
 - TODO.md: N completed Phases (threshold: 5)
-- docs/TODO.md: N completed items (threshold: 5)
+- TODO.md: N completed items (threshold: 5)
 [If threshold exceeded: recommend archiving to docs/archive/]
 
 ## Violations Summary

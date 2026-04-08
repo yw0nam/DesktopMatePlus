@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # check_docs.sh — Documentation freshness linter
-# Checks dead links, doc line limits, and spec coverage in Plans.md.
+# Checks dead links, doc line limits, and spec coverage in TODO.md.
 set -euo pipefail
 
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOCS_DIR="$WORKSPACE_ROOT/docs"
-PLANS_FILE="$WORKSPACE_ROOT/Plans.md"
+PLANS_FILE="$WORKSPACE_ROOT/TODO.md"
 
 # ── CLI flags ──────────────────────────────────────────────────────
 FIX_MODE=false

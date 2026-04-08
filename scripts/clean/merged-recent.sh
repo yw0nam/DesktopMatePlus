@@ -10,9 +10,7 @@ set -euo pipefail
 
 HOURS="${1:-24}"
 REPOS=(
-  "yw0nam/DesktopMatePlusdocs"
   "yw0nam/DesktopMatePlus"
-  "yw0nam/desktop-homunculus"
 )
 
 SINCE=$(date -u -d "${HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
