@@ -43,11 +43,13 @@ Client → Server
 
 ### Response Flow
 
-1. `stream_start` - Response begins
-2. `tts_chunk` (multiple) - TTS audio + motion per sentence
-3. `stream_end` - Response complete (all `tts_chunk` guaranteed delivered before this)
+1. `stream_start` — Response begins
+2. `stream_token` (multiple) — Text tokens for real-time text rendering
+3. `tts_chunk` (multiple) — TTS audio (WAV) + VRM keyframes per sentence
+4. `stream_end` — Response complete (all `tts_chunk` guaranteed delivered before this)
 
-> **Note**: `stream_token`, `tool_call`, and `tool_result` events are processed **server-internally only** (for TTS synthesis and logging). They are never forwarded to the WebSocket client.
+> **Note**: `stream_token` is forwarded to the client — use it for real-time text display.
+> `tool_call` and `tool_result` are **server-internal only** (logged, never forwarded to client).
 
 ### Image Format
 

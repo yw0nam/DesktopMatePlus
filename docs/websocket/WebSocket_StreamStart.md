@@ -34,7 +34,7 @@ Server → Client
 ### Behavior
 
 - Marks start of response sequence
-- Followed by `stream_token`, `tool_call`, `tts_ready_chunk` messages
+- Followed by `stream_token` (text tokens) and `tts_chunk` (audio + VRM animation) events
 - Ends with `stream_end`
 
 ## 3. Usage

@@ -39,11 +39,12 @@ Updated: 2026-03-23
 | `authorize_error` | Auth failed | [AuthorizeError](./WebSocket_AuthorizeError.md) |
 | `ping` | Heartbeat | [Ping](./WebSocket_Ping.md) |
 | `stream_start` | Response begins | [StreamStart](./WebSocket_StreamStart.md) |
+| `stream_token` | Text token (real-time text rendering) | [StreamToken](./WebSocket_StreamToken.md) |
 | `stream_end` | Response complete | [StreamEnd](./WebSocket_StreamEnd.md) |
-| `tts_chunk` | TTS audio + motion | [TtsChunk](./WebSocket_TtsChunk.md) |
+| `tts_chunk` | TTS audio (WAV) + VRM keyframes | [TtsChunk](./WebSocket_TtsChunk.md) |
 | `error` | Error occurred | [ErrorMessage](./WebSocket_ErrorMessage.md) |
 
-- Note: `stream_token`, `tool_call`, and `tool_result` events are **server-internal only** — they are processed for TTS and logging respectively, and are never forwarded to the WebSocket client.
+- Note: `tool_call` and `tool_result` are **server-internal only** — logged server-side, never forwarded to the client.
 
 ### Configuration
 

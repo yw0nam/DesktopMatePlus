@@ -1,19 +1,17 @@
 # WebSocket: Stream Token
 
-Updated: 2026-03-18
+Updated: 2026-04-08
 
 ## 1. Synopsis
 
-- **Purpose**: Internal token event from agent — consumed for TTS synthesis; NOT forwarded to client
-- **I/O**: Agent emits `{ type: "stream_token", chunk }` → server processes for TTS → sends `tts_chunk` to client
-
-> **Server-internal only**: This event is never sent to the WebSocket client. The client receives `tts_chunk` events instead.
+- **Purpose**: Real-time text token from agent — forwarded to client for text rendering
+- **I/O**: Server sends `{ type: "stream_token", chunk, node? }` as each token is generated
 
 ## 2. Core Logic
 
 ### Direction
 
-Agent → Server (internal only)
+Server → Client
 
 ### Payload
 
@@ -21,7 +19,6 @@ Agent → Server (internal only)
 {
   "type": "stream_token",
   "chunk": "Hello! ",
-  "turn_id": "turn-uuid",
   "node": "agent_response_node"
 }
 ```
@@ -31,15 +28,47 @@ Agent → Server (internal only)
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | string | Yes | Must be `"stream_token"` |
-| `chunk` | string | Yes | Text fragment |
-| `turn_id` | string | No | Injected by `_normalize_event` |
-| `node` | string | No | Processing node identifier |
+| `chunk` | string | Yes | Text fragment (one or more characters) |
+| `node` | string\|null | No | Processing node identifier |
 
 ### Behavior
 
-- Multiple tokens emitted per turn by the agent
-- Server buffers chunks into sentences and synthesizes TTS for each sentence
-- Final output to client is `tts_chunk` events, not `stream_token`
+- Multiple tokens emitted per turn — append each `chunk` to render text progressively
+- Arrives **in parallel** with `tts_chunk` events (different purposes — see below)
+- All tokens arrive before `stream_end`
+
+**Role split:**
+
+| Event | Purpose |
+|-------|---------|
+| `stream_token` | Real-time text display (append `chunk` to chat UI) |
+| `tts_chunk` | Audio playback + VRM expression animation |
+
+Both events are received by the client. Use `stream_token` for text, `tts_chunk` for audio/animation.
+
+## 3. Usage
+
+**C# (Unity):**
+
+```csharp
+void OnMessage(string json) {
+    var msg = JsonUtility.FromJson<BaseMessage>(json);
+    if (msg.type == "stream_token") {
+        chatUI.AppendText(msg.chunk);  // real-time text rendering
+    }
+}
+```
+
+**JavaScript:**
+
+```javascript
+socket.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.type === 'stream_token') {
+    chatTextEl.textContent += msg.chunk;
+  }
+};
+```
 
 ---
 
@@ -49,3 +78,8 @@ Agent → Server (internal only)
 
 - [Stream Start](./WebSocket_StreamStart.md)
 - [Stream End](./WebSocket_StreamEnd.md)
+- [TTS Chunk](./WebSocket_TtsChunk.md)
+
+### B. PatchNote
+
+2026-04-08: "Server-internal only" 오류 수정 — stream_token은 클라이언트에 전달됨. Direction 교정. stream_token vs tts_chunk 역할 구분 명시. C# Unity 예제 추가.
