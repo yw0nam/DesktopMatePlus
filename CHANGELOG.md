@@ -2,6 +2,37 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Standalone 전환: nanoclaw, desktop-homunculus, Director-Artisan 크로스레포 참조 전부 제거
+- AGENTS.md를 OMC 네이티브 subagent_type 기반으로 전면 교체 (executor, code-reviewer, security-reviewer 등), TDD 필수화
+- Golden Principles를 backend-only 10개로 재정렬 (GP-5 Delegation, GP-6 NanoClaw, GP-13 DH MOD 제거)
+- 태스크 트래킹 Plans.md → TODO.md 전환
+- babysit: /review + /cso → code-reviewer + security-reviewer subagent, PR 머지 후 CHANGELOG 자동 업데이트 추가
+- quality-agent: git worktree 격리 후 PR 생성 방식으로 전환
+
+### Added
+
+- `scripts/clean/`: garden.sh, check_docs.sh, babysit-collect.sh, cleanup-merged.sh, merged-recent.sh, pr-comments-filter.sh, run-quality-agent.sh 추가
+- `.claude/agents/quality-agent.md`: 일일 GP 검증·리포트·PR 자동화 에이전트
+- `.claude/commands/`: babysit, post-merge-sweeper, pr-pruner 워크플로우 커맨드
+- `docs/GOLDEN_PRINCIPLES.md`: 13 → 10개 architectural invariants 문서화
+- `docs/QUALITY_SCORE.md`: GP 검증 등급 매트릭스
+- `docs/data_flow/chat/STREAM_TOKEN_TTS_FLOW.md`: stream_token/tts_chunk 내부 파이프라인 다이어그램
+- `docs/data_flow/session/STM_LIFECYCLE.md`: STM 생성·복원·만료·정리 라이프사이클 다이어그램
+- `docs/known_issues/KNOWN_ISSUES.md`: 기술 부채 추적 (KI-1: irodori.yml hardcoded IP)
+
+### Fixed
+
+- `scripts/clean/check_docs.sh`: PLANS_FILE Plans.md → TODO.md
+- `scripts/clean/merged-recent.sh`: 크로스레포 참조 제거, 2>/dev/null auth 실패 묵살 수정
+- `scripts/clean/babysit-collect.sh`: gh 실패 시 WARN 출력
+- `scripts/clean/cleanup-merged.sh`: worktree remove --force → dirty check 후 조건부 제거
+- `scripts/clean/garden.sh`: sed -i → atomic tmp+mv 패턴 (QUALITY_SCORE.md)
+- `quality-agent.md`: REPORT_FILE 미선언, cd .. 경로 오류, push 실패 시 worktree 보존, dangling branch 정리
+
 ## [2.4.3] - 2026-04-04
 
 ### Added
