@@ -14,7 +14,7 @@
 | **Implementer** | `oh-my-claudecode:executor` | sonnet (complex→opus) | TDD 구현·lint·commit |
 | **Reviewer** | `oh-my-claudecode:code-reviewer` | sonnet | 코드 품질·SOLID·로직 결함 |
 | **Security** | `oh-my-claudecode:security-reviewer` | opus | OWASP·시크릿·취약점 검사 |
-| **Debugger** | `oh-my-claudecode:tracer` / `debugger` | sonnet | 원인 추적·스택 분석 |
+| **Debugger** | `oh-my-claudecode:tracer` | sonnet | 원인 추적·스택 분석 (디버깅 스킬: oh-my-claudecode:debugger) |
 | **Test Engineer** | `oh-my-claudecode:test-engineer` | sonnet | TDD 전략·E2E·flaky 수정 |
 | **Quality** | `.claude/agents/quality-agent.md` | sonnet | 일일 GP 검증·리포트·PR |
 
@@ -38,10 +38,12 @@ User request
                       ▼
               code-reviewer (별도 패스)
                       │
+                      ├─→ git diff | gemini review → APPROVE 필수
+                      ├─→ /pr-review-toolkit:review-pr → Critical 없음 필수
                       ├─→ 백엔드 변경 시: security-reviewer
                       │
                       ▼
-               verifier → PR 생성 → TODO.md cc:DONE
+               oh-my-claudecode:verifier (검증 스킬) → PR 생성 → TODO.md cc:DONE
 ```
 
 ---

@@ -19,10 +19,13 @@ SINCE=$(date -u -d "${HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 for REPO in "${REPOS[@]}"; do
-  PRS=$(gh pr list --repo "$REPO" \
+  if ! PRS=$(gh pr list --repo "$REPO" \
     --state merged \
     --json number,title,mergedAt \
-    --limit 30 2>/dev/null)
+    --limit 30); then
+    echo "WARN: gh pr list failed for $REPO (check auth)" >&2
+    continue
+  fi
 
   # Filter to within the time window
   RECENT=$(echo "$PRS" | jq -r \

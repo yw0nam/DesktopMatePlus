@@ -18,9 +18,12 @@ REPOS=(
 NOW=$(date +%s)
 
 for REPO in "${REPOS[@]}"; do
-  PRS=$(gh pr list --repo "$REPO" \
+  if ! PRS=$(gh pr list --repo "$REPO" \
     --json number,title,reviewDecision,mergeable,updatedAt,isDraft,labels \
-    --state open --limit 50 2>/dev/null)
+    --state open --limit 50); then
+    echo "WARN: gh pr list failed for $REPO (check auth)" >&2
+    continue
+  fi
 
   echo "$PRS" | jq -r \
     --arg repo "$REPO" \

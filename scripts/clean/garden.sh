@@ -370,10 +370,13 @@ update_quality_score() {
   obs_g=$(grade_from_count "${domain_obs[backend]:-0}")
   docs_g=$(grade_from_count "${domain_docs[backend]:-0}")
   overall_g=$(compute_overall "$arch_g" "$test_g" "$obs_g" "$docs_g")
-  sed -i "s/| backend |.*|/| backend | ${arch_g} | ${test_g} | ${obs_g} | ${docs_g} | ${overall_g} |/" "$qs_file"
+  local tmp
+  tmp=$(mktemp)
+  sed "s/| backend |.*|/| backend | ${arch_g} | ${test_g} | ${obs_g} | ${docs_g} | ${overall_g} |/" "$qs_file" > "$tmp" && mv "$tmp" "$qs_file"
 
   # Update timestamp
-  sed -i "s/^Last updated:.*/Last updated: $(date +%Y-%m-%d)/" "$qs_file"
+  tmp=$(mktemp)
+  sed "s/^Last updated:.*/Last updated: $(date +%Y-%m-%d)/" "$qs_file" > "$tmp" && mv "$tmp" "$qs_file"
 
   # Count violations for Violations Summary section
   local gp3_backend_count=0
@@ -384,7 +387,8 @@ update_quality_score() {
   done
 
   # Update Violations Summary lines
-  sed -i "s/^- GP-3 (backend):.*$/- GP-3 (backend): ${gp3_backend_count} violations/" "$qs_file"
+  tmp=$(mktemp)
+  sed "s/^- GP-3 (backend):.*$/- GP-3 (backend): ${gp3_backend_count} violations/" "$qs_file" > "$tmp" && mv "$tmp" "$qs_file"
 }
 
 update_quality_score

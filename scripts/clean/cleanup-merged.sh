@@ -65,7 +65,12 @@ for ENTRY in "${REPOS[@]}"; do
       fi
 
       echo "  remove worktree: $wt_path  [$branch]"
-      _run git -C "$REPO_PATH" worktree remove --force "$wt_path"
+      # 미커밋 변경사항 있으면 force remove 대신 경고
+      if git -C "$REPO_PATH" -C "$wt_path" diff --quiet && git -C "$REPO_PATH" -C "$wt_path" diff --cached --quiet; then
+        _run git -C "$REPO_PATH" worktree remove "$wt_path"
+      else
+        echo "  WARN: worktree $wt_path has uncommitted changes — skipping removal"
+      fi
     fi
   done < <(git -C "$REPO_PATH" worktree list --porcelain)
 
