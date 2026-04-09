@@ -6,6 +6,18 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Changed
 
+- Quality report 2026-04-09: TODO.md 라인 수 정정, GP-8 Violations Summary 추가, black 권고 정확도 개선 (#17)
+
+### Fixed
+
+- `docs/QUALITY_SCORE.md`: GP-8 violation 누락 수정, violations 요약 문구 현행화 (#17)
+
+---
+
+_Merged PRs below this line are from previous sessions._
+
+### Changed
+
 - Standalone 전환: nanoclaw, desktop-homunculus, Director-Artisan 크로스레포 참조 전부 제거
 - AGENTS.md를 OMC 네이티브 subagent_type 기반으로 전면 교체 (executor, code-reviewer, security-reviewer 등), TDD 필수화
 - Golden Principles를 backend-only 10개로 재정렬 (GP-5 Delegation, GP-6 NanoClaw, GP-13 DH MOD 제거)
