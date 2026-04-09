@@ -115,3 +115,4 @@ agents-v3/
 .claude/state
 .claude/settings.json
 .omc
+.run.logdir
