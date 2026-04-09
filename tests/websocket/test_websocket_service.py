@@ -209,6 +209,7 @@ class TestWebSocketManager:
                 user_id="default_user",
                 agent_id="default_agent",
                 context=None,
+                is_new_session=False,
             ):
                 yield {"type": "stream_start"}
                 yield {"type": "stream_token", "chunk": "Hello, world!"}
