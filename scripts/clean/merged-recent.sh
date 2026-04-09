@@ -43,8 +43,8 @@ for REPO in "${REPOS[@]}"; do
     SUMMARY=$(echo "$FILTER_OUT" | grep '^SUMMARY:' \
       || echo "SUMMARY: UNRESOLVED=0 RESOLVED=0 TOTAL=0")
 
-    UNRESOLVED=$(echo "$SUMMARY" | grep -oP 'UNRESOLVED=\K[0-9]+')
-    TOTAL=$(echo "$SUMMARY"      | grep -oP 'TOTAL=\K[0-9]+')
+    UNRESOLVED=$(echo "$SUMMARY" | sed -E 's/.*UNRESOLVED=([0-9]+).*/\1/')
+    TOTAL=$(echo "$SUMMARY"      | sed -E 's/.*TOTAL=([0-9]+).*/\1/')
 
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$REPO" "$NUMBER" "$TITLE" "$MERGED_AT" "$UNRESOLVED" "$TOTAL"

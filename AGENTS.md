@@ -1,100 +1,112 @@
-# AGENTS.md — Development Flow
+# PROJECT KNOWLEDGE BASE
 
-> **Project**: backend (DesktopMate+)
-> **Language**: Python 3.13 / FastAPI
-> **Orchestration**: oh-my-claudecode (OMC)
+**Generated:** 2026-04-09
+**Commit:** b93e091
+**Branch:** master
 
----
+## OVERVIEW
 
-## Agent Setup
+DesktopMate+ backend — Python 3.13 / FastAPI server for AI desktop companion (Yuri). WebSocket streaming chat, TTS synthesis (IrodoriTTS), LangChain/LangGraph agent with MCP tools, MongoDB STM, mem0 LTM, Slack channel integration, background task sweep. No GPU inference in-process — calls OpenAI, vLLM, IrodoriTTS, MongoDB, Qdrant externally.
 
-| Agent | subagent_type | Model | Role |
-|-------|---------------|-------|------|
-| **Orchestrator** | *(Claude itself)* | opus | 판단·위임·TaskCreate·PR 결정 |
-| **Implementer** | `oh-my-claudecode:executor` | sonnet (complex→opus) | TDD 구현·lint·commit |
-| **Reviewer** | `oh-my-claudecode:code-reviewer` | sonnet | 코드 품질·SOLID·로직 결함 |
-| **Security** | `oh-my-claudecode:security-reviewer` | opus | OWASP·시크릿·취약점 검사 |
-| **Debugger** | `oh-my-claudecode:tracer` | sonnet | 원인 추적·스택 분석 (디버깅 스킬: oh-my-claudecode:debugger) |
-| **Test Engineer** | `oh-my-claudecode:test-engineer` | sonnet | TDD 전략·E2E·flaky 수정 |
-| **Quality** | `/quality-report` command | — | 일일 GP 검증·리포트·PR |
-
----
-
-## Workflow
+## STRUCTURE
 
 ```
-User request
-     │
-     ▼
-[Explore agent] ──→ 큰 피처? ──→ ralplan (합의 계획)
-     │                                   │
-     └─────────────── TaskCreate ◄────────┘
-                           │
-                           ▼
-                   executor (worktree 격리)
-                      │  TDD: RED → GREEN → refactor
-                      │  lint + tests (run_in_background)
-                      │
-                      ▼
-              code-reviewer (별도 패스)
-                      │
-                      ├─→ git diff | gemini review → APPROVE 필수
-                      ├─→ /pr-review-toolkit:review-pr → Critical 없음 필수
-                      ├─→ 백엔드 변경 시: security-reviewer
-                      │
-                      ▼
-               oh-my-claudecode:verifier (검증 스킬) → PR 생성 → TODO.md cc:DONE
+backend/
+├── src/
+│   ├── api/routes/        # 6 FastAPI routers (stm, ltm, tts, websocket, slack, callback)
+│   ├── configs/           # Pydantic settings + YAML loader (agent/, ltm/, tts/)
+│   ├── core/              # logger.py (Loguru + request ID), middleware.py
+│   ├── models/            # Pydantic V2 schemas per domain
+│   ├── services/          # 7 services — see src/services/AGENTS.md
+│   └── main.py            # App factory (create_app → get_app), lifespan, service init
+├── tests/                 # Mirrors src/ — see tests/CLAUDE.md
+├── docs/                  # API specs, WS protocol, data flows — see docs/CLAUDE.md
+├── scripts/               # run.sh, e2e.sh, lint.sh, verify.sh, clean/
+├── yaml_files/            # Runtime config (personas.yml, tts_rules.yml, services/*.yml)
+├── worktrees/             # Git worktrees for feature isolation (auto-generated, ignore)
+└── examples/              # Demo scripts (WS client, TTS streaming)
 ```
 
----
+## WHERE TO LOOK
 
-## TDD 원칙 (필수)
+| Task | Location | Notes |
+|------|----------|-------|
+| Add API route | `src/api/routes/` + `src/models/` | Include router in `src/api/routes/__init__.py` |
+| Add service | `src/services/<name>/` | Init in `service_manager.py`, register in `main.py` lifespan |
+| Modify agent | `src/services/agent_service/` | See `agent_service/CLAUDE.md` |
+| Add agent tool | `src/services/agent_service/tools/` | Follow existing tool pattern |
+| Change TTS | `src/services/tts_service/` | See `tts_service/CLAUDE.md` |
+| WebSocket protocol | `src/services/websocket_service/` | See `websocket_service/AGENTS.md` + `docs/websocket/CLAUDE.md` |
+| Add env variable | `src/configs/settings.py` | Document in `docs/setup/ENVIRONMENT.md` |
+| Add YAML config | `yaml_files/` | Load via `src/configs/` loader |
+| Slack integration | `src/services/channel_service/` | See `channel_service/CLAUDE.md` |
 
-모든 코드 작성은 TDD를 따른다. 예외 없음.
+## CONVENTIONS
 
-1. **RED**: 실패하는 테스트 먼저 작성
-2. **GREEN**: 테스트가 통과하는 최소 구현
-3. **REFACTOR**: 중복 제거·가독성 개선
+- **Async-first**: All I/O uses `async/await`. No sync DB/API calls.
+- **Type hints**: Strict. `|` for unions (3.10+ style). No `Any`.
+- **No print()**: Always `loguru.logger`. See `src/CLAUDE.md`.
+- **No hardcoded config**: Use `settings` object or YAML injection.
+- **Factory pattern**: `create_app()` → `get_app()` for uvicorn.
+- **Service singletons**: Module-level lazy init via `service_manager.py`.
+- **Pydantic V2**: All request/response models. Validators, not manual checks.
+- **Request ID**: Bound at middleware, threaded through all logs.
 
-- executor 스폰 시 항상 TDD 순서 준수
-- 테스트 없는 구현 PR → code-reviewer에서 reject
-- `"tdd"` 키워드로 OMC TDD 모드 자동 트리거
+## ANTI-PATTERNS (THIS PROJECT)
 
----
+- **Never** suppress types (`Any`, `type: ignore`).
+- **Never** use `print()` — always `logger`.
+- **Never** skip E2E tests — `bash scripts/e2e.sh` must pass before done.
+- **Never** add DEBUG logs to production code paths.
+- **Never** log sensitive data (passwords, tokens, PII).
+- **Never** hardcode service URLs or credentials.
+- **TDD mandatory**: RED → GREEN → REFACTOR. No exceptions.
 
-## Task Tracking
+## COMMANDS
 
-- 작업 시작: `TODO.md`에 `cc:TODO` → `cc:WIP` 마킹
-- 작업 완료: DoD 전 단계 통과 후 `cc:DONE` 마킹
-- 세션 내 진행 추적: `TaskCreate` / `TaskUpdate` 도구 병행 사용
+```bash
+# Dev server
+uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
 
----
+# Testing (E2E is MANDATORY before marking done)
+bash scripts/e2e.sh                    # E2E tests
+uv run pytest                          # All tests
+uv run pytest --cov=src                # With coverage
 
-## Model Routing
+# Linting (includes structural tests)
+bash scripts/lint.sh
 
+# Custom YAML config
+YAML_FILE=yaml_files/custom.yml uv run uvicorn "src.main:get_app" --factory
 ```
-haiku  → 빠른 조회, 단순 질문
-sonnet → 표준 구현 (executor 기본값)
-opus   → 아키텍처 설계, 복잡한 디버깅, 보안 리뷰
-```
 
----
+## COMPLEXITY HOTSPOTS
 
-## OMC 실행 원칙
+| File | Lines | Concern |
+|------|-------|---------|
+| `services/websocket_service/message_processor/processor.py` | 626 | Turn lifecycle, async task coordination |
+| `services/websocket_service/message_processor/event_handlers.py` | 448 | Agent event → TTS chunk pipeline |
+| `services/websocket_service/manager/websocket_manager.py` | 438 | Connection lifecycle, heartbeat |
+| `services/service_manager.py` | 412 | Singleton init, async/sync bridging |
+| `services/websocket_service/manager/handlers.py` | 393 | Message routing, chat turn management |
 
-- 독립 작업 2개 이상 → 병렬 실행 (single message, multiple tool calls)
-- 빌드·테스트 → `run_in_background`
-- **자가승인 금지**: 구현 컨텍스트에서 직접 승인 불가 — `code-reviewer` 별도 패스 필수
-- 완료 주장 전: pending tasks 0 + tests passing + verifier 증거 수집
+## CONTEXT-SENSITIVE DOCS
 
----
+| Path | Content |
+|------|---------|
+| `src/CLAUDE.md` | Logging (format, levels, request ID) |
+| `tests/CLAUDE.md` | Testing (pytest, fixtures, structural tests) |
+| `docs/CLAUDE.md` | Doc authoring (200-line rule, structure) |
+| `docs/websocket/CLAUDE.md` | WebSocket protocol (message types, lifecycle) |
+| `src/services/tts_service/CLAUDE.md` | TTS (EmotionMotionMapper, synthesize_chunk) |
+| `src/services/agent_service/CLAUDE.md` | Agent (LangGraph, middleware, memory) |
+| `src/services/channel_service/CLAUDE.md` | Channel (Slack, session_lock, reply_channel) |
+| `src/services/AGENTS.md` | Service layer (init order, deps, patterns) |
+| `src/services/websocket_service/AGENTS.md` | WebSocket internals (processor, manager) |
 
-## OMC 스킬 트리거
+## NOTES
 
-| 키워드 | 동작 |
-|--------|------|
-| `"tdd"` | TDD 모드 활성화 |
-| `"ralplan"` | 합의 계획 (큰 피처) |
-| `"ultrathink"` | 심층 추론 |
-| `"deepsearch"` | 코드베이스 탐색 |
-| `"autopilot"` | 자율 실행 모드 |
+- **Service init order matters**: TTS → Mapper → MongoDB → Agent → LTM → Channel → Sweep
+- **Port calc**: Feature branches get port 5500 + (checksum % 100) via `scripts/run.sh`
+- **Worktrees**: `worktrees/` is git worktree copies — ignore for code analysis
+- **Task tracking**: `TODO.md` with `cc:TODO` / `cc:WIP` / `cc:DONE` markers
