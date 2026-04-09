@@ -132,32 +132,12 @@ uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
 ### D. Testing
 
 ```bash
-uv run pytest                                              # all tests
-uv run pytest tests/path/test_file.py                     # specific file
-uv run pytest tests/path/test_file.py::TestClass::test_name  # single test
-uv run pytest -m slow                                     # E2E tests (requires real services)
-uv run pytest --cov=src                                   # with coverage
+bash scripts/e2e.sh
 ```
 
-- `asyncio_mode = "auto"` in `pyproject.toml` — no `@pytest.mark.asyncio` decorator needed.
-- `slow` tests hit real MongoDB/Qdrant/LLM — skip in CI unless services are available.
-- Update `examples/realtime_tts_streaming_demo.py` for any API or WebSocket interface changes.
-
-### E. Linting & Formatting
-
-```bash
-sh scripts/lint.sh   # ruff + black + structural tests — run before ending any task
-```
-
-### F. Architecture Enforcement
-
-```bash
-uv run pytest tests/structural/ -v   # layer boundary + file size + convention tests (included in lint.sh)
-```
-
-- `tests/structural/test_architecture.py` — 9개 구조적 테스트
-- Known-debt: `_KNOWN_*` sets에 기존 위반 추적. 신규 위반 → 즉시 fail. 해결 후 set에서 제거.
-- Ruff 추가 규칙: `UP` (pyupgrade) / `SIM` (simplify) / `RUF` / `A` (builtins) / `TID` (tidy-imports)
+See the [Testing Checklist](CHECKLIST.md) for detailed instructions and manual testing steps.
+**YOU CAN'T SKIP E2E TESTS.** you must pass this test mark the task is done.
+If the new feature cannot be tested with the existing E2E framework, you must first extend the E2E tests to cover it before marking the task as done.
 
 ## Task Tracking
 

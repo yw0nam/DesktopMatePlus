@@ -438,7 +438,7 @@ Example usage:
 
   # Custom API endpoints
   python examples/realtime_tts_streaming_demo.py \\
-    --ws-url ws://localhost:5600/v1/chat/stream
+    --ws-url ws://localhost:5500/v1/chat/stream
         """,
     )
     parser.add_argument(
@@ -455,7 +455,7 @@ Example usage:
     )
     parser.add_argument(
         "--ws-url",
-        default="ws://localhost:5600/v1/chat/stream",
+        default="ws://localhost:5500/v1/chat/stream",
         help="WebSocket endpoint URL",
     )
     parser.add_argument(
