@@ -125,3 +125,79 @@ class TestProcessMessage:
         mock_slack.send_message.assert_called_once()
         sent_text = mock_slack.send_message.call_args[0][1]
         assert "오류" in sent_text
+
+    @pytest.mark.asyncio
+    async def test_passes_is_new_session_true_when_registry_inserts(self):
+        agent = _make_deps()
+        mock_registry = MagicMock()
+        mock_registry.upsert = MagicMock(return_value=True)
+
+        with (
+            patch(
+                "src.services.channel_service.get_slack_service",
+                return_value=None,
+            ),
+            patch(
+                "src.services.channel_service.get_session_registry",
+                return_value=mock_registry,
+            ),
+        ):
+            await process_message(
+                text="안녕",
+                session_id="slack:T1:C1:default",
+                provider="slack",
+                channel_id="C1",
+                agent_service=agent,
+            )
+
+        assert agent.invoke.call_args[1]["is_new_session"] is True
+
+    @pytest.mark.asyncio
+    async def test_passes_is_new_session_false_when_registry_updates(self):
+        agent = _make_deps()
+        mock_registry = MagicMock()
+        mock_registry.upsert = MagicMock(return_value=False)
+
+        with (
+            patch(
+                "src.services.channel_service.get_slack_service",
+                return_value=None,
+            ),
+            patch(
+                "src.services.channel_service.get_session_registry",
+                return_value=mock_registry,
+            ),
+        ):
+            await process_message(
+                text="안녕",
+                session_id="slack:T1:C1:default",
+                provider="slack",
+                channel_id="C1",
+                agent_service=agent,
+            )
+
+        assert agent.invoke.call_args[1]["is_new_session"] is False
+
+    @pytest.mark.asyncio
+    async def test_passes_is_new_session_false_when_registry_unavailable(self):
+        agent = _make_deps()
+
+        with (
+            patch(
+                "src.services.channel_service.get_slack_service",
+                return_value=None,
+            ),
+            patch(
+                "src.services.channel_service.get_session_registry",
+                return_value=None,
+            ),
+        ):
+            await process_message(
+                text="안녕",
+                session_id="slack:T1:C1:default",
+                provider="slack",
+                channel_id="C1",
+                agent_service=agent,
+            )
+
+        assert agent.invoke.call_args[1]["is_new_session"] is False
