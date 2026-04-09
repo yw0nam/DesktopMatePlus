@@ -2,9 +2,9 @@
 
 ## Phase 1 — CI/CD & Safety Net
 
-- [ ] GitHub Actions CI 워크플로우 추가 (PR 트리거: lint + pytest + coverage report) `cc:TODO`
-- [ ] pre-commit 훅 정상화 — .pre-commit-config.yaml에서 ruff/black 주석 해제 `cc:TODO`
-- [ ] pyproject.toml에 [tool.coverage] 섹션 추가 (source, omit, threshold) `cc:TODO`
+- [x] GitHub Actions CI 워크플로우 추가 (PR 트리거: lint + pytest + coverage report) `cc:DONE`
+- [x] pre-commit 훅 정상화 — .pre-commit-config.yaml에서 ruff/black 주석 해제 `cc:DONE`
+- [x] pyproject.toml에 [tool.coverage] 섹션 추가 (source, omit, threshold) `cc:DONE`
 
 ## Phase 2 — Tech Debt Tracking
 
