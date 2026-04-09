@@ -1,5 +1,5 @@
-import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
 
@@ -12,34 +12,28 @@ class SearchResult:
 
 class KnowledgeBaseService:
     def __init__(self, kb_path: str) -> None:
-        self.kb_path = kb_path
+        self.kb_path = Path(kb_path)
 
     def search(self, query: str, tags: list[str]) -> list[SearchResult]:
-        """Search knowledge base using rg (ripgrep).
+        """Search knowledge base files for query string.
 
         Note: tags filtering not yet implemented.
         """
-        cmd = ["rg", "--with-filename", "--no-heading", "-l", query, self.kb_path]
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            if result.returncode not in (0, 1):
-                logger.warning(f"rg error: {result.stderr}")
-                return []
-
-            results = []
-            for filepath in result.stdout.strip().splitlines():
-                filepath = filepath.strip()
-                if not filepath:
-                    continue
-                try:
-                    content = self.read(filepath)
-                    results.append(SearchResult(path=filepath, content=content))
-                except Exception as e:
-                    logger.warning(f"Failed to read {filepath}: {e}")
-            return results
-        except FileNotFoundError:
-            logger.error("rg (ripgrep) not found. Install ripgrep.")
+        if not self.kb_path.exists():
+            logger.warning(f"Knowledge base path does not exist: {self.kb_path}")
             return []
+
+        results: list[SearchResult] = []
+        for filepath in sorted(self.kb_path.rglob("*.md")):
+            if not filepath.is_file():
+                continue
+            try:
+                content = filepath.read_text(encoding="utf-8")
+                if query in content:
+                    results.append(SearchResult(path=str(filepath), content=content))
+            except Exception as e:
+                logger.warning(f"Failed to read {filepath}: {e}")
+        return results
 
     def read(self, path: str) -> str:
         """Read a file from the knowledge base."""
