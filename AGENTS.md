@@ -16,7 +16,7 @@
 | **Security** | `oh-my-claudecode:security-reviewer` | opus | OWASP·시크릿·취약점 검사 |
 | **Debugger** | `oh-my-claudecode:tracer` | sonnet | 원인 추적·스택 분석 (디버깅 스킬: oh-my-claudecode:debugger) |
 | **Test Engineer** | `oh-my-claudecode:test-engineer` | sonnet | TDD 전략·E2E·flaky 수정 |
-| **Quality** | `.claude/agents/quality-agent.md` | sonnet | 일일 GP 검증·리포트·PR |
+| **Quality** | `/quality-report` command | — | 일일 GP 검증·리포트·PR |
 
 ---
 

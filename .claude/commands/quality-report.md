@@ -1,34 +1,10 @@
----
-name: quality-agent
-description: Background Quality Agent — periodic quality monitoring. Runs garden.sh + check_docs.sh + stale TODO detection + QUALITY_SCORE.md refresh, writes a report to docs/reports/YYYY/MM/, then creates a PR automatically.
-model: claude-sonnet-4-6
-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
-  - Write
-disallowedTools:
-  - Edit
----
+# /quality-report — Daily Quality Check
 
-# Background Quality Agent
+일일 품질 점검. garden.sh + check_docs.sh + stale TODO 탐지 + QUALITY_SCORE.md 갱신 후 리포트 PR 생성.
 
-## Role
+## 실행 순서
 
-Periodic quality monitoring agent. Runs all quality checks, writes a structured report, and opens a PR.
-
-## Lifecycle
-
-Triggered by `scripts/clean/run-quality-agent.sh` cron (default: once per day at 09:07 KST).
-
-Also runnable ad-hoc via Lead Agent spawning.
-
-## Execution Order
-
-### Step 0: Worktree Setup
-
-**Must run before any file writes.** Create an isolated worktree so all quality work is branch-isolated from the main working tree.
+### 1. Worktree Setup
 
 ```bash
 DATE=$(date +%Y-%m-%d)
@@ -39,14 +15,11 @@ WORKTREE_PATH="worktrees/quality-${DATE}"
 
 git fetch origin master
 
-# Create worktree (idempotent: skip if already exists)
 if [ ! -d "$WORKTREE_PATH" ]; then
-  # 로컬 브랜치가 이미 존재하면 삭제 후 재생성
   git branch -D "$BRANCH" 2>/dev/null || true
   git worktree add "$WORKTREE_PATH" -b "$BRANCH" origin/master
 fi
 
-# Create report directory inside worktree
 mkdir -p "${WORKTREE_PATH}/docs/reports/${YEAR}/${MONTH}"
 
 REPORT_FILE="${WORKTREE_PATH}/docs/reports/${YEAR}/${MONTH}/quality-${DATE}.md"
@@ -55,39 +28,36 @@ echo "Worktree ready at: $WORKTREE_PATH"
 echo "Branch: $BRANCH"
 ```
 
-> **Note**: Each Bash tool call runs in an independent shell — variables do not persist. Every subsequent step must re-declare `DATE`, `YEAR`, `MONTH`, `WORKTREE_PATH` at the top and prefix all commands with `cd "$WORKTREE_PATH" && ...`.
+> **Note**: 각 Bash 호출은 독립 셸 — `DATE`, `YEAR`, `MONTH`, `WORKTREE_PATH`를 매 단계 재선언하고 `cd "$WORKTREE_PATH" && ...`로 실행할 것.
 
-### Step 1: GP Drift Detection
+### 2. GP Drift Detection
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
 cd "$WORKTREE_PATH" && bash scripts/clean/garden.sh --dry-run
 ```
 
-Captures all GP-1~10 violations. `--dry-run` skips auto-fix so agent stays read-only.
+GP-1~10 위반 캡처. `--dry-run`으로 자동 수정 없이 read-only.
 
-### Step 2: Dead Links / Oversized Docs
+### 3. Dead Links / Oversized Docs
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
 cd "$WORKTREE_PATH" && bash scripts/clean/check_docs.sh --dry-run
 ```
 
-Detects dead links, docs exceeding 200-line limit, and missing spec coverage.
+데드 링크, 200줄 초과 문서, 누락 스펙 탐지.
 
-### Step 3: Stale TODO Detection
+### 4. Stale TODO Detection
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
 cd "$WORKTREE_PATH" && grep -n 'cc:TODO' TODO.md
 ```
 
-List tasks that have been in cc:TODO state for 2+ weeks (compare against git log dates).
-Flag tasks older than 14 days as stale.
+`cc:TODO` 상태 14일 이상 방치 항목 탐지 (git log 날짜 비교).
 
-### Step 3.5: TODO.md Health Check
-
-Scan TODO.md for structural issues that accumulate over time:
+### 5. TODO.md Health Check
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
@@ -97,40 +67,35 @@ grep -n "GSTACK REVIEW REPORT\|### Verdict:" TODO.md || true
 grep -n "^## " TODO.md
 ```
 
-Flag any of the following:
+플래그 대상:
+1. **Orphaned review blocks** — `## GSTACK REVIEW REPORT` 또는 `### Verdict:` 헤딩
+2. **Empty sections** — `##` 바로 뒤 `##` 또는 EOF
+3. **TODO.md 총 줄 수** — 150줄 초과 시 플래그
 
-1. **Orphaned review blocks** — `## GSTACK REVIEW REPORT` or `### Verdict:` headings in TODO.md.
-2. **Empty sections** — `##` heading immediately followed by another `##` or end-of-file.
-3. **TODO.md total line count** — Flag if > 150 lines.
+리포트의 `## TODO.md Health` 섹션에 기록. 자동 수정 금지.
 
-Report findings in the `## TODO.md Health` section of the quality report. Do NOT auto-fix — flag only.
-
-### Step 4: Quality Score Refresh
+### 6. Quality Score Refresh
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
 cd "$WORKTREE_PATH" && bash scripts/clean/garden.sh --metrics
 ```
 
-Updates `docs/QUALITY_SCORE.md` grade matrix.
+`docs/QUALITY_SCORE.md` 등급 매트릭스 갱신.
 
-### Step 5: Archive Bloat Detection
+### 7. Archive Bloat Detection
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
 cd "$WORKTREE_PATH"
-# Count completed phases in TODO.md
 grep -c '\[x\]' TODO.md || true
 ```
 
-Check if completed items need archiving:
-- **TODO.md**: count completed Phases (all tasks `[x]`). If 5+ completed Phases exist → flag for archive to `docs/archive/todo-YYYY-MM.md`
+완료 Phase 5개 이상 → `docs/archive/todo-YYYY-MM.md`로 아카이브 권고. 리포트에 플래그만 — 실제 아카이브는 별도 수행.
 
-Archive is flagged in the report only. Actual archiving is performed by Lead or worker.
+### 8. Write Report
 
-## Report Format
-
-Write report to `$REPORT_FILE` (set in Step 0):
+리포트를 `$REPORT_FILE` (Step 1에서 설정)에 작성:
 
 ```markdown
 # Quality Report — YYYY-MM-DD
@@ -157,7 +122,6 @@ Write report to `$REPORT_FILE` (set in Step 0):
 
 ## Archive Bloat
 - TODO.md: N completed Phases (threshold: 5)
-- TODO.md: N completed items (threshold: 5)
 [If threshold exceeded: recommend archiving to docs/archive/]
 
 ## Violations Summary
@@ -167,14 +131,7 @@ Write report to `$REPORT_FILE` (set in Step 0):
 [Non-obvious quality patterns or systemic issues discovered]
 ```
 
-## Constraints
-
-- **Source files**: never edit source code files. Only write to `docs/reports/YYYY/MM/` and `docs/QUALITY_SCORE.md`.
-- **Auto-fix**: garden.sh auto-fix (GP-10 archive) is allowed. No other source edits.
-
-## Step 6: Commit, Create PR, and Clean Up Worktree
-
-After writing the report, commit from the worktree, push, open PR, then remove the worktree.
+### 9. Commit, Create PR, Clean Up
 
 ```bash
 DATE=$(date +%Y-%m-%d); YEAR=$(date +%Y); MONTH=$(date +%m)
@@ -195,7 +152,7 @@ fi
 
 git commit -m "chore: quality report ${DATE}
 
-Auto-generated by quality-agent.
+Auto-generated by /quality-report command.
 "
 git push -u origin "$BRANCH" || { echo "Push failed — worktree preserved at $WORKTREE_PATH for retry"; exit 1; }
 
@@ -206,16 +163,20 @@ PR_URL=$(gh pr create \
 
 Daily quality check on ${DATE}. See full report: \`docs/reports/${YEAR}/${MONTH}/quality-${DATE}.md\`
 
-Auto-generated by quality-agent.
+Auto-generated by /quality-report command.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)")
 
 echo "PR created: $PR_URL"
 
-# Clean up worktree after PR is open
 cd "$REPO_ROOT"
 git worktree remove "$WORKTREE_PATH" --force
 git worktree prune
 ```
 
-Return the PR URL at the end of your response.
+PR URL을 최종 응답에 포함할 것.
+
+## 제약
+
+- **소스 파일 수정 금지** — `docs/reports/YYYY/MM/`과 `docs/QUALITY_SCORE.md`만 쓰기 허용
+- **garden.sh auto-fix** (GP-10 archive)만 허용. 그 외 소스 수정 불가
