@@ -108,5 +108,5 @@ YAML_FILE=yaml_files/custom.yml uv run uvicorn "src.main:get_app" --factory
 
 - **Service init order matters**: TTS → Mapper → MongoDB → Agent → LTM → Channel → Sweep
 - **Port calc**: Feature branches get port 5500 + (checksum % 100) via `scripts/run.sh`
-- **Worktrees**: `worktrees/` is git worktree copies — ignore for code analysis
+- **Worktrees**: `worktrees/` is git worktree copies — ignore for code analysis, Note always make new worktree for each feature branch to isolate changes and simplify PRs.
 - **Task tracking**: `TODO.md` with `cc:TODO` / `cc:WIP` / `cc:DONE` markers
