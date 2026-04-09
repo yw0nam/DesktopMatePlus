@@ -152,6 +152,23 @@ markers = [
     "e2e: marks tests as end-to-end (requires real backend at FASTAPI_URL, use -m e2e to run)",
 ]
 
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/__pycache__/*",
+    "src/main.py",
+]
+
+[tool.coverage.report]
+fail_under = 50
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+    "pass",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
