@@ -60,17 +60,19 @@ gh api repos/<repo>/pulls/<number>/reviews \
 `REVIEW_DECISION=APPROVED`이고 CI 통과한 PR:
 
 ```bash
-gh pr merge <number> --merge
-```
+# 1) 머지 전에 커밋 목록을 미리 조회한다 (머지 후에는 PR API 접근 불가)
+gh pr view <number> --repo <repo> --json commits,title,baseRefName
 
-머지 완료 후 CHANGELOG.md를 업데이트한다.
+# 2) 리모트 머지
+gh pr merge <number> --repo <repo> --merge
+
+# 3) base 브랜치로 체크아웃 후 로컬 동기화
+git checkout <baseRefName> && git pull
+```
 
 #### CHANGELOG 업데이트 방법
 
-```bash
-# 머지된 PR의 커밋 목록 조회
-git log --oneline ORIG_HEAD..HEAD
-```
+step 1에서 조회한 커밋 목록을 사용한다.
 
 1. 커밋 메시지의 type 접두사로 변경 분류:
    - `feat:` → `### Added`
@@ -83,10 +85,11 @@ git log --oneline ORIG_HEAD..HEAD
    - CHANGELOG.md가 없으면 `changelog_guideline.md` 형식으로 신규 생성.
    - 이미 같은 내용이 있으면 중복 추가 금지.
 
-3. 변경 후 커밋:
+3. base 브랜치에서 커밋 후 push:
 ```bash
 git add CHANGELOG.md
 git commit -m "chore: update changelog for #<number>"
+git push
 ```
 
 ### 6. 머지된 브랜치 · 워크트리 정리
