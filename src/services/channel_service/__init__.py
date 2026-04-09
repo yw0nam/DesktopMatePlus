@@ -49,8 +49,11 @@ async def process_message(
     async with session_lock(session_id):
         # 1. session_registry upsert (세션이 없으면 생성)
         registry = get_session_registry()
+        is_new_session = False
         if registry:
-            await asyncio.to_thread(registry.upsert, session_id, user_id, agent_id)
+            is_new_session = await asyncio.to_thread(
+                registry.upsert, session_id, user_id, agent_id
+            )
 
         # 2. 에이전트 실행 (LTM retrieval handled by ltm_retrieve_hook middleware)
         messages = [HumanMessage(text)] if text else []
@@ -63,6 +66,7 @@ async def process_message(
                 user_id=user_id,
                 agent_id=agent_id,
                 context={"reply_channel": reply_channel},
+                is_new_session=is_new_session,
             )
             final_text = _tts_processor.process(result["content"]).filtered_text
 

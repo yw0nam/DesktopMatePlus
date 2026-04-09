@@ -14,9 +14,10 @@ class SessionRegistry:
         )
         self._col.create_index([("updated_at", pymongo.DESCENDING)])
 
-    def upsert(self, thread_id: str, user_id: str, agent_id: str) -> None:
+    def upsert(self, thread_id: str, user_id: str, agent_id: str) -> bool:
+        """Upsert session and return ``True`` when a **new** document was inserted."""
         now = datetime.now(UTC)
-        self._col.update_one(
+        result = self._col.update_one(
             {"thread_id": thread_id},
             {
                 "$set": {"user_id": user_id, "agent_id": agent_id, "updated_at": now},
@@ -24,6 +25,7 @@ class SessionRegistry:
             },
             upsert=True,
         )
+        return result.upserted_id is not None
 
     def list_sessions(self, user_id: str, agent_id: str) -> list[dict]:
         return list(

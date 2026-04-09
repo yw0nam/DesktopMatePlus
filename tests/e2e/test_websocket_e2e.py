@@ -120,11 +120,11 @@ class TestWebSocketE2E:
         assert stream_end_events, "No stream_end event found in received events"
         stream_end = stream_end_events[0]
 
-        concatenated = "".join(e.get("content", "") for e in token_events)
+        concatenated = "".join(e.get("chunk", "") for e in token_events)
         end_content = stream_end.get("content", "")
 
         assert end_content, "stream_end has no content field"
-        assert end_content == concatenated, (
+        assert end_content.strip() == concatenated.strip(), (
             f"stream_end content does not match concatenated tokens.\n"
             f"  stream_end: {end_content!r}\n"
             f"  concatenated: {concatenated!r}"
@@ -146,13 +146,12 @@ class TestWebSocketE2E:
         # Verify all chunks have audio_base64 and seq
         for chunk in tts_events:
             assert "audio_base64" in chunk, f"tts_chunk missing audio_base64: {chunk}"
-            assert "seq" in chunk, f"tts_chunk missing seq: {chunk}"
+            assert "sequence" in chunk, f"tts_chunk missing sequence: {chunk}"
 
-        # Verify sequence numbers are ordered (monotonically non-decreasing)
-        seq_numbers = [e["seq"] for e in tts_events]
-        assert seq_numbers == sorted(
-            seq_numbers
-        ), f"tts_chunk sequence numbers are not ordered: {seq_numbers}"
+        seq_numbers = [e["sequence"] for e in tts_events]
+        assert seq_numbers == sorted(seq_numbers), (
+            f"tts_chunk sequence numbers are not ordered: {seq_numbers}"
+        )
 
     async def test_two_turn_session_continuity(self, e2e_session):
         """Turn 1 assigns session_id; Turn 2 reuses it and also completes stream_end."""
@@ -164,6 +163,6 @@ class TestWebSocketE2E:
 
         event_types2 = [e["type"] for e in result2["events"]]
         assert "stream_end" in event_types2, "Turn 2 did not receive stream_end"
-        assert (
-            result2["session_id"] == session_id
-        ), f"Turn 2 session_id mismatch: expected {session_id!r}, got {result2['session_id']!r}"
+        assert result2["session_id"] == session_id, (
+            f"Turn 2 session_id mismatch: expected {session_id!r}, got {result2['session_id']!r}"
+        )

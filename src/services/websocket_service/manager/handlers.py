@@ -181,9 +181,15 @@ class MessageHandler:
                 )
                 return
 
-            # CRITICAL: Generate UUID for new conversations (when client sends None)
+            # CRITICAL: Capture is_new_session BEFORE UUID generation.
+            # handlers generates a UUID when client sends session_id=None, so by the
+            # time stream() is called session_id is always set. We must detect the
+            # new-session intent here and pass it explicitly to stream().
+            is_new_session = session_id is None
+
+            # Generate UUID for new conversations (when client sends None)
             # This ensures a single UUID is used throughout the entire conversation turn
-            if session_id is None:
+            if is_new_session:
                 session_id = str(uuid4())
                 logger.info(
                     f"Generated new session_id {session_id} for user {user_id}, agent {agent_id}"
@@ -213,6 +219,7 @@ class MessageHandler:
                 persona_id=persona_id,
                 user_id=user_id,
                 agent_id=agent_id,
+                is_new_session=is_new_session,
             )
 
             turn_id = await connection_state.message_processor.start_turn(

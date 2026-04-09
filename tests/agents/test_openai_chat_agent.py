@@ -102,7 +102,7 @@ async def test_stream_injects_persona_only_for_new_session():
 
 
 async def test_stream_injects_persona_for_new_session():
-    """Persona SystemMessage MUST be prepended when session_id is empty (new session)."""
+    """Persona SystemMessage MUST be prepended when is_new_session=True."""
     from langchain_core.messages import SystemMessage
 
     svc = _agent()
@@ -116,12 +116,13 @@ async def test_stream_injects_persona_for_new_session():
 
     svc.agent.astream = capturing_astream
 
-    # New session: session_id is empty — persona MUST be prepended
+    # New session: is_new_session=True — persona MUST be prepended
     await _drain(
         svc.stream(
             messages=[HumanMessage("hi")],
-            session_id="",
+            session_id="abc-123",
             persona_id="yuri",
+            is_new_session=True,
         )
     )
     assert captured_messages["messages"], "Expected messages to be captured"
@@ -155,7 +156,7 @@ async def test_invoke_injects_persona_only_for_new_session():
 
 
 async def test_invoke_injects_persona_for_new_session():
-    """invoke() MUST inject persona SystemMessage when session_id is empty (new session)."""
+    """invoke() MUST inject persona SystemMessage when is_new_session=True."""
     from langchain_core.messages import SystemMessage
 
     svc = _agent()
@@ -170,8 +171,9 @@ async def test_invoke_injects_persona_for_new_session():
 
     await svc.invoke(
         messages=[HumanMessage("hi")],
-        session_id="",
+        session_id="abc-123",
         persona_id="yuri",
+        is_new_session=True,
     )
     assert captured_input["messages"], "Expected messages to be captured"
     assert isinstance(
