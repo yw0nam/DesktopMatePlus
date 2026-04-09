@@ -20,6 +20,7 @@ Run `scripts/clean/garden.sh` to refresh grades based on GP results.
 
 ## Violations Summary
 
-_Last updated by garden.sh run. 0 violations = last run clean._
+_Last updated by quality-agent run._
 
 - GP-3 (backend): 0 violations
+- GP-8 (backend): 1 violation (lint failed — black target-version)
