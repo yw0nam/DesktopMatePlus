@@ -145,6 +145,7 @@ class OpenAIChatAgent(AgentService):
         user_id: str = "default_user",
         agent_id: str = "default_agent",
         context: dict | None = None,
+        is_new_session: bool = False,
     ):
         """Stream agent response, yielding typed dicts."""
         logger.debug(f"Starting LLM stream: {len(messages)} messages")
@@ -154,7 +155,7 @@ class OpenAIChatAgent(AgentService):
             # Assign an explicit id so ltm_retrieve_hook can update it in-place via
             # add_messages (None-id messages are always appended, never replaced).
             persona_text = self._personas.get(persona_id, "")
-            if persona_text and not session_id:
+            if persona_text and is_new_session:
                 full_persona = (
                     persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"
@@ -211,12 +212,13 @@ class OpenAIChatAgent(AgentService):
         user_id: str = "default_user",
         agent_id: str = "default_agent",
         context: dict | None = None,
+        is_new_session: bool = False,
     ) -> dict:
         """Invoke agent and return final result without streaming."""
         logger.debug(f"Starting LLM invoke: {len(messages)} messages")
         try:
             persona_text = self._personas.get(persona_id, "")
-            if persona_text and not session_id:
+            if persona_text and is_new_session:
                 full_persona = (
                     persona_text
                     + f"\nCurrent time: {datetime.now().strftime('%H:%M:%S')}"

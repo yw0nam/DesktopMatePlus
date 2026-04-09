@@ -37,6 +37,7 @@ class AgentService(ABC):
         user_id: str = "default_user",
         agent_id: str = "default_agent",
         context: dict | None = None,
+        is_new_session: bool = False,
     ):
         """Stream agent response.
 
@@ -56,6 +57,7 @@ class AgentService(ABC):
         user_id: str = "default_user",
         agent_id: str = "default_agent",
         context: dict | None = None,
+        is_new_session: bool = False,
     ) -> dict:
         """Invoke agent and return final result without streaming.
 
