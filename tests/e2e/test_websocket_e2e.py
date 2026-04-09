@@ -149,9 +149,9 @@ class TestWebSocketE2E:
             assert "sequence" in chunk, f"tts_chunk missing sequence: {chunk}"
 
         seq_numbers = [e["sequence"] for e in tts_events]
-        assert seq_numbers == sorted(seq_numbers), (
-            f"tts_chunk sequence numbers are not ordered: {seq_numbers}"
-        )
+        assert seq_numbers == sorted(
+            seq_numbers
+        ), f"tts_chunk sequence numbers are not ordered: {seq_numbers}"
 
     async def test_two_turn_session_continuity(self, e2e_session):
         """Turn 1 assigns session_id; Turn 2 reuses it and also completes stream_end."""
@@ -163,6 +163,6 @@ class TestWebSocketE2E:
 
         event_types2 = [e["type"] for e in result2["events"]]
         assert "stream_end" in event_types2, "Turn 2 did not receive stream_end"
-        assert result2["session_id"] == session_id, (
-            f"Turn 2 session_id mismatch: expected {session_id!r}, got {result2['session_id']!r}"
-        )
+        assert (
+            result2["session_id"] == session_id
+        ), f"Turn 2 session_id mismatch: expected {session_id!r}, got {result2['session_id']!r}"
