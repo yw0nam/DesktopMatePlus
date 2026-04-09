@@ -51,7 +51,7 @@ class IrodoriTTSService(TTSService):
         )
 
     def _scan_voices(self) -> list[str]:
-        if not self.ref_audio_dir.exists():
+        if self.ref_audio_dir is None or not self.ref_audio_dir.exists():
             return []
         voices: list[str] = []
         for d in sorted(self.ref_audio_dir.iterdir()):

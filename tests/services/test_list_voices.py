@@ -88,7 +88,7 @@ class TestIrodoriListVoices:
 
         voice_dir = tmp_path / "natsume"
         voice_dir.mkdir()
-        (voice_dir / "audio.wav").write_bytes(b"RIFF")
+        (voice_dir / "merged_audio.mp3").write_bytes(b"RIFF")
         tts = IrodoriTTSService(
             base_url="http://localhost:8000", ref_audio_dir=str(tmp_path)
         )

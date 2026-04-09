@@ -64,7 +64,7 @@ class TestIrodoriTTSServiceInit:
     def test_scans_voices_on_init(self, tmp_path):
         voice_dir = tmp_path / "natsume"
         voice_dir.mkdir()
-        (voice_dir / "audio.wav").write_bytes(b"RIFF")
+        (voice_dir / "merged_audio.mp3").write_bytes(b"RIFF")
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
             ref_audio_dir=str(tmp_path),
@@ -96,7 +96,7 @@ class TestIrodoriTTSScanVoices:
     def test_voice_with_audio_wav_included(self, tmp_path):
         d = tmp_path / "aria"
         d.mkdir()
-        (d / "audio.wav").write_bytes(b"RIFF")
+        (d / "merged_audio.mp3").write_bytes(b"RIFF")
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
             ref_audio_dir=str(tmp_path),
@@ -117,7 +117,7 @@ class TestIrodoriTTSScanVoices:
         for name in ("zebra", "alpha", "bravo"):
             d = tmp_path / name
             d.mkdir()
-            (d / "audio.wav").write_bytes(b"RIFF")
+            (d / "merged_audio.mp3").write_bytes(b"RIFF")
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
             ref_audio_dir=str(tmp_path),
@@ -280,10 +280,10 @@ class TestIrodoriTTSServiceGenerateSpeech:
     def test_reference_audio_sent_when_reference_id_given(
         self, mock_client_cls, tmp_path
     ):
-        """When ref_audio_dir + reference_id given, audio.wav is sent in multipart files."""
+        """When ref_audio_dir + reference_id given, merged_audio.mp3 is sent in multipart files."""
         voice_dir = tmp_path / "natsume"
         voice_dir.mkdir()
-        (voice_dir / "audio.wav").write_bytes(b"RIFF")
+        (voice_dir / "merged_audio.mp3").write_bytes(b"RIFF")
 
         wav_bytes = b"RIFF\x00\x00\x00\x00WAVE"
         mock_resp = MagicMock()
@@ -387,7 +387,7 @@ class TestIrodoriTTSServiceGenerateSpeech:
         assert result is None
 
     def test_reference_id_no_audio_wav_returns_none(self, tmp_path):
-        """reference_id dir exists but audio.wav missing → None."""
+        """reference_id dir exists but merged_audio.mp3 missing → None."""
         voice_dir = tmp_path / "empty_voice"
         voice_dir.mkdir()
         svc = IrodoriTTSService(
@@ -409,7 +409,7 @@ class TestIrodoriTTSServiceListVoices:
         for name in ("natsume", "aria"):
             d = tmp_path / name
             d.mkdir()
-            (d / "audio.wav").write_bytes(b"RIFF")
+            (d / "merged_audio.mp3").write_bytes(b"RIFF")
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
             ref_audio_dir=str(tmp_path),
@@ -428,7 +428,7 @@ class TestIrodoriTTSServiceListVoices:
         """Voices are scanned once at init — adding a dir later is NOT reflected."""
         d = tmp_path / "voice1"
         d.mkdir()
-        (d / "audio.wav").write_bytes(b"RIFF")
+        (d / "merged_audio.mp3").write_bytes(b"RIFF")
         svc = IrodoriTTSService(
             base_url="http://localhost:8000",
             ref_audio_dir=str(tmp_path),

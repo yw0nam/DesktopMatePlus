@@ -6,7 +6,7 @@ tts_config:
   type: "irodori"
   configs:
     base_url: "http://192.168.0.41:8091"
-    ref_audio_dir: "resources/reference_voices"  # Path to voices dir ({name}/audio.wav); null for no-reference mode
+    ref_audio_dir: "resources/references_voices"  # Path to voices dir ({name}/merged_audio.mp3); null for no-reference mode
     seconds: 30.0
     num_steps: 40
     cfg_scale_text: 3.0
