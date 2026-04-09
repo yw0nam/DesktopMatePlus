@@ -1,10 +1,10 @@
 # Quality Score
 
-Last updated: 2026-04-08
+Last updated: 2026-04-09
 
 | Domain | Arch | Test | Obs | Docs | Overall |
 |--------|------|------|-----|------|---------|
-| backend | A | A | A | B | B |
+| backend | A | B | A | A | B |
 
 ## Grade Definitions
 
