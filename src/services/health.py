@@ -1,6 +1,6 @@
 """Health check service for monitoring external dependencies."""
 
-from src.core.error_classifier import ErrorClassifier
+from src.core.error_classifier import ErrorSeverity
 from src.models.responses import HealthResponse, ModuleStatus
 
 
@@ -127,7 +127,18 @@ class HealthService:
         def _severity(error: str | None) -> str | None:
             if error is None:
                 return None
-            return str(ErrorClassifier.classify(Exception(error)))
+            lower = error.lower()
+            if any(
+                kw in lower
+                for kw in ("timeout", "timed out", "connection reset", "broken pipe")
+            ):
+                return str(ErrorSeverity.TRANSIENT)
+            if any(
+                kw in lower
+                for kw in ("not initialized", "invalid", "validation", "value error")
+            ):
+                return str(ErrorSeverity.RECOVERABLE)
+            return str(ErrorSeverity.FATAL)
 
         modules = [
             ModuleStatus(

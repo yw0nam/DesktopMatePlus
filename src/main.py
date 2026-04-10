@@ -239,11 +239,15 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             logger.exception("Error closing WebSocket connections")
 
         try:
-            from src.services.service_manager import get_mongo_client
+            from src.services.service_manager import (
+                get_mongo_client,
+                reset_mongo_client,
+            )
 
             mongo = get_mongo_client()
             if mongo is not None:
                 mongo.close()
+                reset_mongo_client()
                 logger.info("MongoDB client closed")
         except Exception:
             logger.exception("Error closing MongoDB client")

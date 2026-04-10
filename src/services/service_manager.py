@@ -193,6 +193,18 @@ def get_mongo_client() -> "_pymongo.MongoClient | None":
     return _mongo_client
 
 
+def reset_mongo_client() -> None:
+    """Reset the MongoDB client singleton to None.
+
+    Call this after closing the client so that a subsequent call to
+    initialize_mongodb_client() creates a fresh connection instead of
+    reusing the already-closed client.
+    """
+    global _mongo_client, _session_registry_instance
+    _mongo_client = None
+    _session_registry_instance = None
+
+
 def get_session_registry() -> "SessionRegistry | None":
     """Get the initialized SessionRegistry instance."""
     return _session_registry_instance
@@ -416,4 +428,5 @@ __all__ = [
     "initialize_mongodb_client",
     "initialize_services",
     "initialize_tts_service",
+    "reset_mongo_client",
 ]
