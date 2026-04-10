@@ -439,16 +439,16 @@ class WebSocketManager:
         if not connection_ids:
             return
         logger.info(f"Closing {len(connection_ids)} active WebSocket connection(s)")
-        for connection_id in connection_ids:
-            try:
-                await self._close_connection(
-                    connection_id=connection_id,
-                    code=1001,
-                    reason="Server shutting down",
-                    notify_client=True,
-                )
-            except Exception as e:
-                logger.error(f"Error closing connection {connection_id}: {e}")
+        tasks = [
+            self._close_connection(
+                connection_id=connection_id,
+                code=1001,
+                reason="Server shutting down",
+                notify_client=True,
+            )
+            for connection_id in connection_ids
+        ]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # Global WebSocket manager instance
