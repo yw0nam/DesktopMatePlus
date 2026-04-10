@@ -1,31 +1,14 @@
-# CLAUDE.md
+# PROJECT KNOWLEDGE BASE
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**Generated:** 2026-04-09
+**Commit:** b93e091
+**Branch:** master
 
-Updated: 2026-03-26
+## OVERVIEW
 
-This document outlines the fundamental rules, architectural patterns, and conventions for the **DesktopMate+ Backend** repository.
-You must adhere to these guidelines for all code generation and refactoring tasks.
+DesktopMate+ backend — Python 3.13 / FastAPI server for AI desktop companion (Yuri). WebSocket streaming chat, TTS synthesis (IrodoriTTS), LangChain/LangGraph agent with MCP tools, MongoDB STM, mem0 LTM, Slack channel integration, background task sweep. No GPU inference in-process — calls OpenAI, vLLM, IrodoriTTS, MongoDB, Qdrant externally.
 
-Keep this document lean but contain all critical information for capturing the architectural vision and coding standards of the project.
-
-- If there is too much detail, split into subdirectory `CLAUDE.md` files (e.g., `src/CLAUDE.md`, `tests/CLAUDE.md`, `docs/CLAUDE.md`) — Claude Code auto-loads these context-sensitively when entering that directory.
-- But, this document must contain the information for capturing the overall architecture, design patterns, and coding conventions that are critical for maintaining consistency across the codebase.
-
-## Core Philosophy
-
-- Question every requirement. Is it really necessary? Is there a simpler way?
-- Eliminate as much as possible.
-- Simplify and optimize.
-- Speed ​​up and shorten cycle times.
-- Automate.
-
-## 1. Project Overview
-
-- **Purpose:** AI-powered desktop companion backend with speech, memory, and task delegation capabilities.
-- **Core Value:** Modular service architecture, Asynchronous processing, Type safety, and Extensibility.
-
-## 2. Tech Stack
+## Tech Stack
 
 - **Runtime:** Python 3.13+
 - **Web Framework:** FastAPI
@@ -37,37 +20,85 @@ Keep this document lean but contain all critical information for capturing the a
 - **Testing:** Pytest
 - **Realtime Communication:** WebSockets
 
-## 3. Directory Structure & Key Paths
+## STRUCTURE
 
-- `docs/`: Documentation and guidelines for development, architecture, and coding standards, and code overview.
-- `src/api`: API route definitions and routers.
-- `src/configs`: Configuration management (Pydantic settings + YAML loader).
-- `src/core`: Core infrastructure (Logging, Exceptions, Middleware).
-- `src/models`: Pydantic data models and schemas.
-- `src/services`: Business logic and Service implementations.
-  - `agent_service/`: LLM Agent logic (`create_agent`, single instance). Supports text + image (OpenAI-compatible).
-    - `state.py`: `CustomAgentState`, `PendingTask`, `ReplyChannel` — LangGraph state schema.
-    - `session_registry.py`: `SessionRegistry` — thin MongoDB wrapper for session listing/sweep.
-  - `ltm_service/`: Long-Term Memory (Mem0/Qdrant) services.
-  - `tts_service/`: Text-to-Speech services.
-    - `tts_pipeline.py`: `synthesize_chunk()` — emotion → keyframes + WAV audio synthesis.
-    - `emotion_motion_mapper.py`: `EmotionMotionMapper` — maps emotion string → `list[TimelineKeyframe]`.
-  - `websocket_service/`: WebSocket communication services.
-  - `knowledge_base_service/`: Knowledge base (RAG) services.
-  - `task_sweep_service/`: Background expired task cleanup.
-  - `channel_service/`: External channel integrations (Slack 등).
-    - `__init__.py`: `init_channel_service()` (**async**), `get_slack_service()`, `process_message()` — 공통 진입점.
-    - `slack_service.py`: `SlackService` (서명 검증, 이벤트 파싱, 메시지 전송), `SlackSettings` (`bot_name` 포함), `SlackMessage`.
-    - `session_lock.py`: TTLCache 기반 `session_lock()` — 채널 세션 concurrency control.
-- `src/main.py`: Application entry point and lifespan management.
-- `yaml_files/`: Service configuration files.
-  - `personas.yml`: Persona definitions (system prompts keyed by `persona_id`).
-  - `tts_rules.yml`: TTS text chunking rules, emoji emotion detection patterns, and `emotion_motion_map` (emotion → keyframes).
-  - `services/tts_service/irodori.yml`: IrodoriTTS client config (API URL, voice, timeout).
-  - `services/checkpointer.yml`: MongoDB connection config for LangGraph `MongoDBSaver` checkpointer and `SessionRegistry`.
-- `tests/`: Unit and integration tests.
+```
+backend/
+├── src/
+│   ├── api/routes/        # 6 FastAPI routers (stm, ltm, tts, websocket, slack, callback)
+│   ├── configs/           # Pydantic settings + YAML loader (agent/, ltm/, tts/)
+│   ├── core/              # logger.py (Loguru + request ID), middleware.py
+│   ├── models/            # Pydantic V2 schemas per domain
+│   ├── services/          # 7 services — see src/services/CLAUDE.md
+│   └── main.py            # App factory (create_app → get_app), lifespan, service init
+├── tests/                 # Mirrors src/ — see tests/CLAUDE.md
+├── docs/                  # API specs, WS protocol, data flows — see docs/CLAUDE.md
+├── scripts/               # run.sh, e2e.sh, lint.sh, verify.sh, clean/
+├── yaml_files/            # Runtime config (personas.yml, tts_rules.yml, services/*.yml)
+├── worktrees/             # Git worktrees for feature isolation (auto-generated, ignore)
+└── examples/              # Demo scripts (WS client, TTS streaming)
+```
 
-## 4. Coding Conventions
+## WHERE TO LOOK
+
+| Task | Location | Notes |
+|------|----------|-------|
+| Add API route | `src/api/routes/` + `src/models/` | Include router in `src/api/routes/__init__.py` |
+| Add service | `src/services/<name>/` | Init in `service_manager.py`, register in `main.py` lifespan |
+| Modify agent | `src/services/agent_service/` | See `agent_service/CLAUDE.md` |
+| Add agent tool | `src/services/agent_service/tools/` | Follow existing tool pattern |
+| Change TTS | `src/services/tts_service/` | See `tts_service/CLAUDE.md` |
+| WebSocket protocol | `src/services/websocket_service/` | See `websocket_service/AGENTS.md` + `docs/websocket/CLAUDE.md` |
+| Add env variable | `src/configs/settings.py` | Document in `docs/setup/ENVIRONMENT.md` |
+| Add YAML config | `yaml_files/` | Load via `src/configs/` loader |
+| Slack integration | `src/services/channel_service/` | See `channel_service/CLAUDE.md` |
+
+## COMPLEXITY HOTSPOTS
+
+| File | Lines | Concern |
+|------|-------|---------|
+| `services/websocket_service/message_processor/processor.py` | 626 | Turn lifecycle, async task coordination |
+| `services/websocket_service/message_processor/event_handlers.py` | 448 | Agent event → TTS chunk pipeline |
+| `services/websocket_service/manager/websocket_manager.py` | 438 | Connection lifecycle, heartbeat |
+| `services/service_manager.py` | 412 | Singleton init, async/sync bridging |
+| `services/websocket_service/manager/handlers.py` | 393 | Message routing, chat turn management |
+
+## CONTEXT-SENSITIVE DOCS
+
+| Path | Content |
+|------|---------|
+| `src/CLAUDE.md` | Logging (format, levels, request ID) |
+| `tests/CLAUDE.md` | Testing (pytest, fixtures, structural tests) |
+| `docs/CLAUDE.md` | Doc authoring (200-line rule, structure) |
+| `docs/websocket/CLAUDE.md` | WebSocket protocol (message types, lifecycle) |
+| `src/services/tts_service/CLAUDE.md` | TTS (EmotionMotionMapper, synthesize_chunk) |
+| `src/services/agent_service/CLAUDE.md` | Agent (LangGraph, middleware, memory) |
+| `src/services/channel_service/CLAUDE.md` | Channel (Slack, session_lock, reply_channel) |
+| `src/services/AGENTS.md` | Service layer (init order, deps, patterns) |
+| `src/services/websocket_service/AGENTS.md` | WebSocket internals (processor, manager) |
+
+## CONVENTIONS
+
+- **Async-first**: All I/O uses `async/await`. No sync DB/API calls.
+- **Type hints**: Strict. `|` for unions (3.10+ style). No `Any`.
+- **No print()**: Always `loguru.logger`. See `src/CLAUDE.md`.
+- **No hardcoded config**: Use `settings` object or YAML injection.
+- **Factory pattern**: `create_app()` → `get_app()` for uvicorn.
+- **Service singletons**: Module-level lazy init via `service_manager.py`.
+- **Pydantic V2**: All request/response models. Validators, not manual checks.
+- **Request ID**: Bound at middleware, threaded through all logs.
+
+## ANTI-PATTERNS (THIS PROJECT)
+
+- **Never** suppress types (`Any`, `type: ignore`).
+- **Never** use `print()` — always `logger`.
+- **Never** skip E2E tests — `bash scripts/e2e.sh` must pass before done.
+- **Never** add DEBUG logs to production code paths.
+- **Never** log sensitive data (passwords, tokens, PII).
+- **Never** hardcode service URLs or credentials.
+- **TDD mandatory**: RED → GREEN → REFACTOR. No exceptions.
+
+## 3. Coding Conventions
 
 ### A. General Principles
 
@@ -83,44 +114,14 @@ Keep this document lean but contain all critical information for capturing the a
 - **Variables/Functions:** `snake_case`
 - **Constants:** `UPPER_CASE`
 
-### C. Error Handling
-
-- Use custom exception classes where possible.
-- Let FastAPI's exception handlers manage HTTP error responses.
-- Log errors using the `src/core/logger` module (Loguru wrapped). See `.claude/rules/LOGGING_GUIDE.md` for details.
-
-### D. WebSocket Communication
-
-- **Definition:** WebSocket endpoints should be defined within `src/api/routes` or a dedicated `src/api/websockets` module.
-- **Protocol:** Clearly define message formats for both incoming and outgoing WebSocket communication (e.g., JSON payloads with a `type` field).
-- **Error Handling:** Implement robust error handling for WebSocket connections, including disconnects and invalid message formats.
-- **State Management:** Carefully manage state for connected clients.
-
-### E. Service-Specific Patterns
-
-Service implementation details live in context-sensitive subdirectory files (auto-loaded when working in that service):
-
-- [TTS & Keyframes](src/services/tts_service/CLAUDE.md)
-- [Channel Service (Slack)](src/services/channel_service/CLAUDE.md)
-- [Agent Architecture](src/services/agent_service/CLAUDE.md)
-
-## 5. Development Workflow
-
-### A. Adding a New Service
-
-1. **Define Config:** Add a new YAML config in `yaml_files/services/`.
-2. **Create Service:** Implement the service logic in `src/services/<service_name>/`.
-3. **Initialize:** Add initialization logic in `src/services/__init__.py` and call it in `src/main.py` lifespan.
-4. **Expose API:** Create routes in `src/api/routes` if the service needs external access.
-
-### B. Setup
+### C. Setup
 
 ```bash
 uv sync --all-extras        # install all dependencies
 uv run pre-commit install   # install pre-commit hooks
 ```
 
-### C. Dev Server
+### D. Dev Server
 
 ```bash
 uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
@@ -129,7 +130,7 @@ uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
 # Override YAML config: YAML_FILE=yaml_files/custom.yml uv run uvicorn ...
 ```
 
-### D. Testing
+### E. Testing
 
 ```bash
 bash scripts/e2e.sh
@@ -146,8 +147,7 @@ If the new feature cannot be tested with the existing E2E framework, you must fi
 ## Appendix
 
 - [TODO](./TODO.md): Active task checklist (cc:TODO / cc:WIP / cc:DONE markers).
-- [Golden Principles](./docs/GOLDEN_PRINCIPLES.md): 13 architectural invariants enforced by garden.sh.
+- [Golden Principles](./docs/GOLDEN_PRINCIPLES.md): 10 architectural invariants enforced by garden.sh.
 - [Quality Score](./docs/QUALITY_SCORE.md): GP verification grade matrix.
 - [Known Issues](./docs/known_issues/KNOWN_ISSUES.md): 기술 부채 추적.
 - [Scripts Reference](./docs/scripts-reference.md): scripts/clean/ 스크립트 레퍼런스.
-- [/babysit](./.claude/commands/babysit.md) · [/post-merge-sweeper](./.claude/commands/post-merge-sweeper.md) · [/pr-pruner](./.claude/commands/pr-pruner.md): Workflow command references.
