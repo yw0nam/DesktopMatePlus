@@ -34,8 +34,8 @@ async def summary_inject_hook(state, runtime):
 
     try:
         summaries = await asyncio.to_thread(svc.get_summaries, session_id)
-    except Exception as e:
-        logger.error(f"Summary inject failed (session={session_id}): {e}")
+    except Exception:
+        logger.exception(f"Summary inject failed (session={session_id})")
         return None
 
     if not summaries:

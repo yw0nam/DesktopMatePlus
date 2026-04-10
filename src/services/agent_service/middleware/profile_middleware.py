@@ -26,8 +26,8 @@ async def profile_retrieve_hook(state, runtime):
 
     try:
         profile = await asyncio.to_thread(svc.get_profile, user_id)
-    except Exception as e:
-        logger.error(f"Profile retrieve failed (user={user_id}): {e}")
+    except Exception:
+        logger.exception(f"Profile retrieve failed (user={user_id})")
         return None
 
     if profile is None:
