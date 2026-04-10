@@ -12,13 +12,14 @@ test:
 e2e:
 	bash scripts/e2e.sh
 
+# Format code with black and ruff
+fmt:
+	uv run black src/ tests/
+	uv run ruff check --fix src/ tests/
+
 # Start the FastAPI dev server (foreground)
 run:
 	bash scripts/run.sh
-
-# Format source code with black
-fmt:
-	uv run black src/ tests/
 
 # Remove Python cache and test artifacts
 clean:

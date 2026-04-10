@@ -17,7 +17,13 @@
 - [ ] **KI-4** [Medium] docker: Dockerfile이 root로 실행됨 — 프로덕션/공유 환경 배포 전 non-root USER 추가 필요.
 - [ ] **KI-5** [Medium] docker: `host.docker.internal`이 Linux 네이티브 Docker에서 기본 미지원 — `docker-compose.yml` backend 서비스에 `extra_hosts: ["host.docker.internal:host-gateway"]` 추가 필요.
 
+## PR #19 (`feat/devex`) — DevEx (추가)
+
+- [ ] **KI-8** [Low] docker: `mongo:7` floating major tag — 마이너 버전 고정 권장 (`mongo:7.0`).
+- [ ] **KI-9** [Low] docker: `mem0.docker.yml`의 `neo4j graph_store`가 `bolt://localhost:7687` 하드코딩 — Docker 환경에서 미작동할 수 있음, 경고 주석 또는 env 오버라이드 필요.
+
 ## PR #20 (`feat/error-handling`) — Error Handling
 
 - [ ] **KI-6** [Medium] channel: `SlackService.cleanup()`이 `AsyncWebClient.close()` 호출하나 해당 메서드 미존재 — try/except으로 안전하나 실제 cleanup 안 됨. `self._client.session.close()` 방식으로 교체 필요.
 - [ ] **KI-7** [Low] health: `_severity()` 함수가 에러 문자열 키워드 매칭으로 severity 분류 — 실제 exception 타입 기반 분류로 개선 권장.
+- [ ] **KI-10** [Low] health: `ModuleStatus.severity` 타입이 `str | None` — `ErrorSeverity | None`으로 교체하면 타입 안전성 향상.

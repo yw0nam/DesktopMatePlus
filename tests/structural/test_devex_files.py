@@ -17,7 +17,7 @@ DOCKERFILE = BACKEND / "Dockerfile"
 COMPOSE = BACKEND / "docker-compose.yml"
 
 REQUIRED_MAKEFILE_TARGETS = {"lint", "test", "e2e", "run", "fmt", "clean"}
-REQUIRED_COMPOSE_SERVICES = {"backend", "mongo", "qdrant"}
+REQUIRED_COMPOSE_SERVICES = {"backend", "mongo", "qdrant", "neo4j"}
 
 
 class TestMakefile:
