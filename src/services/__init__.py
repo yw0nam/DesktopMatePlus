@@ -17,8 +17,8 @@ from src.services.service_manager import (
     initialize_ltm_service,
     initialize_mongodb_client,
     initialize_services,
-    initialize_sweep_service,
     initialize_summary_service,
+    initialize_sweep_service,
     initialize_tts_service,
     initialize_user_profile_service,
 )
@@ -41,8 +41,8 @@ __all__ = [
     "initialize_ltm_service",
     "initialize_mongodb_client",
     "initialize_services",
-    initialize_sweep_service,
-    initialize_summary_service,
+    "initialize_summary_service",
+    "initialize_sweep_service",
     "initialize_tts_service",
     "initialize_user_profile_service",
 ]

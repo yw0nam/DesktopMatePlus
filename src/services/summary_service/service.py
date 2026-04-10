@@ -113,6 +113,7 @@ class SummaryService:
             if isinstance(response.content, str)
             else str(response.content)
         )
+        summary_text = summary_text[:10000]  # cap before storage
 
         logger.info(
             f"Summary generated for session={session_id} "
@@ -139,7 +140,7 @@ class SummaryService:
                 {"session_id": session_id},
                 {"_id": 0},
                 sort=[("turn_range_end", pymongo.ASCENDING)],
-            )
+            ).limit(5)
         )
         return [ConversationSummary(**doc) for doc in docs]
 

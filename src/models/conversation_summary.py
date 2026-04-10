@@ -9,7 +9,9 @@ class ConversationSummary(BaseModel):
     """Summary of a conversation slice for STM compression."""
 
     session_id: str = Field(..., description="Session identifier")
-    summary_text: str = Field(..., description="LLM-generated summary of the slice")
+    summary_text: str = Field(
+        ..., max_length=10000, description="LLM-generated summary of the slice"
+    )
     turn_range_start: int = Field(
         ..., description="First human turn index in the slice"
     )

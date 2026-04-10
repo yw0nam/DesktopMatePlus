@@ -148,7 +148,9 @@ class TestSummarize:
 
 class TestGetSummaries:
     def test_returns_empty_when_no_docs(self, service, mock_collection):
-        mock_collection.find.return_value = []
+        mock_cursor = MagicMock()
+        mock_cursor.limit.return_value = []
+        mock_collection.find.return_value = mock_cursor
         result = service.get_summaries("user1:agent1")
         assert result == []
 
@@ -169,7 +171,9 @@ class TestGetSummaries:
                 "created_at": datetime.now(UTC),
             },
         ]
-        mock_collection.find.return_value = docs
+        mock_cursor = MagicMock()
+        mock_cursor.limit.return_value = docs
+        mock_collection.find.return_value = mock_cursor
         result = service.get_summaries("user1:agent1")
 
         assert len(result) == 2
@@ -178,7 +182,9 @@ class TestGetSummaries:
         assert result[1].summary_text == "Second chunk."
 
     def test_queries_by_session_id(self, service, mock_collection):
-        mock_collection.find.return_value = []
+        mock_cursor = MagicMock()
+        mock_cursor.limit.return_value = []
+        mock_collection.find.return_value = mock_cursor
         service.get_summaries("user1:agent1")
         call_args = mock_collection.find.call_args
         assert call_args[0][0] == {"session_id": "user1:agent1"}

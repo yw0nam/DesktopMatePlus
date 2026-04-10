@@ -5,6 +5,10 @@ from loguru import logger
 
 from src.models.user_profile import UserProfile
 
+_ALLOWED_PROFILE_FIELDS = frozenset(
+    {"display_name", "occupation", "interests", "preferences", "timezone", "notes"}
+)
+
 
 class UserProfileService:
     """CRUD service for user context profiles stored in MongoDB."""
@@ -31,11 +35,19 @@ class UserProfileService:
         logger.info(f"Profile upserted for user={user_id}")
         return profile
 
-    def update_profile(self, user_id: str, partial: dict) -> UserProfile | None:
+    def update_profile(
+        self, user_id: str, partial: dict[str, object]
+    ) -> UserProfile | None:
         """Apply a partial update to an existing profile. Returns None if not found."""
+        safe_partial = {
+            k: v for k, v in partial.items() if k in _ALLOWED_PROFILE_FIELDS
+        }
+        if not safe_partial:
+            logger.info(f"update_profile: no valid fields provided for user={user_id}")
+            return None
         result = self._col.find_one_and_update(
             {"user_id": user_id},
-            {"$set": partial},
+            {"$set": safe_partial},
             return_document=pymongo.collection.ReturnDocument.AFTER,
             projection={"_id": 0},
         )
