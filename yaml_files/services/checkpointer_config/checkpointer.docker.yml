@@ -1,0 +1,5 @@
+# MongoDB checkpointer — docker-compose variant
+# Uses compose service name 'mongo' instead of hardcoded host
+checkpointer_config:
+  connection_string: "mongodb://mongo:27017/"
+  db_name: "desktopmate"

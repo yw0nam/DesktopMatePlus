@@ -1,0 +1,11 @@
+.git
+.env
+__pycache__
+*.pyc
+.pytest_cache
+worktrees/
+tests/
+.venv/
+.omc/
+.claude/
+logs/

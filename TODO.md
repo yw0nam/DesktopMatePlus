@@ -23,5 +23,5 @@
 
 ## Phase 5 — Developer Experience
 
-- [ ] Makefile 추가 (make lint, make test, make e2e, make run) `cc:TODO`
-- [ ] Dockerfile + docker-compose 추가 (MongoDB + Qdrant + backend 원커맨드 기동) `cc:TODO`
+- [x] Makefile 추가 (make lint, make test, make e2e, make run) `cc:DONE`
+- [x] Dockerfile + docker-compose 추가 (MongoDB + Qdrant + backend 원커맨드 기동) `cc:DONE`

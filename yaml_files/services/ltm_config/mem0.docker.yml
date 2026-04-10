@@ -1,0 +1,30 @@
+# LTM Service Configuration for Mem0 — docker-compose variant
+# Uses compose service name 'qdrant' instead of hardcoded host
+
+ltm_config:
+  type: "mem0"
+  configs:
+    llm:
+      provider: "openai"
+      config:
+        # Override LLM_BASE_URL in .env if your host IP differs
+        openai_base_url: "http://host.docker.internal:5535/v1"
+        model: "chat_model"
+        enable_vision: false
+    embedder:
+      provider: "langchain"
+      config:
+        # Override EMBEDDER_BASE_URL in .env if your host IP differs
+        openai_base_url: "http://host.docker.internal:5504/v1"
+        model_name: "embedding_model"
+    vector_store:
+      provider: "qdrant"
+      config:
+        url: "http://qdrant:6333"
+        embedding_model_dims: 2560
+        collection_name: "ltm_collection"
+    graph_store:
+      provider: "neo4j"
+      config:
+        # Override NEO4J_URL in .env for your deployment (default: local neo4j)
+        url: "bolt://localhost:7687"
