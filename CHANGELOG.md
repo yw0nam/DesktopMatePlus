@@ -4,13 +4,24 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- User Profile System: Structured user context storage (job, interests, schedule) with `UserProfileService` and `update_profile` agent tool (#23)
+- Conversation Summarization: Automatic STM compression after configurable turn thresholds via `SummaryService` and `SummaryMiddleware` (#23)
+- Profile Middleware: Automatic user profile injection into agent context for personalized responses (#23)
+- `ConversationSummary` and `UserProfile` Pydantic models with validation (#23)
+- 13 tests covering profile middleware, summary middleware, and profile tool functionality (#23)
+
 ### Changed
 
 - Unify channel/sweep YAML parsing into `service_manager.py` — moved inline YAML loading from `main.py::_startup()` into `initialize_channel_service()` and `initialize_sweep_service()`, matching the existing TTS/Agent/LTM pattern (#22)
+- Agent state extended with `summary` field for conversation digest context (#23)
+- OpenAIChatAgent now supports conversation summaries and user profiles in prompt context (#23)
 
 ### Fixed
 
 - Prevent `TypeError` from `dict(None)` when YAML keys like `slack:` or `sweep_config:` exist with no value — replaced `dict(raw.get('key', {}))` with `raw.get('key') or {}` for safe None coalescence (#22)
+- Slack service now properly handles session lifecycle with user-specific conversation tracking (#23)
 
 ### Added
 

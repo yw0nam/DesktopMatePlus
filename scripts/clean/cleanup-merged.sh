@@ -75,12 +75,11 @@ for ENTRY in "${REPOS[@]}"; do
   done < <(git -C "$REPO_PATH" worktree list --porcelain)
 
   # ── 2. Merged local branches ────────────────────────────────────────────────
+  # Delete ALL merged local branches except protected ones (master/main/develop)
   git -C "$REPO_PATH" branch --merged "$DEFAULT_BRANCH" \
     | sed 's|^ *||' \
     | { grep -v "^\*\|^${DEFAULT_BRANCH}$\|^master$\|^main$\|^develop$" || true; } \
     | while read -r branch; do
-        [[ "$branch" =~ $OUR_PATTERN ]] || continue
-
         echo "  delete local branch: $branch"
         _run git -C "$REPO_PATH" branch -d "$branch"
       done

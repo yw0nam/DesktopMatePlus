@@ -122,7 +122,22 @@ uv sync --all-extras        # install all dependencies
 uv run pre-commit install   # install pre-commit hooks
 ```
 
-### D. Dev Server
+### D. Makefile Targets
+
+| Command | Description |
+|---------|-------------|
+| `make lint` | Run black + ruff + structural tests (`scripts/lint.sh`) |
+| `make test` | Unit tests only (excludes e2e and slow markers) |
+| `make e2e` | Full E2E test suite (`scripts/e2e.sh`) |
+| `make fmt` | Auto-format with black + ruff fix |
+| `make run` | Start FastAPI dev server (`scripts/run.sh`) |
+| `make clean` | Remove `__pycache__`, `.pytest_cache`, `.pyc` artifacts |
+
+See the [Testing Checklist](CHECKLIST.md) for detailed instructions and manual testing steps.
+**YOU CAN'T SKIP E2E TESTS.** you must pass this test mark the task is done.
+If the new feature cannot be tested with the existing E2E framework, you must first extend the E2E tests to cover it before marking the task as done.
+
+### E. Dev Server
 
 ```bash
 uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
@@ -130,16 +145,6 @@ uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
 # For use slack, you need to run `ngrok http 5500`
 # Override YAML config: YAML_FILE=yaml_files/custom.yml uv run uvicorn ...
 ```
-
-### E. Testing
-
-```bash
-bash scripts/e2e.sh
-```
-
-See the [Testing Checklist](CHECKLIST.md) for detailed instructions and manual testing steps.
-**YOU CAN'T SKIP E2E TESTS.** you must pass this test mark the task is done.
-If the new feature cannot be tested with the existing E2E framework, you must first extend the E2E tests to cover it before marking the task as done.
 
 ## Task Tracking
 
