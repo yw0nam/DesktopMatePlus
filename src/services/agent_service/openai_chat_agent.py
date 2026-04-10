@@ -99,7 +99,18 @@ class OpenAIChatAgent(AgentService):
             ltm_consolidation_hook,
             ltm_retrieve_hook,
         )
-        from src.services.service_manager import get_mongo_client
+        from src.services.agent_service.middleware.profile_middleware import (
+            profile_retrieve_hook,
+        )
+        from src.services.agent_service.middleware.summary_middleware import (
+            summary_consolidation_hook,
+            summary_inject_hook,
+        )
+        from src.services.agent_service.tools.profile import UpdateUserProfileTool
+        from src.services.service_manager import (
+            get_mongo_client,
+            get_user_profile_service,
+        )
 
         mongo_client = get_mongo_client()
         checkpointer = None
@@ -112,15 +123,24 @@ class OpenAIChatAgent(AgentService):
                 logger.warning(
                     "langgraph-checkpoint-mongodb not available, checkpointer disabled"
                 )
+
+        custom_tools = list(self._mcp_tools)
+        profile_svc = get_user_profile_service()
+        if profile_svc is not None:
+            custom_tools.append(UpdateUserProfileTool(service=profile_svc))
+
         self.agent = create_agent(
             model=self.llm,
-            tools=self._mcp_tools,
+            tools=custom_tools,
             state_schema=CustomAgentState,
             checkpointer=checkpointer,
             middleware=[
                 DelegateToolMiddleware(),
+                before_model(profile_retrieve_hook),
+                before_model(summary_inject_hook),
                 before_model(ltm_retrieve_hook),
                 after_model(ltm_consolidation_hook),
+                after_model(summary_consolidation_hook),
             ],
         )
         logger.info("Agent created successfully")

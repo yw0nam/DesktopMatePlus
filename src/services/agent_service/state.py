@@ -24,3 +24,5 @@ class CustomAgentState(AgentState):
     pending_tasks: NotRequired[list[PendingTask]]
     ltm_last_consolidated_at_turn: NotRequired[int]
     knowledge_saved: NotRequired[bool]
+    user_profile_loaded: NotRequired[bool]
+    summary_last_consolidated_at_turn: NotRequired[int]

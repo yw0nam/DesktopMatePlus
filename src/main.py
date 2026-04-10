@@ -90,6 +90,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 initialize_ltm_service,
                 initialize_mongodb_client,
                 initialize_tts_service,
+                initialize_user_profile_service,
             )
 
             logger.info("📋 Loading service configurations...")
@@ -110,6 +111,12 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 )
             else:
                 initialize_mongodb_client()
+
+            try:
+                initialize_user_profile_service()
+                logger.info("User profile service initialized")
+            except Exception:
+                logger.exception("Failed to initialize user profile service")
 
             if config_paths.get("agent_config_path"):
                 logger.info(f"  - Agent config: {config_paths['agent_config_path']}")
@@ -132,6 +139,14 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             if agent_svc is not None:
                 await agent_svc.initialize_async()
                 logger.info("Agent async initialization complete")
+
+            try:
+                from src.services import initialize_summary_service
+
+                initialize_summary_service()
+                logger.info("Summary service initialized")
+            except Exception:
+                logger.exception("Failed to initialize summary service")
 
             # Channel service (Slack 등 외부 채널)
             try:

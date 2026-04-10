@@ -1,0 +1,4 @@
+summary_config:
+  enabled: true
+  turn_threshold: 20
+  max_summary_length: 500
