@@ -72,3 +72,33 @@ class TestTTSEnvOverride:
             assert kwargs["base_url"] == "http://original:8000"
 
         sm._tts_service_instance = None
+
+    def test_env_var_skipped_for_non_irodori_engine(self, monkeypatch):
+        monkeypatch.setenv("IRODORI_TTS_BASE_URL", "http://override:9999")
+        mock_svc = self._make_mock_service()
+        yaml_cfg = {
+            "tts_config": {
+                "type": "vllm_omni",
+                "configs": {"model": "test-model"},
+            }
+        }
+
+        with (
+            patch(
+                "src.services.service_manager._load_yaml_config",
+                return_value=yaml_cfg,
+            ),
+            patch(
+                "src.services.service_manager.TTSFactory.get_tts_engine",
+                return_value=mock_svc,
+            ) as mock_factory,
+        ):
+            import src.services.service_manager as sm
+
+            sm._tts_service_instance = None
+            sm.initialize_tts_service(force_reinit=True)
+
+            _, kwargs = mock_factory.call_args
+            assert "base_url" not in kwargs
+
+        sm._tts_service_instance = None

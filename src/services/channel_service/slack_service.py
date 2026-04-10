@@ -123,10 +123,16 @@ class SlackService:
         )
 
     async def cleanup(self) -> None:
-        """Gracefully clean up Slack client resources."""
+        """Gracefully clean up Slack client resources.
+
+        AsyncWebClient created without an explicit session manages its own
+        per-request sessions internally, so there is nothing to close here.
+        Only close when we own the session (passed during construction).
+        """
         try:
-            if hasattr(self._client, "session") and self._client.session is not None:
-                await self._client.session.close()
+            session = getattr(self._client, "session", None)
+            if session is not None and not session.closed:
+                await session.close()
                 logger.info("SlackService client session closed")
             else:
                 logger.info("SlackService cleanup: no active session to close")

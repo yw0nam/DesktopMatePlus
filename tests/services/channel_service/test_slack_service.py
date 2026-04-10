@@ -185,6 +185,7 @@ class TestSlackServiceCleanup:
     async def test_cleanup_closes_active_session(self):
         svc = SlackService(_make_settings())
         mock_session = AsyncMock()
+        mock_session.closed = False
         mock_client = MagicMock()
         mock_client.session = mock_session
         svc._client = mock_client
@@ -192,6 +193,18 @@ class TestSlackServiceCleanup:
         await svc.cleanup()
 
         mock_session.close.assert_awaited_once()
+
+    async def test_cleanup_skips_already_closed_session(self):
+        svc = SlackService(_make_settings())
+        mock_session = AsyncMock()
+        mock_session.closed = True
+        mock_client = MagicMock()
+        mock_client.session = mock_session
+        svc._client = mock_client
+
+        await svc.cleanup()
+
+        mock_session.close.assert_not_awaited()
 
     async def test_cleanup_no_session_attr_completes_without_error(self):
         svc = SlackService(_make_settings())
