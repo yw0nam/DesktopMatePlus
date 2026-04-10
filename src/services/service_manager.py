@@ -5,6 +5,7 @@ Services are initialized once and stored as module-level singletons.
 """
 
 import asyncio
+import os
 import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -232,12 +233,21 @@ def initialize_tts_service(
         logger.debug("TTS service already initialized, skipping")
         return _tts_service_instance
 
+    def _apply_tts_env_overrides(_full_cfg: dict, svc_cfg: dict) -> None:
+        if _full_cfg.get("tts_config", {}).get("type") != "irodori":
+            return
+        env_url = os.getenv("IRODORI_TTS_BASE_URL")
+        if env_url:
+            logger.info("TTS base_url overridden via IRODORI_TTS_BASE_URL env var")
+            svc_cfg["base_url"] = env_url
+
     _tts_service_instance = _initialize_service(
         service_name="TTS",
         default_config_path=_BASE_YAML / "services" / "tts_service" / "irodori.yml",
         config_key="tts_config",
         factory_fn=TTSFactory.get_tts_engine,
         config_path=config_path,
+        pre_factory_hook=_apply_tts_env_overrides,
     )
     return _tts_service_instance
 

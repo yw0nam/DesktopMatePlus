@@ -18,6 +18,11 @@ COPY yaml_files/ ./yaml_files/
 # Install the project itself now that source is present
 RUN uv sync --frozen --no-dev
 
+# Create non-root user and transfer ownership
+RUN adduser --disabled-password --gecos '' appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 5500
 
 CMD ["uv", "run", "uvicorn", "src.main:get_app", "--factory", "--host", "0.0.0.0", "--port", "5500"]

@@ -181,6 +181,47 @@ class TestParseEvent:
         assert result is None
 
 
+class TestSlackServiceCleanup:
+    async def test_cleanup_closes_active_session(self):
+        svc = SlackService(_make_settings())
+        mock_session = AsyncMock()
+        mock_session.closed = False
+        mock_client = MagicMock()
+        mock_client.session = mock_session
+        svc._client = mock_client
+
+        await svc.cleanup()
+
+        mock_session.close.assert_awaited_once()
+
+    async def test_cleanup_skips_already_closed_session(self):
+        svc = SlackService(_make_settings())
+        mock_session = AsyncMock()
+        mock_session.closed = True
+        mock_client = MagicMock()
+        mock_client.session = mock_session
+        svc._client = mock_client
+
+        await svc.cleanup()
+
+        mock_session.close.assert_not_awaited()
+
+    async def test_cleanup_no_session_attr_completes_without_error(self):
+        svc = SlackService(_make_settings())
+        mock_client = MagicMock(spec=[])  # no 'session' attribute
+        svc._client = mock_client
+
+        await svc.cleanup()  # must not raise
+
+    async def test_cleanup_session_none_completes_without_error(self):
+        svc = SlackService(_make_settings())
+        mock_client = MagicMock()
+        mock_client.session = None
+        svc._client = mock_client
+
+        await svc.cleanup()  # must not raise
+
+
 class TestSendMessage:
     async def test_send_message_calls_slack_api(self):
         svc = SlackService(_make_settings())
