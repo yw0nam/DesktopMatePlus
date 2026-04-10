@@ -127,7 +127,9 @@ class SlackService:
         try:
             if hasattr(self._client, "session") and self._client.session is not None:
                 await self._client.session.close()
-            logger.info("SlackService client closed")
+                logger.info("SlackService client session closed")
+            else:
+                logger.info("SlackService cleanup: no active session to close")
         except Exception as e:
             logger.warning(f"SlackService cleanup error (ignored): {e}")
 

@@ -236,6 +236,7 @@ def initialize_tts_service(
     def _apply_tts_env_overrides(_full_cfg: dict, svc_cfg: dict) -> None:
         env_url = os.getenv("IRODORI_TTS_BASE_URL")
         if env_url:
+            logger.info("TTS base_url overridden via IRODORI_TTS_BASE_URL env var")
             svc_cfg["base_url"] = env_url
 
     _tts_service_instance = _initialize_service(
