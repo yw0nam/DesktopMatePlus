@@ -24,4 +24,5 @@ ltm_config:
     graph_store:
       provider: "neo4j"
       config:
-        url: "bolt://192.168.0.43:7687"
+        # Override NEO4J_URL in .env for your deployment (default: local neo4j)
+        url: "bolt://localhost:7687"
