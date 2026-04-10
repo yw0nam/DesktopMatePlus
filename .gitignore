@@ -99,6 +99,7 @@ static
 .gemini
 resources
 .worktrees
+worktrees/
 tts_output
 .claude/settings.local.json
 
