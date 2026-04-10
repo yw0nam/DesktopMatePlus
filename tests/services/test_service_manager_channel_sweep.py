@@ -150,6 +150,21 @@ class TestInitializeChannelService:
         assert isinstance(settings, SlackSettings)
         assert settings.enabled is False
 
+    def test_yaml_slack_key_with_none_value(self, tmp_path, monkeypatch):
+        """YAML with 'slack:' key but no value should not crash (None coalescence)."""
+        config_path = tmp_path / "channel.yml"
+        config_path.write_text("slack:\n")
+        monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-none-safe")
+        monkeypatch.setenv("SLACK_SIGNING_SECRET", "secret-none-safe")
+
+        from src.services.service_manager import initialize_channel_service
+
+        settings = initialize_channel_service(config_path=config_path)
+
+        assert isinstance(settings, SlackSettings)
+        assert settings.bot_token == "xoxb-none-safe"
+        assert settings.signing_secret == "secret-none-safe"
+
 
 # ---------------------------------------------------------------------------
 # initialize_sweep_service tests
@@ -199,11 +214,28 @@ class TestInitializeSweepService:
                 agent_service=agent_svc, session_registry=registry
             )
             assert isinstance(svc, BackgroundSweepService)
-            # Defaults from SweepConfig
             assert svc.config.sweep_interval_seconds == 60
             assert svc.config.task_ttl_seconds == 300
         finally:
             sm._BASE_YAML = original
+
+    def test_yaml_sweep_config_key_with_none_value(self, tmp_path):
+        """YAML with 'sweep_config:' key but no value should not crash (None coalescence)."""
+        config_path = tmp_path / "sweep.yml"
+        config_path.write_text("sweep_config:\n")
+        agent_svc, registry = self._make_deps()
+
+        from src.services.service_manager import initialize_sweep_service
+
+        svc = initialize_sweep_service(
+            agent_service=agent_svc,
+            session_registry=registry,
+            config_path=config_path,
+        )
+
+        assert isinstance(svc, BackgroundSweepService)
+        assert svc.config.sweep_interval_seconds == 60
+        assert svc.config.task_ttl_seconds == 300
 
     def test_slack_service_fn_is_passed_through(self, tmp_path):
         """initialize_sweep_service wires slack_service_fn onto the service."""

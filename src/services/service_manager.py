@@ -452,7 +452,7 @@ def initialize_channel_service(
         )
 
     raw = _load_yaml_config(resolved)
-    slack_cfg: dict = dict(raw.get("slack", {}))
+    slack_cfg: dict = raw.get("slack") or {}
 
     if not slack_cfg.get("bot_token"):
         slack_cfg["bot_token"] = os.getenv("SLACK_BOT_TOKEN", "")
@@ -500,7 +500,7 @@ def initialize_sweep_service(
         sweep_cfg = SweepConfig()
     else:
         raw = _load_yaml_config(resolved)
-        sweep_cfg_dict: dict = dict(raw.get("sweep_config", {}))
+        sweep_cfg_dict: dict = raw.get("sweep_config") or {}
         sweep_cfg = SweepConfig(**sweep_cfg_dict)
 
     return BackgroundSweepService(
