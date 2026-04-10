@@ -14,6 +14,7 @@ import pymongo as _pymongo
 import yaml
 from loguru import logger
 
+from src.core.error_classifier import ErrorClassifier, ErrorSeverity
 from src.services.agent_service import AgentFactory, AgentService
 from src.services.agent_service.session_registry import SessionRegistry
 from src.services.ltm_service import LTMFactory, LTMService
@@ -140,7 +141,15 @@ def _initialize_service[T](
         return service
 
     except Exception as e:
-        logger.error(f"❌ Failed to initialize {service_name} service: {e}")
+        severity = ErrorClassifier.classify(e)
+        if severity == ErrorSeverity.TRANSIENT:
+            logger.warning(
+                f"⚠️  {service_name} init failed (transient, may recover): {e}"
+            )
+        else:
+            logger.error(
+                f"❌ Failed to initialize {service_name} service [{severity}]: {e}"
+            )
         raise
 
 

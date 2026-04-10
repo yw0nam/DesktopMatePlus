@@ -211,9 +211,42 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
     async def _shutdown(
         sweep_service: "BackgroundSweepService | None",
     ) -> None:
-        if sweep_service is not None:
-            await sweep_service.stop()
         logger.info(f"👋 Shutting down {settings.app_name}")
+
+        # Shutdown in reverse init order: sweep → channel → websocket → mongo
+
+        if sweep_service is not None:
+            try:
+                await sweep_service.stop()
+                logger.info("Task sweep service stopped")
+            except Exception:
+                logger.exception("Error stopping sweep service")
+
+        try:
+            from src.services.channel_service import cleanup_channel_service
+
+            await cleanup_channel_service()
+        except Exception:
+            logger.exception("Error cleaning up channel service")
+
+        try:
+            from src.services.websocket_service.manager import (
+                websocket_manager as _ws_mgr,
+            )
+
+            await _ws_mgr.close_all()
+        except Exception:
+            logger.exception("Error closing WebSocket connections")
+
+        try:
+            from src.services.service_manager import get_mongo_client
+
+            mongo = get_mongo_client()
+            if mongo is not None:
+                mongo.close()
+                logger.info("MongoDB client closed")
+        except Exception:
+            logger.exception("Error closing MongoDB client")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
