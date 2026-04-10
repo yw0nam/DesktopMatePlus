@@ -135,66 +135,38 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
             # Channel service (Slack 등 외부 채널)
             try:
-                import yaml as _yaml
-
                 from src.services.channel_service import init_channel_service
-                from src.services.channel_service.slack_service import SlackSettings
+                from src.services.service_manager import initialize_channel_service
 
-                channel_config_path = config_paths.get("channel_service_path")
-                slack_settings = SlackSettings()
-                if channel_config_path and Path(channel_config_path).exists():
-                    with open(channel_config_path, encoding="utf-8") as _f:
-                        _raw = _yaml.safe_load(_f) or {}
-                    import os as _os
-
-                    slack_cfg_dict = _raw.get("slack", {})
-                    # env var fallback for credentials not set in YAML
-                    if not slack_cfg_dict.get("bot_token"):
-                        slack_cfg_dict["bot_token"] = _os.getenv("SLACK_BOT_TOKEN", "")
-                    if not slack_cfg_dict.get("signing_secret"):
-                        slack_cfg_dict["signing_secret"] = _os.getenv(
-                            "SLACK_SIGNING_SECRET", ""
-                        )
-
-                    slack_settings = SlackSettings(**slack_cfg_dict)
+                slack_settings = initialize_channel_service(
+                    config_path=config_paths.get("channel_service_path")
+                )
                 await init_channel_service(slack_settings)
                 logger.info("Channel service initialized")
             except Exception:
                 logger.exception("Failed to initialize channel service")
 
             try:
-                import yaml as _yaml
-
-                from src.services.task_sweep_service import (
-                    BackgroundSweepService,
-                    SweepConfig,
-                )
-
-                sweep_config_path = config_paths.get("task_sweep_service_path")
-                sweep_cfg_dict: dict = {}
-                if sweep_config_path and Path(sweep_config_path).exists():
-                    with open(sweep_config_path, encoding="utf-8") as _f:
-                        _raw = _yaml.safe_load(_f) or {}
-                    sweep_cfg_dict = _raw.get("sweep_config", {})
-                sweep_cfg = SweepConfig(**sweep_cfg_dict)
-
                 from src.services.channel_service import get_slack_service
-                from src.services.service_manager import get_session_registry
+                from src.services.service_manager import (
+                    get_session_registry,
+                    initialize_sweep_service,
+                )
 
                 registry = get_session_registry()
                 agent_for_sweep = get_agent_service()
                 if registry is not None and agent_for_sweep is not None:
-                    sweep_service = BackgroundSweepService(
+                    sweep_service = initialize_sweep_service(
                         agent_service=agent_for_sweep,
                         session_registry=registry,
-                        config=sweep_cfg,
+                        config_path=config_paths.get("task_sweep_service_path"),
                         slack_service_fn=get_slack_service,
                     )
                     await sweep_service.start()
                     logger.info(
                         f"Task sweep started "
-                        f"(interval={sweep_cfg.sweep_interval_seconds}s, "
-                        f"ttl={sweep_cfg.task_ttl_seconds}s)"
+                        f"(interval={sweep_service.config.sweep_interval_seconds}s, "
+                        f"ttl={sweep_service.config.task_ttl_seconds}s)"
                     )
                 else:
                     logger.warning(
