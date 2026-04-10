@@ -4,6 +4,14 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Unify channel/sweep YAML parsing into `service_manager.py` — moved inline YAML loading from `main.py::_startup()` into `initialize_channel_service()` and `initialize_sweep_service()`, matching the existing TTS/Agent/LTM pattern (#22)
+
+### Fixed
+
+- Prevent `TypeError` from `dict(None)` when YAML keys like `slack:` or `sweep_config:` exist with no value — replaced `dict(raw.get('key', {}))` with `raw.get('key') or {}` for safe None coalescence (#22)
+
 ### Added
 
 - Makefile with `lint`, `test`, `e2e`, `run`, `fmt`, `clean` targets wrapping existing scripts (#19)
