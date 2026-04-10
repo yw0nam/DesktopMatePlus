@@ -1,5 +1,6 @@
 """Health check service for monitoring external dependencies."""
 
+from src.core.error_classifier import ErrorSeverity
 from src.models.responses import HealthResponse, ModuleStatus
 
 
@@ -123,11 +124,47 @@ class HealthService:
         ltm_ready, ltm_error = await self.check_ltm()
         mongodb_ready, mongodb_error = await self.check_mongodb()
 
+        def _severity(error: str | None) -> str | None:
+            if error is None:
+                return None
+            lower = error.lower()
+            if any(
+                kw in lower
+                for kw in ("timeout", "timed out", "connection reset", "broken pipe")
+            ):
+                return str(ErrorSeverity.TRANSIENT)
+            if any(
+                kw in lower
+                for kw in ("not initialized", "invalid", "validation", "value error")
+            ):
+                return str(ErrorSeverity.RECOVERABLE)
+            return str(ErrorSeverity.FATAL)
+
         modules = [
-            ModuleStatus(name="TTS", ready=tts_ready, error=tts_error),
-            ModuleStatus(name="Agent", ready=agent_ready, error=agent_error),
-            ModuleStatus(name="LTM", ready=ltm_ready, error=ltm_error),
-            ModuleStatus(name="MongoDB", ready=mongodb_ready, error=mongodb_error),
+            ModuleStatus(
+                name="TTS",
+                ready=tts_ready,
+                error=tts_error,
+                severity=_severity(tts_error),
+            ),
+            ModuleStatus(
+                name="Agent",
+                ready=agent_ready,
+                error=agent_error,
+                severity=_severity(agent_error),
+            ),
+            ModuleStatus(
+                name="LTM",
+                ready=ltm_ready,
+                error=ltm_error,
+                severity=_severity(ltm_error),
+            ),
+            ModuleStatus(
+                name="MongoDB",
+                ready=mongodb_ready,
+                error=mongodb_error,
+                severity=_severity(mongodb_error),
+            ),
         ]
 
         # Overall status is healthy only if all modules are ready

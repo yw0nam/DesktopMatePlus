@@ -29,6 +29,14 @@ def get_slack_service() -> SlackService | None:
     return _slack_service
 
 
+async def cleanup_channel_service() -> None:
+    """Gracefully close the Slack service during shutdown."""
+    global _slack_service
+    if _slack_service is not None:
+        await _slack_service.cleanup()
+        _slack_service = None
+
+
 async def process_message(
     *,
     text: str,

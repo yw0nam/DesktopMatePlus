@@ -14,6 +14,7 @@ import pymongo as _pymongo
 import yaml
 from loguru import logger
 
+from src.core.error_classifier import ErrorClassifier, ErrorSeverity
 from src.services.agent_service import AgentFactory, AgentService
 from src.services.agent_service.session_registry import SessionRegistry
 from src.services.ltm_service import LTMFactory, LTMService
@@ -140,7 +141,15 @@ def _initialize_service[T](
         return service
 
     except Exception as e:
-        logger.error(f"❌ Failed to initialize {service_name} service: {e}")
+        severity = ErrorClassifier.classify(e)
+        if severity == ErrorSeverity.TRANSIENT:
+            logger.warning(
+                f"⚠️  {service_name} init failed (transient, may recover): {e}"
+            )
+        else:
+            logger.error(
+                f"❌ Failed to initialize {service_name} service [{severity}]: {e}"
+            )
         raise
 
 
@@ -182,6 +191,18 @@ def initialize_mongodb_client(
 def get_mongo_client() -> "_pymongo.MongoClient | None":
     """Get the initialized MongoDB client instance."""
     return _mongo_client
+
+
+def reset_mongo_client() -> None:
+    """Reset the MongoDB client singleton to None.
+
+    Call this after closing the client so that a subsequent call to
+    initialize_mongodb_client() creates a fresh connection instead of
+    reusing the already-closed client.
+    """
+    global _mongo_client, _session_registry_instance
+    _mongo_client = None
+    _session_registry_instance = None
 
 
 def get_session_registry() -> "SessionRegistry | None":
@@ -407,4 +428,5 @@ __all__ = [
     "initialize_mongodb_client",
     "initialize_services",
     "initialize_tts_service",
+    "reset_mongo_client",
 ]

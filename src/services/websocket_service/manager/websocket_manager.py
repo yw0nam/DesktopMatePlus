@@ -433,6 +433,23 @@ class WebSocketManager:
                 connection_id, ErrorMessage(error="Internal server error")
             )
 
+    async def close_all(self) -> None:
+        """Close all active WebSocket connections during server shutdown."""
+        connection_ids = list(self.connections.keys())
+        if not connection_ids:
+            return
+        logger.info(f"Closing {len(connection_ids)} active WebSocket connection(s)")
+        tasks = [
+            self._close_connection(
+                connection_id=connection_id,
+                code=1001,
+                reason="Server shutting down",
+                notify_client=True,
+            )
+            for connection_id in connection_ids
+        ]
+        await asyncio.gather(*tasks, return_exceptions=True)
+
 
 # Global WebSocket manager instance
 websocket_manager = WebSocketManager()

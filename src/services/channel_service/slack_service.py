@@ -122,6 +122,14 @@ class SlackService:
             text=text,
         )
 
+    async def cleanup(self) -> None:
+        """Gracefully clean up Slack client resources."""
+        try:
+            await self._client.close()
+            logger.info("SlackService client closed")
+        except Exception as e:
+            logger.warning(f"SlackService cleanup error (ignored): {e}")
+
     async def send_message(self, channel_id: str, text: str) -> None:
         """Slack Web API로 메시지를 전송한다. 실패 시 로그만 기록한다."""
         try:
