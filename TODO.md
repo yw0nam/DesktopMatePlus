@@ -22,10 +22,10 @@
 
 ## Phase 5 — Known Issues 정리
 
-- [ ] KI-1: irodori.yml `base_url` 하드코딩 → 환경변수 오버라이드 `cc:TODO`
-- [ ] KI-4: Dockerfile non-root USER 추가 `cc:TODO`
-- [ ] KI-5: docker-compose.yml에 `extra_hosts: ["host.docker.internal:host-gateway"]` 추가 `cc:TODO`
-- [ ] KI-6: SlackService.cleanup() → `self._client.session.close()` 수정 `cc:TODO`
+- [x] KI-1: irodori.yml `base_url` 하드코딩 → 환경변수 오버라이드 `cc:DONE`
+- [x] KI-4: Dockerfile non-root USER 추가 `cc:DONE`
+- [x] KI-5: docker-compose.yml에 `extra_hosts: ["host.docker.internal:host-gateway"]` 추가 `cc:DONE`
+- [x] KI-6: SlackService.cleanup() → `self._client.session.close()` 수정 `cc:DONE`
 
 ## Phase 6 — Agent Skill/Tool 확장
 
