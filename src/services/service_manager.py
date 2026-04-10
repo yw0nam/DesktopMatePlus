@@ -23,8 +23,10 @@ from src.core.error_classifier import ErrorClassifier, ErrorSeverity
 from src.services.agent_service import AgentFactory, AgentService
 from src.services.agent_service.session_registry import SessionRegistry
 from src.services.ltm_service import LTMFactory, LTMService
+from src.services.summary_service import SummaryService
 from src.services.tts_service import TTSFactory, TTSService
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
+from src.services.user_profile_service import UserProfileService
 
 # Global service instances
 _tts_service_instance: TTSService | None = None
@@ -32,7 +34,10 @@ _agent_service_instance: AgentService | None = None
 _ltm_service_instance: LTMService | None = None
 _emotion_motion_mapper_instance: EmotionMotionMapper | None = None
 _mongo_client: "_pymongo.MongoClient | None" = None
+_mongo_db: "_pymongo.database.Database | None" = None
 _session_registry_instance: "SessionRegistry | None" = None
+_user_profile_service_instance: UserProfileService | None = None
+_summary_service_instance: SummaryService | None = None
 
 T = TypeVar("T")
 
@@ -165,7 +170,7 @@ def initialize_mongodb_client(
     config_path: str | Path | None = None, force_reinit: bool = False
 ) -> "_pymongo.MongoClient":
     """Initialize shared MongoDB client for checkpointer and session_registry."""
-    global _mongo_client, _session_registry_instance
+    global _mongo_client, _mongo_db, _session_registry_instance
     if _mongo_client is not None and not force_reinit:
         logger.debug("MongoDB client already initialized, skipping")
         return _mongo_client
@@ -187,8 +192,8 @@ def initialize_mongodb_client(
     except Exception as e:
         logger.error(f"❌ MongoDB client ping failed: {e}")
         raise
-    db = _mongo_client[db_name]
-    _session_registry_instance = SessionRegistry(db["session_registry"])
+    _mongo_db = _mongo_client[db_name]
+    _session_registry_instance = SessionRegistry(_mongo_db["session_registry"])
     logger.info(f"MongoDB client initialized (db={db_name})")
     return _mongo_client
 
@@ -205,14 +210,102 @@ def reset_mongo_client() -> None:
     initialize_mongodb_client() creates a fresh connection instead of
     reusing the already-closed client.
     """
-    global _mongo_client, _session_registry_instance
+    global _mongo_client, _mongo_db, _session_registry_instance
     _mongo_client = None
+    _mongo_db = None
     _session_registry_instance = None
+
+
+def get_mongo_db() -> "_pymongo.database.Database | None":
+    """Get the initialized MongoDB database instance."""
+    return _mongo_db
 
 
 def get_session_registry() -> "SessionRegistry | None":
     """Get the initialized SessionRegistry instance."""
     return _session_registry_instance
+
+
+def initialize_user_profile_service(
+    force_reinit: bool = False,
+) -> UserProfileService:
+    """Initialize UserProfileService using the shared MongoDB client.
+
+    Args:
+        force_reinit: If True, reinitialize even if already initialized.
+
+    Returns:
+        Initialized UserProfileService instance
+
+    Raises:
+        RuntimeError: If MongoDB client is not yet initialized
+    """
+    global _user_profile_service_instance
+
+    if _user_profile_service_instance is not None and not force_reinit:
+        logger.debug("UserProfileService already initialized, skipping")
+        return _user_profile_service_instance
+
+    if _mongo_db is None:
+        raise RuntimeError(
+            "MongoDB client not initialized — call initialize_mongodb_client() first"
+        )
+
+    collection = _mongo_db["user_profiles"]
+    _user_profile_service_instance = UserProfileService(collection=collection)
+    logger.info("✅ UserProfileService initialized (collection=user_profiles)")
+    return _user_profile_service_instance
+
+
+def get_user_profile_service() -> UserProfileService | None:
+    """Get the initialized UserProfileService instance."""
+    return _user_profile_service_instance
+
+
+def initialize_summary_service(
+    force_reinit: bool = False,
+) -> SummaryService:
+    """Initialize SummaryService using the shared MongoDB client and agent LLM.
+
+    Args:
+        force_reinit: If True, reinitialize even if already initialized.
+
+    Returns:
+        Initialized SummaryService instance
+
+    Raises:
+        RuntimeError: If MongoDB client is not yet initialized
+    """
+    global _summary_service_instance
+
+    if _summary_service_instance is not None and not force_reinit:
+        logger.debug("SummaryService already initialized, skipping")
+        return _summary_service_instance
+
+    if _mongo_db is None:
+        raise RuntimeError(
+            "MongoDB client not initialized — call initialize_mongodb_client() first"
+        )
+
+    from langchain_openai import ChatOpenAI
+
+    if _agent_service_instance is not None and hasattr(_agent_service_instance, "llm"):
+        llm = _agent_service_instance.llm
+    else:
+        logger.warning(
+            "Summary service: agent LLM not available, falling back to default ChatOpenAI"
+        )
+        llm = ChatOpenAI(temperature=0.3)
+
+    collection = _mongo_db["conversation_summaries"]
+    _summary_service_instance = SummaryService(collection=collection, llm=llm)
+    logger.info("✅ SummaryService initialized (collection=conversation_summaries)")
+    return _summary_service_instance
+
+
+def get_summary_service() -> SummaryService | None:
+    """Get the initialized SummaryService instance."""
+    return _summary_service_instance
 
 
 def initialize_tts_service(
@@ -526,15 +619,20 @@ __all__ = [
     "get_emotion_motion_mapper",
     "get_ltm_service",
     "get_mongo_client",
+    "get_mongo_db",
     "get_session_registry",
+    "get_summary_service",
     "get_tts_service",
+    "get_user_profile_service",
     "initialize_agent_service",
     "initialize_channel_service",
     "initialize_emotion_motion_mapper",
     "initialize_ltm_service",
     "initialize_mongodb_client",
     "initialize_services",
+    "initialize_summary_service",
     "initialize_sweep_service",
     "initialize_tts_service",
+    "initialize_user_profile_service",
     "reset_mongo_client",
 ]
