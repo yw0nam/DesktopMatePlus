@@ -83,6 +83,68 @@ class TestSummarize:
         result = await service.summarize(messages=sample_messages, session_id="s1")
         assert isinstance(result.created_at, datetime)
 
+    async def test_turn_range_filters_messages(self, service, mock_llm):
+        messages = [
+            SystemMessage(content="You are Yuri."),
+            HumanMessage(content="Turn 1"),
+            AIMessage(content="Response 1"),
+            HumanMessage(content="Turn 2"),
+            AIMessage(content="Response 2"),
+            HumanMessage(content="Turn 3"),
+            AIMessage(content="Response 3"),
+        ]
+        await service.summarize(
+            messages=messages,
+            session_id="s1",
+            turn_range_start=1,
+            turn_range_end=2,
+        )
+
+        prompt_text = mock_llm.ainvoke.call_args[0][0][0].content
+        assert "Turn 2" in prompt_text
+        assert "Response 2" in prompt_text
+        assert "Turn 3" not in prompt_text
+        assert "Response 3" not in prompt_text
+        assert "Turn 1" not in prompt_text
+        assert "Response 1" not in prompt_text
+
+    async def test_turn_range_zero_uses_all_messages(self, service, mock_llm):
+        messages = [
+            HumanMessage(content="Turn 1"),
+            AIMessage(content="Response 1"),
+            HumanMessage(content="Turn 2"),
+            AIMessage(content="Response 2"),
+        ]
+        await service.summarize(
+            messages=messages,
+            session_id="s1",
+            turn_range_start=0,
+            turn_range_end=0,
+        )
+
+        prompt_text = mock_llm.ainvoke.call_args[0][0][0].content
+        assert "Turn 1" in prompt_text
+        assert "Turn 2" in prompt_text
+
+    async def test_turn_range_includes_system_messages(self, service, mock_llm):
+        messages = [
+            SystemMessage(content="System prompt"),
+            HumanMessage(content="Turn 1"),
+            AIMessage(content="Response 1"),
+            HumanMessage(content="Turn 2"),
+            AIMessage(content="Response 2"),
+        ]
+        await service.summarize(
+            messages=messages,
+            session_id="s1",
+            turn_range_start=0,
+            turn_range_end=1,
+        )
+
+        prompt_text = mock_llm.ainvoke.call_args[0][0][0].content
+        assert "System prompt" not in prompt_text
+        assert "Turn 1" in prompt_text
+
 
 class TestGetSummaries:
     def test_returns_empty_when_no_docs(self, service, mock_collection):

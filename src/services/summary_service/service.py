@@ -25,6 +25,42 @@ class SummaryService:
         self._llm = llm
         self._max_summary_length = max_summary_length
 
+    @staticmethod
+    def _filter_by_turn_range(
+        messages: list[BaseMessage],
+        turn_range_start: int,
+        turn_range_end: int,
+    ) -> list[BaseMessage]:
+        """Filter messages to include only those within the specified turn range.
+
+        Turn indices are 1-based (first HumanMessage = turn 1).
+        When both start and end are 0, returns all messages (no filtering).
+        """
+        if turn_range_start == 0 and turn_range_end == 0:
+            return messages
+
+        human_turn = 0
+        filtered: list[BaseMessage] = []
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                human_turn += 1
+
+            if (
+                not isinstance(msg, (HumanMessage, AIMessage))
+                or (
+                    isinstance(msg, HumanMessage)
+                    and turn_range_start < human_turn <= turn_range_end
+                )
+                or (
+                    isinstance(msg, AIMessage)
+                    and human_turn > 0
+                    and turn_range_start < human_turn <= turn_range_end
+                )
+            ):
+                filtered.append(msg)
+
+        return filtered
+
     async def summarize(
         self,
         messages: list[BaseMessage],
@@ -37,14 +73,19 @@ class SummaryService:
         Args:
             messages: Conversation messages to summarize.
             session_id: Identifier for the session/thread.
-            turn_range_start: First human turn index in the slice.
-            turn_range_end: Last human turn index in the slice.
+            turn_range_start: First human turn index in the slice (1-based, inclusive).
+            turn_range_end: Last human turn index in the slice (inclusive).
+                When both start and end are 0, all messages are summarized.
 
         Returns:
             ConversationSummary with LLM-generated text.
         """
+        slice_messages = self._filter_by_turn_range(
+            messages, turn_range_start, turn_range_end
+        )
+
         lines: list[str] = []
-        for msg in messages:
+        for msg in slice_messages:
             if isinstance(msg, HumanMessage):
                 content = (
                     msg.content if isinstance(msg.content, str) else str(msg.content)

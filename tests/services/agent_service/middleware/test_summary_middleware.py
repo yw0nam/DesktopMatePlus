@@ -131,6 +131,36 @@ class TestSummaryInjectHook:
 
         mock_svc.get_summaries.assert_called_once_with("u:a")
 
+    async def test_replaces_multi_paragraph_existing_summary(self):
+        mock_svc = MagicMock()
+        mock_svc.get_summaries.return_value = [_make_summary(text="New summary text.")]
+        state = {
+            "user_id": "u",
+            "agent_id": "a",
+            "messages": [
+                SystemMessage(
+                    id="sys-001",
+                    content="You are Yuri.\n\nPrevious Conversation Summary: Old summary paragraph one.\n\nOld summary paragraph two with details.\n\nOld summary paragraph three.",
+                ),
+            ],
+        }
+        with patch(
+            "src.services.agent_service.middleware.summary_middleware.get_summary_service",
+            return_value=mock_svc,
+        ):
+            from src.services.agent_service.middleware.summary_middleware import (
+                summary_inject_hook,
+            )
+
+            result = await summary_inject_hook(state, runtime=None)
+
+        assert result is not None
+        msg = result["messages"][0]
+        assert "You are Yuri." in msg.content
+        assert "New summary text." in msg.content
+        assert "Old summary paragraph one" not in msg.content
+        assert "Old summary paragraph two" not in msg.content
+
 
 class TestSummaryConsolidationHook:
     def _make_state(self, n_human: int, last: int = 0) -> dict:

@@ -7,7 +7,6 @@ Both hooks are wired in openai_chat_agent.py via:
 
 import asyncio
 import os
-import re
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
@@ -52,14 +51,7 @@ async def summary_inject_hook(state, runtime):
         and isinstance(msgs[0].content, str)
         and msgs[0].id
     ):
-        content = msgs[0].content
-        content = re.sub(
-            rf"{re.escape(_SUMMARY_SECTION_HEADER)}.*?(?=\n\n[A-Z]|\Z)",
-            "",
-            content,
-            flags=re.DOTALL,
-        )
-        base_content = content.rstrip()
+        base_content = msgs[0].content.split(_SUMMARY_SECTION_HEADER)[0].rstrip()
         return {
             "messages": [
                 SystemMessage(
