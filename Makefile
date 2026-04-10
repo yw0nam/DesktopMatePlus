@@ -4,9 +4,9 @@
 lint:
 	sh scripts/lint.sh
 
-# Unit tests only (excludes slow/e2e markers)
+# Unit tests only (excludes e2e and slow markers)
 test:
-	uv run pytest tests/ -m "not slow" -q
+	uv run pytest tests/ -m "not e2e and not slow" -q
 
 # End-to-end test suite (requires MongoDB + Qdrant + external services)
 e2e:

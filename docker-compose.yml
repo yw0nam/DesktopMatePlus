@@ -5,6 +5,8 @@ services:
       - "5500:5500"
     env_file:
       - .env
+    environment:
+      YAML_FILE: yaml_files/docker.yml
     depends_on:
       mongo:
         condition: service_healthy

@@ -1,0 +1,38 @@
+# docker-compose variant of main.yml
+# Points MongoDB and Qdrant at compose service names instead of hardcoded IPs.
+# Usage: set YAML_FILE=yaml_files/docker.yml in the compose backend environment.
+
+services:
+  vlm_service: openai_compatible.yml
+  tts_service: irodori.yml
+  agent_service: openai_chat_agent.yml
+  stm_service: mongodb.yml
+  # 'checkpointer_config' produces key 'checkpointer_config_path' read by main.py
+  checkpointer_config: checkpointer.docker.yml
+  # 'ltm_config' produces key 'ltm_config_path' read by main.py
+  ltm_config: mem0.docker.yml
+  task_sweep_service: sweep.yml
+  channel_service: channel.yml
+
+# Main application settings (same as main.yml)
+settings:
+  host: "0.0.0.0"
+  port: 5500
+
+  cors_origins:
+    - "*"
+
+  app_name: "DesktopMate+ Backend"
+  app_version: "0.1.0"
+  debug: false
+
+  health_check_timeout: 5
+
+  websocket:
+    ping_interval_seconds: 30
+    pong_timeout_seconds: 10
+    max_error_tolerance: 5
+    error_backoff_seconds: 0.5
+    inactivity_timeout_seconds: 300
+    disconnect_timeout_seconds: 5.0
+    tts_barrier_timeout_seconds: 30.0
