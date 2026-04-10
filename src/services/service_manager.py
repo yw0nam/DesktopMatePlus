@@ -8,7 +8,11 @@ import asyncio
 import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from src.services.channel_service.slack_service import SlackService, SlackSettings
+    from src.services.task_sweep_service.sweep import BackgroundSweepService
 
 import pymongo as _pymongo
 import yaml
@@ -415,6 +419,98 @@ def get_emotion_motion_mapper() -> EmotionMotionMapper | None:
     return _emotion_motion_mapper_instance
 
 
+def initialize_channel_service(
+    config_path: str | Path | None = None,
+) -> "SlackSettings":
+    """Build SlackSettings from YAML configuration with env-var fallbacks.
+
+    Reads the ``slack`` section from the channel service YAML config.
+    If ``bot_token`` or ``signing_secret`` are absent/empty in the file,
+    ``SLACK_BOT_TOKEN`` and ``SLACK_SIGNING_SECRET`` env vars are used.
+
+    Args:
+        config_path: Path to channel service YAML config. If None, uses default.
+
+    Returns:
+        SlackSettings instance (enabled flag + credentials resolved).
+    """
+    import os
+
+    from src.services.channel_service.slack_service import SlackSettings
+
+    resolved = (
+        Path(config_path)
+        if config_path
+        else _BASE_YAML / "services" / "channel_service" / "channel.yml"
+    )
+
+    if not resolved.exists():
+        logger.warning(f"Channel config not found at {resolved}, using defaults")
+        return SlackSettings(
+            bot_token=os.getenv("SLACK_BOT_TOKEN", ""),
+            signing_secret=os.getenv("SLACK_SIGNING_SECRET", ""),
+        )
+
+    raw = _load_yaml_config(resolved)
+    slack_cfg: dict = dict(raw.get("slack", {}))
+
+    if not slack_cfg.get("bot_token"):
+        slack_cfg["bot_token"] = os.getenv("SLACK_BOT_TOKEN", "")
+    if not slack_cfg.get("signing_secret"):
+        slack_cfg["signing_secret"] = os.getenv("SLACK_SIGNING_SECRET", "")
+
+    return SlackSettings(**slack_cfg)
+
+
+def initialize_sweep_service(
+    agent_service: AgentService,
+    session_registry: SessionRegistry,
+    config_path: str | Path | None = None,
+    slack_service_fn: Callable[[], "SlackService | None"] | None = None,
+) -> "BackgroundSweepService":
+    """Build BackgroundSweepService from YAML configuration.
+
+    Reads the ``sweep_config`` section from the task sweep YAML config.
+    Falls back to SweepConfig defaults when the section is absent.
+
+    Args:
+        agent_service: Initialized AgentService instance (required).
+        session_registry: Initialized SessionRegistry instance (required).
+        config_path: Path to sweep service YAML config. If None, uses default.
+        slack_service_fn: Optional callable returning SlackService for notifications.
+
+    Returns:
+        Configured BackgroundSweepService (not yet started).
+    """
+    from src.services.task_sweep_service.sweep import (
+        BackgroundSweepService,
+        SweepConfig,
+    )
+
+    resolved = (
+        Path(config_path)
+        if config_path
+        else _BASE_YAML / "services" / "task_sweep_service" / "sweep.yml"
+    )
+
+    if not resolved.exists():
+        logger.warning(
+            f"Sweep config not found at {resolved}, using SweepConfig defaults"
+        )
+        sweep_cfg = SweepConfig()
+    else:
+        raw = _load_yaml_config(resolved)
+        sweep_cfg_dict: dict = dict(raw.get("sweep_config", {}))
+        sweep_cfg = SweepConfig(**sweep_cfg_dict)
+
+    return BackgroundSweepService(
+        agent_service=agent_service,
+        session_registry=session_registry,
+        config=sweep_cfg,
+        slack_service_fn=slack_service_fn,
+    )
+
+
 __all__ = [
     "get_agent_service",
     "get_emotion_motion_mapper",
@@ -423,10 +519,12 @@ __all__ = [
     "get_session_registry",
     "get_tts_service",
     "initialize_agent_service",
+    "initialize_channel_service",
     "initialize_emotion_motion_mapper",
     "initialize_ltm_service",
     "initialize_mongodb_client",
     "initialize_services",
+    "initialize_sweep_service",
     "initialize_tts_service",
     "reset_mongo_client",
 ]
