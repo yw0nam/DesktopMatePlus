@@ -27,6 +27,11 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Fixed
 
+- KI-1: Add `IRODORI_TTS_BASE_URL` env var override for hardcoded TTS base_url, guarded by engine type check (#21)
+- KI-4: Add non-root `appuser` to Dockerfile with proper `/app` ownership (#21)
+- KI-6: Fix `SlackService.cleanup()` to use `getattr + not session.closed` pattern for safe aiohttp session teardown (#21)
+- Gemini review: Guard `_apply_tts_env_overrides` with `tts_config.type == 'irodori'` to prevent `ValidationError` on non-irodori engines (#21)
+
 - `docs/QUALITY_SCORE.md`: GP-8 violation 누락 수정, violations 요약 문구 현행화 (#17)
 - Pinned uv to v0.9.5 in Dockerfile for reproducible builds (#19)
 - Qdrant healthcheck uses curl (available in stock image) instead of wget (#19)
