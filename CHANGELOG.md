@@ -4,13 +4,32 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Makefile with `lint`, `test`, `e2e`, `run`, `fmt`, `clean` targets wrapping existing scripts (#19)
+- Dockerfile: Python 3.13-slim + uv 0.9.5, two-phase `uv sync` for optimal layer caching (#19)
+- `docker-compose.yml`: backend + MongoDB 7 + Qdrant v1.14.0 with healthchecks and named volumes (#19)
+- Docker-specific YAML configs (`docker.yml`, `checkpointer.docker.yml`, `mem0.docker.yml`) using compose service names (#19)
+- Structural tests for DevEx files (`test_devex_files.py` — 14 tests) (#19)
+- `src/core/error_classifier.py`: project-wide `ErrorClassifier` + `ErrorSeverity` promoted from websocket-only (#20)
+- `SlackService.cleanup()` and `cleanup_channel_service()` for graceful Slack disconnect on shutdown (#20)
+- `reset_mongo_client()` in `service_manager.py` for clean same-process restart (#20)
+- `severity` field on `ModuleStatus` health response (transient/recoverable/fatal) (#20)
+- `WebSocketManager.close_all()` with `asyncio.gather` for parallel connection drain (#20)
+- 24 TDD tests covering ErrorClassifier, shutdown cleanup, and WS manager close_all (#20)
+
 ### Changed
 
 - Quality report 2026-04-09: TODO.md 라인 수 정정, GP-8 Violations Summary 추가, black 권고 정확도 개선 (#17)
+- `_shutdown()` in `main.py` now follows reverse init order: sweep → channel → websocket → mongo (#20)
+- `ErrorClassifier` in websocket_service refactored as backward-compatible subclass extending core (#20)
+- `service_manager._initialize_service()` now logs severity-aware error messages (#20)
 
 ### Fixed
 
 - `docs/QUALITY_SCORE.md`: GP-8 violation 누락 수정, violations 요약 문구 현행화 (#17)
+- Pinned uv to v0.9.5 in Dockerfile for reproducible builds (#19)
+- Qdrant healthcheck uses curl (available in stock image) instead of wget (#19)
 
 ---
 
