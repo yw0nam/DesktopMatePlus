@@ -125,7 +125,8 @@ class SlackService:
     async def cleanup(self) -> None:
         """Gracefully clean up Slack client resources."""
         try:
-            await self._client.close()
+            if hasattr(self._client, "session") and self._client.session is not None:
+                await self._client.session.close()
             logger.info("SlackService client closed")
         except Exception as e:
             logger.warning(f"SlackService cleanup error (ignored): {e}")
