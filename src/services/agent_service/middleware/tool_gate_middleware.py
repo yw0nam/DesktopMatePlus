@@ -44,7 +44,7 @@ class ToolGateMiddleware(AgentMiddleware):
             else None
         )
 
-    async def awrap_tool_call(self, request, handler):  # type: ignore[override]
+    async def awrap_tool_call(self, request, handler):
         tool_name: str = request.tool_call["name"]
         args: dict = request.tool_call.get("args", {})
 
@@ -89,8 +89,7 @@ class ToolGateMiddleware(AgentMiddleware):
 
         if first_token not in self._allowed_commands:
             logger.warning(
-                f"ToolGate blocked command: {first_token!r}, "
-                f"allowed={self._allowed_commands}"
+                f"ToolGate blocked command: {first_token!r} (not in allowlist)"
             )
             return f"Command '{first_token}' is not permitted by security policy."
 
@@ -126,6 +125,6 @@ class ToolGateMiddleware(AgentMiddleware):
 
         logger.warning(
             f"ToolGate blocked filesystem call: tool={tool_name!r} "
-            f"path={str(resolved)!r} allowed_dirs={self._allowed_dirs}"
+            f"path={str(resolved)!r} (outside allowed directories)"
         )
         return "Path is outside the allowed directories."
