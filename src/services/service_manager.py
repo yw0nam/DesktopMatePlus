@@ -522,6 +522,39 @@ def get_emotion_motion_mapper() -> EmotionMotionMapper | None:
     return _emotion_motion_mapper_instance
 
 
+def _load_service_yaml(
+    service_name: str,
+    default_config_path: Path,
+    config_key: str,
+    config_path: str | Path | None = None,
+) -> dict:
+    """Load YAML config and extract a named section, with a missing-file warning fallback.
+
+    Unlike ``_load_yaml_config``, this helper does *not* raise when the file is
+    absent — it logs a warning and returns an empty dict so callers can apply
+    their own defaults.
+
+    Args:
+        service_name: Human-readable label used in log messages.
+        default_config_path: Default YAML file path used when ``config_path`` is None.
+        config_key: Top-level key to extract from the loaded YAML document.
+        config_path: Explicit override path; falls back to ``default_config_path``.
+
+    Returns:
+        Dict extracted from ``config_key``, or ``{}`` when the file is missing or
+        the key is absent.
+    """
+    resolved = Path(config_path) if config_path else default_config_path
+    if not resolved.exists():
+        logger.warning(f"{service_name} config not found at {resolved}, using defaults")
+        return {}
+    raw = _load_yaml_config(resolved)
+    if not isinstance(raw, dict):
+        return {}
+    val = raw.get(config_key)
+    return val if isinstance(val, dict) else {}
+
+
 def initialize_channel_service(
     config_path: str | Path | None = None,
 ) -> "SlackSettings":
@@ -541,21 +574,12 @@ def initialize_channel_service(
 
     from src.services.channel_service.slack_service import SlackSettings
 
-    resolved = (
-        Path(config_path)
-        if config_path
-        else _BASE_YAML / "services" / "channel_service" / "channel.yml"
+    slack_cfg = _load_service_yaml(
+        service_name="Channel",
+        default_config_path=_BASE_YAML / "services" / "channel_service" / "channel.yml",
+        config_key="slack",
+        config_path=config_path,
     )
-
-    if not resolved.exists():
-        logger.warning(f"Channel config not found at {resolved}, using defaults")
-        return SlackSettings(
-            bot_token=os.getenv("SLACK_BOT_TOKEN", ""),
-            signing_secret=os.getenv("SLACK_SIGNING_SECRET", ""),
-        )
-
-    raw = _load_yaml_config(resolved)
-    slack_cfg: dict = raw.get("slack") or {}
 
     if not slack_cfg.get("bot_token"):
         slack_cfg["bot_token"] = os.getenv("SLACK_BOT_TOKEN", "")
@@ -590,21 +614,16 @@ def initialize_sweep_service(
         SweepConfig,
     )
 
-    resolved = (
-        Path(config_path)
-        if config_path
-        else _BASE_YAML / "services" / "task_sweep_service" / "sweep.yml"
+    sweep_cfg_dict = _load_service_yaml(
+        service_name="Sweep",
+        default_config_path=_BASE_YAML
+        / "services"
+        / "task_sweep_service"
+        / "sweep.yml",
+        config_key="sweep_config",
+        config_path=config_path,
     )
-
-    if not resolved.exists():
-        logger.warning(
-            f"Sweep config not found at {resolved}, using SweepConfig defaults"
-        )
-        sweep_cfg = SweepConfig()
-    else:
-        raw = _load_yaml_config(resolved)
-        sweep_cfg_dict: dict = raw.get("sweep_config") or {}
-        sweep_cfg = SweepConfig(**sweep_cfg_dict)
+    sweep_cfg = SweepConfig(**sweep_cfg_dict)
 
     return BackgroundSweepService(
         agent_service=agent_service,
