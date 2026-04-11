@@ -1,9 +1,14 @@
 """Shell tool wrapper with command whitelist enforcement."""
 
+import re
+import shlex
 import subprocess
+from typing import Any
 
 from langchain_core.tools import BaseTool
 from loguru import logger
+
+_DANGEROUS_SHELL_CHARS = re.compile(r"[;&|`$\n\\\"'(){}<>!]")
 
 
 class RestrictedShellTool(BaseTool):
@@ -11,6 +16,7 @@ class RestrictedShellTool(BaseTool):
 
     Only commands whose first token appears in ``allowed_commands`` are executed
     via subprocess. All other commands are rejected with an error message.
+    Shell metacharacters are rejected to prevent injection attacks.
     """
 
     name: str = "terminal"
@@ -20,27 +26,41 @@ class RestrictedShellTool(BaseTool):
     )
     allowed_commands: list[str]
 
-    def _run(self, commands: str) -> str:  # type: ignore[override]
-        """Execute ``commands`` if the leading token is whitelisted.
+    def _run(self, query: str, **kwargs: Any) -> str:
+        """Execute ``query`` if the leading token is whitelisted.
 
         Args:
-            commands: Shell command string to execute.
+            query: Shell command string to execute.
 
         Returns:
             Command stdout/stderr output, or an error message if blocked.
         """
-        first_token = commands.strip().split()[0] if commands.strip() else ""
-        if first_token not in self.allowed_commands:
-            logger.warning(f"Shell command blocked (not allowed): {first_token!r}")
+        commands = query
+        if not commands.strip():
+            return "Empty command is not allowed."
+
+        if _DANGEROUS_SHELL_CHARS.search(commands):
+            logger.warning("Shell command blocked (dangerous characters detected)")
+            return "Command contains disallowed shell characters."
+
+        try:
+            tokens = shlex.split(commands)
+        except ValueError:
+            return "Command could not be parsed."
+
+        if not tokens or tokens[0] not in self.allowed_commands:
+            first = tokens[0] if tokens else ""
+            logger.warning(f"Shell command blocked (not allowed): {first!r}")
             return (
-                f"Command '{first_token}' is not allowed. "
+                f"Command '{first}' is not permitted by security policy. "
                 f"Allowed commands: {self.allowed_commands}"
             )
+
         logger.info(f"Shell command executing: {commands!r}")
         try:
             result = subprocess.run(
-                commands,
-                shell=True,
+                tokens,
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -52,7 +72,7 @@ class RestrictedShellTool(BaseTool):
         except subprocess.TimeoutExpired:
             return "Command timed out after 30 seconds."
         except Exception as e:
-            logger.error(f"Shell command failed: {e}")
+            logger.exception(f"Shell command failed: {e}")
             return f"Command failed: {e}"
 
 

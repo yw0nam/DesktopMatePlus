@@ -3,12 +3,15 @@
 from langchain_core.tools import BaseTool
 from loguru import logger
 
+from src.configs.agent.openai_chat_agent import BuiltinToolConfig, ToolConfig
+
 
 class ToolRegistry:
-    """Instantiates and returns enabled tools based on a ``tool_config`` dict.
+    """Instantiates and returns enabled tools based on a ``ToolConfig``.
 
     The registry reads the ``builtin`` section of the config and instantiates
-    only the tools whose ``enabled`` flag is ``True``.
+    only the tools whose ``enabled`` flag is ``True``. Accepts either a
+    ``ToolConfig`` instance or a raw dict (which is validated via Pydantic).
 
     Example config structure::
 
@@ -24,8 +27,13 @@ class ToolRegistry:
               enabled: false
     """
 
-    def __init__(self, tool_config: dict | None) -> None:
-        self._tool_config = tool_config or {}
+    def __init__(self, tool_config: ToolConfig | dict | None) -> None:
+        if tool_config is None:
+            self._config: ToolConfig | None = None
+        elif isinstance(tool_config, dict):
+            self._config = ToolConfig.model_validate(tool_config)
+        else:
+            self._config = tool_config
 
     def get_enabled_tools(self) -> list[BaseTool]:
         """Return all enabled builtin tools as a flat list.
@@ -33,34 +41,31 @@ class ToolRegistry:
         Returns:
             List of BaseTool instances for each enabled category.
         """
-        builtin: dict = self._tool_config.get("builtin", {})
-        if not builtin:
+        if self._config is None:
             return []
 
+        builtin: BuiltinToolConfig = self._config.builtin
         tools: list[BaseTool] = []
 
-        fs_cfg: dict = builtin.get("filesystem", {})
-        if fs_cfg.get("enabled"):
+        if builtin.filesystem.enabled:
             from src.services.agent_service.tools.builtin.filesystem_tools import (
                 get_filesystem_tools,
             )
 
-            root_dir: str = fs_cfg.get("root_dir", "/tmp/agent-workspace")
-            tools.extend(get_filesystem_tools(root_dir=root_dir))
+            tools.extend(get_filesystem_tools(root_dir=builtin.filesystem.root_dir))
             logger.info("ToolRegistry: filesystem tools added")
 
-        shell_cfg: dict = builtin.get("shell", {})
-        if shell_cfg.get("enabled"):
+        if builtin.shell.enabled:
             from src.services.agent_service.tools.builtin.shell_tools import (
                 get_shell_tools,
             )
 
-            allowed: list[str] = shell_cfg.get("allowed_commands", [])
-            tools.extend(get_shell_tools(allowed_commands=allowed))
+            tools.extend(
+                get_shell_tools(allowed_commands=builtin.shell.allowed_commands)
+            )
             logger.info("ToolRegistry: shell tool added")
 
-        search_cfg: dict = builtin.get("web_search", {})
-        if search_cfg.get("enabled"):
+        if builtin.web_search.enabled:
             from src.services.agent_service.tools.builtin.search_tools import (
                 get_search_tools,
             )

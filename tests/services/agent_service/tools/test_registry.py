@@ -75,7 +75,7 @@ class TestToolRegistryShell:
         tools = registry.get_enabled_tools()
         shell_tool = tools[0]
         result = shell_tool._run("rm -rf /")
-        assert "not allowed" in result.lower()
+        assert "not permitted" in result.lower() or "not allowed" in result.lower()
 
     def test_shell_tool_allows_whitelisted_command(self):
         config = {
@@ -122,6 +122,63 @@ class TestToolRegistryWebSearch:
         }
         registry = ToolRegistry(tool_config=config)
         assert registry.get_enabled_tools() == []
+
+
+class TestShellInjectionBlocked:
+    """Verify shell injection bypass attempts are rejected."""
+
+    def _shell_tool(self):
+        config = {
+            "builtin": {
+                "shell": {
+                    "enabled": True,
+                    "allowed_commands": ["ls"],
+                },
+            }
+        }
+        from src.services.agent_service.tools.registry import ToolRegistry
+
+        return ToolRegistry(tool_config=config).get_enabled_tools()[0]
+
+    def test_blocks_semicolon_chaining(self):
+        result = self._shell_tool()._run("ls; rm -rf /")
+        assert (
+            "disallowed" in result.lower()
+            or "not permitted" in result.lower()
+            or "not allowed" in result.lower()
+        )
+
+    def test_blocks_ampersand_chaining(self):
+        result = self._shell_tool()._run("ls && cat /etc/passwd")
+        assert (
+            "disallowed" in result.lower()
+            or "not permitted" in result.lower()
+            or "not allowed" in result.lower()
+        )
+
+    def test_blocks_pipe(self):
+        result = self._shell_tool()._run("ls | xargs rm")
+        assert (
+            "disallowed" in result.lower()
+            or "not permitted" in result.lower()
+            or "not allowed" in result.lower()
+        )
+
+    def test_blocks_command_substitution(self):
+        result = self._shell_tool()._run("ls $(whoami)")
+        assert (
+            "disallowed" in result.lower()
+            or "not permitted" in result.lower()
+            or "not allowed" in result.lower()
+        )
+
+    def test_blocks_empty_command(self):
+        result = self._shell_tool()._run("")
+        assert "empty" in result.lower()
+
+    def test_blocks_whitespace_only_command(self):
+        result = self._shell_tool()._run("   ")
+        assert "empty" in result.lower()
 
 
 class TestToolRegistryMultiple:

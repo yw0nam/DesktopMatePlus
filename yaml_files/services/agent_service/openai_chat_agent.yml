@@ -28,6 +28,6 @@ tool_config:
       root_dir: "/tmp/agent-workspace"
     shell:
       enabled: false
-      allowed_commands: ["ls", "cat", "grep", "ps", "date", "whoami", "pwd", "wc", "head", "tail"]
+      allowed_commands: ["ls", "cat", "ps", "date", "whoami", "pwd", "wc", "head", "tail"]
     web_search:
       enabled: false
