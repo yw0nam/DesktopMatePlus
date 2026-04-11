@@ -67,6 +67,7 @@ class OpenAIChatAgent(AgentService):
         self.model_name = model_name
         self.tool_config = tool_config
         self.agent = None
+        self._mcp_client: MultiServerMCPClient | None = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
         super().__init__(**kwargs)
@@ -88,11 +89,19 @@ class OpenAIChatAgent(AgentService):
         self._personas = _load_personas()
         logger.info(f"Loaded {len(self._personas)} personas: {list(self._personas)}")
 
-        # 2. Fetch MCP tools once
+        # 2. Start persistent MCP client (keeps stdio subprocesses alive)
         if self.mcp_config:
-            async with MultiServerMCPClient(self.mcp_config) as client:
-                self._mcp_tools = await client.get_tools()
-            logger.info(f"Cached {len(self._mcp_tools)} MCP tools")
+            try:
+                self._mcp_client = MultiServerMCPClient(self.mcp_config)
+                await self._mcp_client.__aenter__()
+                self._mcp_tools = self._mcp_client.get_tools()
+                logger.info(f"MCP client started with {len(self._mcp_tools)} tools")
+            except Exception as e:
+                logger.error(
+                    f"Failed to start MCP client, continuing without MCP tools: {e}"
+                )
+                self._mcp_client = None
+                self._mcp_tools = []
 
         # 3. Create single agent instance
         from langchain.agents.middleware import after_model, before_model
@@ -155,6 +164,17 @@ class OpenAIChatAgent(AgentService):
             ],
         )
         logger.info("Agent created successfully")
+
+    async def cleanup_async(self) -> None:
+        """Shut down the persistent MCP client if one is running."""
+        if self._mcp_client is not None:
+            try:
+                await self._mcp_client.__aexit__(None, None, None)
+                logger.info("MCP client closed")
+            except Exception as e:
+                logger.error(f"Error closing MCP client: {e}")
+            finally:
+                self._mcp_client = None
 
     async def is_healthy(self) -> tuple[bool, str]:
         """Check if the agent is healthy and ready."""
