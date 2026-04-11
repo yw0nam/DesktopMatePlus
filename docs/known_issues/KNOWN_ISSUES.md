@@ -27,3 +27,17 @@
 - [x] **KI-6** [Medium] channel: `SlackService.cleanup()` → `getattr + not session.closed` 패턴으로 교체 완료 (#21)
 - [ ] **KI-7** [Low] health: `_severity()` 함수가 에러 문자열 키워드 매칭으로 severity 분류 — 실제 exception 타입 기반 분류로 개선 권장.
 - [ ] **KI-10** [Low] health: `ModuleStatus.severity` 타입이 `str | None` — `ErrorSeverity | None`으로 교체하면 타입 안전성 향상.
+
+## PR #25 (`feat/phase6a-builtin-tools`) — Builtin Tools
+
+- [ ] **KI-11** [Medium] shell: `RestrictedShellTool`에 `cwd` 제한 없음 — `subprocess.run`이 서버 워킹 디렉토리에서 실행됨. defense-in-depth를 위해 `ShellToolConfig`에 `working_dir` 추가하여 `cwd=` 전달 권장.
+- [ ] **KI-12** [Low] logging: `ToolRegistry`와 개별 tool factory (`get_filesystem_tools` 등)에서 중복 로깅 발생 — registry 레벨에서만 로깅하도록 정리 권장.
+
+## PR #26 (`feat/phase6b-mcp-sandbox`) — MCP Lifecycle
+
+- [ ] **KI-13** [Medium] agent: `cleanup_async()`가 `OpenAIChatAgent`에만 정의 — base `AgentService` 클래스에 default no-op으로 추가하고 `main.py`의 `hasattr` 가드 제거 권장.
+- [ ] **KI-14** [Low] yaml: MCP config 예시의 `npx -y @modelcontextprotocol/server-sequential-thinking` 버전 미고정 — 마이너 버전 핀 권장.
+
+## PR #24 (`refactor/phase4-config-unify`) — Config Unify
+
+- [ ] **KI-15** [Low] imports: `initialize_channel_service()` 내 `import os` 로컬 임포트가 모듈 레벨 임포트와 중복 — 로컬 임포트 제거 권장.

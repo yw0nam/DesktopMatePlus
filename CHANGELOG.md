@@ -6,6 +6,12 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Added
 
+- ToolGateMiddleware: defense-in-depth middleware that validates shell commands against whitelist and filesystem paths against allowed directories before tool execution (#27)
+- Builtin Tool Registry: YAML-config-driven `ToolRegistry` enabling LangChain builtin tools (FileSystem, Shell with command whitelist, DuckDuckGoSearch) — all disabled by default (#25)
+- Shell tool with `RestrictedShellTool`: command whitelist enforcement, dangerous shell character rejection, `shlex.split` + `shell=False` for injection prevention (#25)
+- `ShellToolConfig` Pydantic validator: fail-fast when `enabled=True` with empty `allowed_commands` (#25)
+- MCP client lifecycle fix: stateless `MultiServerMCPClient` pattern for `langchain-mcp-adapters` 0.2.2 with graceful degradation on failure (#26)
+- `cleanup_async()` on `OpenAIChatAgent` for graceful MCP shutdown (#26)
 - User Profile System: Structured user context storage (job, interests, schedule) with `UserProfileService` and `update_profile` agent tool (#23)
 - Conversation Summarization: Automatic STM compression after configurable turn thresholds via `SummaryService` and `SummaryMiddleware` (#23)
 - Profile Middleware: Automatic user profile injection into agent context for personalized responses (#23)
@@ -14,6 +20,7 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Changed
 
+- Extract `_load_service_yaml()` shared helper to unify channel/sweep YAML loading with type guards for malformed YAML (#24)
 - Unify channel/sweep YAML parsing into `service_manager.py` — moved inline YAML loading from `main.py::_startup()` into `initialize_channel_service()` and `initialize_sweep_service()`, matching the existing TTS/Agent/LTM pattern (#22)
 - Agent state extended with `summary` field for conversation digest context (#23)
 - OpenAIChatAgent now supports conversation summaries and user profiles in prompt context (#23)
@@ -22,6 +29,12 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 - Prevent `TypeError` from `dict(None)` when YAML keys like `slack:` or `sweep_config:` exist with no value — replaced `dict(raw.get('key', {}))` with `raw.get('key') or {}` for safe None coalescence (#22)
 - Slack service now properly handles session lifecycle with user-specific conversation tracking (#23)
+
+### Security
+
+- ToolGateMiddleware blocks shell metacharacters (`;|&\`$\n(){}` etc.) and path traversal attacks (`../../`) at middleware level (#27)
+- Remove security whitelist exposure from log messages — blocked commands/paths no longer log allowed lists (#27)
+- Remove `type: ignore[override]` suppression from ToolGateMiddleware (#27)
 
 ### Added
 

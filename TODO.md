@@ -18,7 +18,7 @@
 
 ## Phase 4 — Config 정리
 
-- [ ] main.py의 channel/sweep 인라인 YAML 파싱을 service_manager 패턴으로 통일 `cc:TODO`
+- [x] channel/sweep 초기화를 `_load_service_yaml()` 공통 헬퍼로 통일 `cc:DONE`
 
 ## Phase 5 — Known Issues 정리
 
@@ -29,12 +29,17 @@
 
 ## Phase 6 — Agent Skill/Tool 확장
 
-- [ ] `desktopmate_skills/` 폴더 구조 설계 — YAML 기반 skill/workflow 정의 체계 `cc:TODO`
-- [ ] LangGraph skill injection — startup 시 skills 폴더 스캔 → tool registry → agent 주입 `cc:TODO`
-- [ ] MCP filesystem 서버 연결 — 공식 `modelcontextprotocol/servers/filesystem` (path allowlist 샌드박스) `cc:TODO`
-- [ ] MCP computer-control 서버 연결 — `computer-control-mcp` (PyAutoGUI: 마우스/키보드/스크린샷/OCR) `cc:TODO`
-- [ ] OS 프로세스 목록 접근 — MCP shell-exec 또는 커스텀 tool `cc:TODO`
-- [ ] MCP code-sandbox 서버 연결 — Docker 기반 Python/shell 실행 환경 (`code-sandbox-mcp`) `cc:TODO`
+### 6-A: 빌트인 Tool + Registry
+- [x] Tool Registry (`tools/registry.py`) — YAML config 기반 tool 활성화/비활성화 `cc:DONE`
+- [x] LangChain 빌트인 tool 등록 — FileSystem, Shell(화이트리스트), DuckDuckGoSearch `cc:DONE`
+- [x] `openai_chat_agent.py` initialize_async에서 registry 사용하도록 변경 `cc:DONE`
+
+### 6-B: MCP 서버 연결
+- [ ] MCP code-sandbox 서버 연결 — `pydantic/mcp-run-python` (Docker 격리) `cc:TODO`
+- [x] MultiServerMCPClient 라이프사이클 보강 — stateless 패턴 + cleanup_async `cc:DONE`
+
+### 6-C: Tool Gating Middleware
+- [x] `tool_gate_middleware.py` — wrap_tool_call 패턴, Shell 화이트리스트/filesystem path 범위 체크 `cc:DONE`
 
 ## Phase 7 — 대화 품질 개선
 
