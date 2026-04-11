@@ -159,8 +159,8 @@ class OpenAIChatAgent(AgentService):
             state_schema=CustomAgentState,
             checkpointer=checkpointer,
             middleware=[
-                DelegateToolMiddleware(),
                 tool_gate,
+                DelegateToolMiddleware(),
                 before_model(profile_retrieve_hook),
                 before_model(summary_inject_hook),
                 before_model(ltm_retrieve_hook),

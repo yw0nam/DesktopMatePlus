@@ -38,19 +38,21 @@ class TestShellGating:
 
         handler.assert_not_called()
         assert "rm" in result
-        assert "not allowed" in result
+        assert "not permitted" in result
 
-    async def test_empty_allowed_commands_is_permissive(self):
+    async def test_empty_allowed_commands_denies_all(self):
+        """allowed_commands=[] is active but nothing allowed — fail-closed."""
         gate = ToolGateMiddleware(allowed_commands=[])
         request = _make_request("terminal", {"commands": "rm -rf /"})
         handler = AsyncMock(return_value="executed")
 
         result = await gate.awrap_tool_call(request, handler)
 
-        handler.assert_called_once_with(request)
-        assert result == "executed"
+        handler.assert_not_called()
+        assert "not permitted" in result
 
-    async def test_none_allowed_commands_is_permissive(self):
+    async def test_none_allowed_commands_is_inactive(self):
+        """allowed_commands=None means middleware is inactive — no gating."""
         gate = ToolGateMiddleware(allowed_commands=None)
         request = _make_request("terminal", {"commands": "anything goes"})
         handler = AsyncMock(return_value="executed")
@@ -60,7 +62,8 @@ class TestShellGating:
         handler.assert_called_once_with(request)
         assert result == "executed"
 
-    async def test_blocked_command_message_includes_allowed_list(self):
+    async def test_blocked_command_message_does_not_leak_whitelist(self):
+        """Error messages must not reveal the allowed command list."""
         gate = ToolGateMiddleware(allowed_commands=["ls"])
         request = _make_request("terminal", {"commands": "curl http://evil.com"})
         handler = AsyncMock()
@@ -68,7 +71,9 @@ class TestShellGating:
         result = await gate.awrap_tool_call(request, handler)
 
         assert "curl" in result
-        assert "ls" in result
+        # The whitelist itself must NOT appear in the error message
+        assert "['ls']" not in result
+        assert "allowed_commands" not in result
 
     async def test_empty_command_string_blocked_when_restrictions_set(self):
         gate = ToolGateMiddleware(allowed_commands=["ls"])
@@ -78,7 +83,81 @@ class TestShellGating:
         result = await gate.awrap_tool_call(request, handler)
 
         handler.assert_not_called()
-        assert "not allowed" in result
+        assert result  # some error message returned
+
+
+class TestShellBypassPrevention:
+    """Tests that shell metacharacter injection attacks are blocked."""
+
+    async def test_semicolon_chaining_blocked(self):
+        gate = ToolGateMiddleware(allowed_commands=["ls"])
+        request = _make_request("terminal", {"commands": "ls; rm -rf /"})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        handler.assert_not_called()
+        assert "disallowed shell characters" in result
+
+    async def test_double_ampersand_chaining_blocked(self):
+        gate = ToolGateMiddleware(allowed_commands=["ls"])
+        request = _make_request("terminal", {"commands": "ls && cat /etc/passwd"})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        handler.assert_not_called()
+        assert "disallowed shell characters" in result
+
+    async def test_pipe_blocked(self):
+        gate = ToolGateMiddleware(allowed_commands=["ls"])
+        request = _make_request("terminal", {"commands": "ls | xargs rm"})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        handler.assert_not_called()
+        assert "disallowed shell characters" in result
+
+    async def test_subshell_dollar_blocked(self):
+        gate = ToolGateMiddleware(allowed_commands=["ls"])
+        request = _make_request("terminal", {"commands": "ls $(whoami)"})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        handler.assert_not_called()
+        assert "disallowed shell characters" in result
+
+    async def test_backtick_subshell_blocked(self):
+        gate = ToolGateMiddleware(allowed_commands=["ls"])
+        request = _make_request("terminal", {"commands": "ls `id`"})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        handler.assert_not_called()
+        assert "disallowed shell characters" in result
+
+    async def test_newline_injection_blocked(self):
+        gate = ToolGateMiddleware(allowed_commands=["ls"])
+        request = _make_request("terminal", {"commands": "ls\nrm -rf /"})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        handler.assert_not_called()
+        assert "disallowed shell characters" in result
+
+    async def test_empty_command_blocked(self):
+        gate = ToolGateMiddleware(allowed_commands=["ls"])
+        request = _make_request("terminal", {"commands": "   "})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        handler.assert_not_called()
+        assert result  # some error message returned
 
 
 class TestFilesystemGating:
@@ -146,17 +225,19 @@ class TestFilesystemGating:
         handler.assert_not_called()
         assert "outside the allowed" in result
 
-    async def test_empty_allowed_dirs_is_permissive(self):
+    async def test_empty_allowed_dirs_denies_all(self):
+        """allowed_dirs=[] is active but nothing allowed — fail-closed."""
         gate = ToolGateMiddleware(allowed_dirs=[])
         request = _make_request("read_file", {"file_path": "/etc/passwd"})
-        handler = AsyncMock(return_value="executed")
+        handler = AsyncMock()
 
         result = await gate.awrap_tool_call(request, handler)
 
-        handler.assert_called_once_with(request)
-        assert result == "executed"
+        handler.assert_not_called()
+        assert result  # some error message returned
 
-    async def test_none_allowed_dirs_is_permissive(self):
+    async def test_none_allowed_dirs_is_inactive(self):
+        """allowed_dirs=None means middleware is inactive — no gating."""
         gate = ToolGateMiddleware(allowed_dirs=None)
         request = _make_request("write_file", {"file_path": "/etc/shadow"})
         handler = AsyncMock(return_value="executed")
@@ -180,15 +261,27 @@ class TestFilesystemGating:
         handler.assert_not_called()
         assert "outside the allowed" in result
 
-    async def test_no_path_arg_passes_through(self):
+    async def test_missing_path_arg_is_blocked(self):
+        """Filesystem tool called without a path argument must be blocked."""
         gate = ToolGateMiddleware(allowed_dirs=["/tmp/agent-workspace"])
         request = _make_request("read_file", {})
-        handler = AsyncMock(return_value="executed")
+        handler = AsyncMock()
 
         result = await gate.awrap_tool_call(request, handler)
 
-        handler.assert_called_once_with(request)
-        assert result == "executed"
+        handler.assert_not_called()
+        assert result  # some error message returned
+
+    async def test_error_message_does_not_leak_allowed_dirs(self):
+        """Error messages must not reveal the allowed_dirs list."""
+        gate = ToolGateMiddleware(allowed_dirs=["/tmp/agent-workspace"])
+        request = _make_request("read_file", {"file_path": "/etc/passwd"})
+        handler = AsyncMock()
+
+        result = await gate.awrap_tool_call(request, handler)
+
+        assert "/tmp/agent-workspace" not in result
+        assert "allowed_dirs" not in result
 
 
 class TestNonGatedTools:
@@ -234,6 +327,7 @@ class TestNonGatedTools:
 
 class TestPermissiveDefaults:
     async def test_no_config_allows_all_shell(self):
+        """Default (None, None) — middleware fully inactive."""
         gate = ToolGateMiddleware()
         request = _make_request("terminal", {"commands": "rm -rf /"})
         handler = AsyncMock(return_value="executed")
@@ -243,6 +337,7 @@ class TestPermissiveDefaults:
         handler.assert_called_once_with(request)
 
     async def test_no_config_allows_all_filesystem(self):
+        """Default (None, None) — middleware fully inactive."""
         gate = ToolGateMiddleware()
         request = _make_request("read_file", {"file_path": "/etc/shadow"})
         handler = AsyncMock(return_value="executed")
