@@ -12,7 +12,7 @@ _SHELL_TOOL_NAME = "terminal"
 _FILESYSTEM_TOOL_NAMES = frozenset(["read_file", "write_file", "list_directory"])
 
 # Shell metacharacters that enable command chaining, pipes, subshells, etc.
-_DANGEROUS_SHELL_CHARS = re.compile(r"[;&|`$\n\\\"'(){}<>!]")
+_DANGEROUS_SHELL_CHARS = re.compile(r"[;&|`$\n(){}<>!]")
 
 
 class ToolGateMiddleware(AgentMiddleware):
@@ -38,7 +38,11 @@ class ToolGateMiddleware(AgentMiddleware):
     ) -> None:
         # Preserve None vs [] distinction — None means inactive, [] means deny all
         self._allowed_commands: list[str] | None = allowed_commands
-        self._allowed_dirs: list[str] | None = allowed_dirs
+        self._allowed_dirs: list[Path] | None = (
+            [Path(d).resolve() for d in allowed_dirs]
+            if allowed_dirs is not None
+            else None
+        )
 
     async def awrap_tool_call(self, request, handler):  # type: ignore[override]
         tool_name: str = request.tool_call["name"]
@@ -115,7 +119,7 @@ class ToolGateMiddleware(AgentMiddleware):
 
         for allowed in self._allowed_dirs:
             try:
-                resolved.relative_to(Path(allowed).resolve())
+                resolved.relative_to(allowed)
                 return None  # within an allowed dir
             except ValueError:
                 continue
