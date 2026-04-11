@@ -2,7 +2,7 @@
 
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ShellToolConfig(BaseModel):
@@ -10,6 +10,14 @@ class ShellToolConfig(BaseModel):
 
     enabled: bool = False
     allowed_commands: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_commands_if_enabled(self) -> "ShellToolConfig":
+        if self.enabled and not self.allowed_commands:
+            raise ValueError(
+                "shell.enabled=True requires at least one allowed_commands entry"
+            )
+        return self
 
 
 class FilesystemToolConfig(BaseModel):

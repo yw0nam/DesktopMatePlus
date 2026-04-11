@@ -3,7 +3,6 @@
 import re
 import shlex
 import subprocess
-from typing import Any
 
 from langchain_core.tools import BaseTool
 from loguru import logger
@@ -26,7 +25,7 @@ class RestrictedShellTool(BaseTool):
     )
     allowed_commands: list[str]
 
-    def _run(self, query: str, **kwargs: Any) -> str:
+    def _run(self, query: str, **kwargs: object) -> str:
         """Execute ``query`` if the leading token is whitelisted.
 
         Args:
