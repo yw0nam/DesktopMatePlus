@@ -19,6 +19,9 @@ from loguru import logger
 from src.services.agent_service.middleware.delegate_middleware import (
     DelegateToolMiddleware,
 )
+from src.services.agent_service.middleware.tool_gate_middleware import (
+    ToolGateMiddleware,
+)
 from src.services.agent_service.service import AgentService
 from src.services.agent_service.state import CustomAgentState
 from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
@@ -143,12 +146,23 @@ class OpenAIChatAgent(AgentService):
             )
             custom_tools.extend(builtin_tools)
 
+        builtin_cfg: dict = (self.tool_config or {}).get("builtin", {})
+        tool_gate = ToolGateMiddleware(
+            allowed_commands=builtin_cfg.get("shell", {}).get("allowed_commands"),
+            allowed_dirs=(
+                [builtin_cfg.get("filesystem", {}).get("root_dir")]
+                if builtin_cfg.get("filesystem", {}).get("root_dir")
+                else None
+            ),
+        )
+
         self.agent = create_agent(
             model=self.llm,
             tools=custom_tools,
             state_schema=CustomAgentState,
             checkpointer=checkpointer,
             middleware=[
+                tool_gate,
                 DelegateToolMiddleware(),
                 before_model(profile_retrieve_hook),
                 before_model(summary_inject_hook),
