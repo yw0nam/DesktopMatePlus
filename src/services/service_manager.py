@@ -372,8 +372,9 @@ def initialize_agent_service(
         logger.debug("Agent service already initialized, skipping")
         return _agent_service_instance
 
-    def _inject_mcp(config: dict, service_configs: dict) -> None:
+    def _inject_extra_config(config: dict, service_configs: dict) -> None:
         service_configs["mcp_config"] = config.get("mcp_config")
+        service_configs["tool_config"] = config.get("tool_config")
 
     _agent_service_instance = _initialize_service(
         service_name="Agent",
@@ -384,7 +385,7 @@ def initialize_agent_service(
         config_key="llm_config",
         factory_fn=AgentFactory.get_agent_service,
         config_path=config_path,
-        pre_factory_hook=_inject_mcp,
+        pre_factory_hook=_inject_extra_config,
         async_health_check=True,
         swallow_health_error=True,
     )

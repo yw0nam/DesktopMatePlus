@@ -53,6 +53,8 @@ dependencies = [
     "slack-sdk>=3.34.0",
     "langgraph-checkpoint-mongodb>=0.3.1",
     "basedpyright>=1.39.0",
+    "langchain-community>=0.4.1",
+    "ddgs>=9.13.0",
 ]
 
 [project.optional-dependencies]

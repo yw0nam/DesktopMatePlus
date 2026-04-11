@@ -1,4 +1,3 @@
-import traceback
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -19,6 +18,9 @@ from loguru import logger
 
 from src.services.agent_service.middleware.delegate_middleware import (
     DelegateToolMiddleware,
+)
+from src.services.agent_service.middleware.tool_gate_middleware import (
+    ToolGateMiddleware,
 )
 from src.services.agent_service.service import AgentService
 from src.services.agent_service.state import CustomAgentState
@@ -42,8 +44,8 @@ def _load_personas() -> dict[str, str]:
             for pid, p in data.get("personas", {}).items()
             if "system_prompt" in p
         }
-    except Exception as e:
-        logger.error(f"Failed to load personas.yml: {e}")
+    except Exception:
+        logger.exception("Failed to load personas.yml")
         return {}
 
 
@@ -57,6 +59,7 @@ class OpenAIChatAgent(AgentService):
         openai_api_key: str | None = None,
         openai_api_base: str | None = None,
         model_name: str | None = None,
+        tool_config: dict | None = None,
         **kwargs,
     ):
         self.temperature = temperature
@@ -64,6 +67,7 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_key = openai_api_key
         self.openai_api_base = openai_api_base
         self.model_name = model_name
+        self.tool_config = tool_config
         self.agent = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
@@ -86,11 +90,15 @@ class OpenAIChatAgent(AgentService):
         self._personas = _load_personas()
         logger.info(f"Loaded {len(self._personas)} personas: {list(self._personas)}")
 
-        # 2. Fetch MCP tools once
+        # 2. Load MCP tools via stateless client (langchain-mcp-adapters 0.2.2+)
         if self.mcp_config:
-            async with MultiServerMCPClient(self.mcp_config) as client:
+            try:
+                client = MultiServerMCPClient(self.mcp_config)
                 self._mcp_tools = await client.get_tools()
-            logger.info(f"Cached {len(self._mcp_tools)} MCP tools")
+                logger.info(f"Loaded {len(self._mcp_tools)} MCP tools")
+            except Exception:
+                logger.exception("Failed to load MCP tools, continuing without")
+                self._mcp_tools = []
 
         # 3. Create single agent instance
         from langchain.agents.middleware import after_model, before_model
@@ -129,12 +137,32 @@ class OpenAIChatAgent(AgentService):
         if profile_svc is not None:
             custom_tools.append(UpdateUserProfileTool(service=profile_svc))
 
+        from src.services.agent_service.tools.registry import ToolRegistry
+
+        builtin_tools = ToolRegistry(self.tool_config).get_enabled_tools()
+        if builtin_tools:
+            logger.info(
+                f"Adding {len(builtin_tools)} builtin tools: {[t.name for t in builtin_tools]}"
+            )
+            custom_tools.extend(builtin_tools)
+
+        builtin_cfg: dict = (self.tool_config or {}).get("builtin", {})
+        tool_gate = ToolGateMiddleware(
+            allowed_commands=builtin_cfg.get("shell", {}).get("allowed_commands"),
+            allowed_dirs=(
+                [builtin_cfg.get("filesystem", {}).get("root_dir")]
+                if builtin_cfg.get("filesystem", {}).get("root_dir")
+                else None
+            ),
+        )
+
         self.agent = create_agent(
             model=self.llm,
             tools=custom_tools,
             state_schema=CustomAgentState,
             checkpointer=checkpointer,
             middleware=[
+                tool_gate,
                 DelegateToolMiddleware(),
                 before_model(profile_retrieve_hook),
                 before_model(summary_inject_hook),
@@ -145,6 +173,10 @@ class OpenAIChatAgent(AgentService):
         )
         logger.info("Agent created successfully")
 
+    async def cleanup_async(self) -> None:
+        """No-op: stateless MCP client requires no shutdown."""
+        logger.info("MCP cleanup: nothing to clean up (stateless client)")
+
     async def is_healthy(self) -> tuple[bool, str]:
         """Check if the agent is healthy and ready."""
         if self.agent is None:
@@ -154,7 +186,7 @@ class OpenAIChatAgent(AgentService):
                 continue
             return True, "Agent is healthy."
         except Exception as e:
-            logger.error(f"Health check failed: {e}")
+            logger.exception("Health check failed")
             return False, f"Health check failed: {e}"
 
     async def stream(
@@ -219,9 +251,8 @@ class OpenAIChatAgent(AgentService):
                     "content": content,
                     "new_chats": new_chats,
                 }
-        except Exception as e:
-            logger.error(f"Error in stream method: {e}")
-            traceback.print_exc()
+        except Exception:
+            logger.exception("Error in stream method")
             raise
 
     async def invoke(
@@ -264,9 +295,8 @@ class OpenAIChatAgent(AgentService):
             logger.info(f"Invoke completed: {len(new_chats)} new messages")
             return {"content": content, "new_chats": new_chats}
 
-        except Exception as e:
-            logger.error(f"Error in invoke method: {e}")
-            traceback.print_exc()
+        except Exception:
+            logger.exception("Error in invoke method")
             raise
 
     @staticmethod
@@ -348,8 +378,8 @@ class OpenAIChatAgent(AgentService):
             yield {"type": "final_response", "data": new_chats}
             logger.info(f"Processing completed: {chunk_count} chunks")
 
-        except Exception as e:
-            logger.error(f"Error in process_message: {e}")
+        except Exception:
+            logger.exception("Error in process_message")
             if remaining := buffer.flush():
                 yield self._flush_buffer(node, remaining)
             yield {"type": "error", "error": "메시지 처리 중 오류가 발생했습니다."}

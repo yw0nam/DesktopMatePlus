@@ -210,6 +210,15 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 logger.exception("Error stopping sweep service")
 
         try:
+            from src.services import get_agent_service
+
+            agent_svc = get_agent_service()
+            if agent_svc is not None and hasattr(agent_svc, "cleanup_async"):
+                await agent_svc.cleanup_async()
+        except Exception:
+            logger.exception("Error cleaning up agent MCP client")
+
+        try:
             from src.services.channel_service import cleanup_channel_service
 
             await cleanup_channel_service()

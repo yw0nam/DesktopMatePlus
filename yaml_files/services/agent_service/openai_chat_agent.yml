@@ -12,11 +12,27 @@ llm_config:
     support_image: True  # Enable image support
     # openai_api_key is loaded from LLM_API_KEY environment variable
 
+# MCP Server Configuration
+# Uncomment to enable MCP tool servers
 # mcp_config:
-#   "sequential-thinking": {
-#       "command": "npx",
-#       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-#       "transport": "stdio",
-#   }
+#   "sequential-thinking":
+#     command: "npx"
+#     args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+#     transport: "stdio"
+#   "code-sandbox":
+#     command: "docker"
+#     args: ["run", "--rm", "-i", "--net=none", "--memory=512m", "--cpus=1", "ghcr.io/pydantic/mcp-run-python"]
+#     transport: "stdio"
 
 # Note: configurations of memory and vocabulary manager should be set in .env files
+
+tool_config:
+  builtin:
+    filesystem:
+      enabled: false
+      root_dir: "/tmp/agent-workspace"
+    shell:
+      enabled: false
+      allowed_commands: ["ls", "cat", "ps", "date", "whoami", "pwd", "wc", "head", "tail"]
+    web_search:
+      enabled: false
