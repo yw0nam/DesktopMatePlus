@@ -141,6 +141,7 @@ sequenceDiagram
 | `src/services/websocket_service/manager/disconnect_handler.py` | 연결 종료 처리 |
 | `src/services/agent_service/middleware/ltm_middleware.py` | LTM inject/consolidate |
 | `yaml_files/services/checkpointer.yml` | MongoDB 연결 설정 |
+| **`docs/data_flow/chat/CONTEXT_INJECTION_FLOW.md`** | **프로필 동적 주입 및 요약 압축 플로우 (Phase 7)** |
 
 ### B. MongoDB 컬렉션 구조
 

@@ -67,6 +67,7 @@ PORT=5500
 LOG_LEVEL=INFO           # DEBUG, INFO, WARNING, ERROR
 LOG_RETENTION="30 days"  # Loguru retention period
 DEBUG=false              # Enable FastAPI debug mode
+SUMMARY_TURN_THRESHOLD=20 # Threshold for running background auto-compression (Phase 7)
 ```
 
 ### CORS Configuration

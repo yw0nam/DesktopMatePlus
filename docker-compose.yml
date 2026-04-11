@@ -1,6 +1,8 @@
 services:
   backend:
     build: .
+    volumes:
+      - ./resources:/app/resources
     ports:
       - "5500:5500"
     env_file:
