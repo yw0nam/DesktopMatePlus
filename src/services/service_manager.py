@@ -549,7 +549,10 @@ def _load_service_yaml(
         logger.warning(f"{service_name} config not found at {resolved}, using defaults")
         return {}
     raw = _load_yaml_config(resolved)
-    return raw.get(config_key) or {}
+    if not isinstance(raw, dict):
+        return {}
+    val = raw.get(config_key)
+    return val if isinstance(val, dict) else {}
 
 
 def initialize_channel_service(
