@@ -57,6 +57,7 @@ class OpenAIChatAgent(AgentService):
         openai_api_key: str | None = None,
         openai_api_base: str | None = None,
         model_name: str | None = None,
+        tool_config: dict | None = None,
         **kwargs,
     ):
         self.temperature = temperature
@@ -64,6 +65,7 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_key = openai_api_key
         self.openai_api_base = openai_api_base
         self.model_name = model_name
+        self.tool_config = tool_config
         self.agent = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
@@ -128,6 +130,15 @@ class OpenAIChatAgent(AgentService):
         profile_svc = get_user_profile_service()
         if profile_svc is not None:
             custom_tools.append(UpdateUserProfileTool(service=profile_svc))
+
+        from src.services.agent_service.tools.registry import ToolRegistry
+
+        builtin_tools = ToolRegistry(self.tool_config).get_enabled_tools()
+        if builtin_tools:
+            logger.info(
+                f"Adding {len(builtin_tools)} builtin tools: {[t.name for t in builtin_tools]}"
+            )
+            custom_tools.extend(builtin_tools)
 
         self.agent = create_agent(
             model=self.llm,

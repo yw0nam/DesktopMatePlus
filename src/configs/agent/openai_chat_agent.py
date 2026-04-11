@@ -31,3 +31,7 @@ class OpenAIChatAgentConfig(BaseModel):
         default=False,
         description="Whether the agent supports image inputs in messages",
     )
+    tool_config: dict | None = Field(
+        default=None,
+        description="Tool registry configuration for builtin tools (filesystem, shell, web_search)",
+    )

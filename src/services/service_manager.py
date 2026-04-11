@@ -374,6 +374,7 @@ def initialize_agent_service(
 
     def _inject_mcp(config: dict, service_configs: dict) -> None:
         service_configs["mcp_config"] = config.get("mcp_config")
+        service_configs["tool_config"] = config.get("tool_config")
 
     _agent_service_instance = _initialize_service(
         service_name="Agent",

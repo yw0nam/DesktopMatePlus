@@ -20,3 +20,14 @@ llm_config:
 #   }
 
 # Note: configurations of memory and vocabulary manager should be set in .env files
+
+tool_config:
+  builtin:
+    filesystem:
+      enabled: false
+      root_dir: "/tmp/agent-workspace"
+    shell:
+      enabled: false
+      allowed_commands: ["ls", "cat", "grep", "ps", "date", "whoami", "pwd", "wc", "head", "tail"]
+    web_search:
+      enabled: false
