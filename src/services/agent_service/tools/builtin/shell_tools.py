@@ -8,7 +8,7 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from loguru import logger
 
-_DANGEROUS_SHELL_CHARS = re.compile(r"[;&|`$\n\\\"'(){}<>!]")
+_DANGEROUS_SHELL_CHARS = re.compile(r"[;&|`$\n(){}<>!]")
 
 
 class RestrictedShellTool(BaseTool):
@@ -67,6 +67,8 @@ class RestrictedShellTool(BaseTool):
             )
             output = result.stdout
             if result.stderr:
+                if output and not output.endswith("\n"):
+                    output += "\n"
                 output += result.stderr
             return output
         except subprocess.TimeoutExpired:
