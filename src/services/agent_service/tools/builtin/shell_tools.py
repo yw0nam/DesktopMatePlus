@@ -86,5 +86,4 @@ def get_shell_tools(allowed_commands: list[str]) -> list[BaseTool]:
     Returns:
         List containing one RestrictedShellTool.
     """
-    logger.info(f"Shell tool enabled (allowed_commands={allowed_commands})")
     return [RestrictedShellTool(allowed_commands=allowed_commands)]

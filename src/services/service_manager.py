@@ -571,8 +571,6 @@ def initialize_channel_service(
     Returns:
         SlackSettings instance (enabled flag + credentials resolved).
     """
-    import os
-
     from src.services.channel_service.slack_service import SlackSettings
 
     slack_cfg = _load_service_yaml(

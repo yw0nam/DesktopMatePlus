@@ -53,7 +53,9 @@ class ToolRegistry:
             )
 
             tools.extend(get_filesystem_tools(root_dir=builtin.filesystem.root_dir))
-            logger.info("ToolRegistry: filesystem tools added")
+            logger.info(
+                f"ToolRegistry: filesystem tools added (root_dir={builtin.filesystem.root_dir})"
+            )
 
         if builtin.shell.enabled:
             from src.services.agent_service.tools.builtin.shell_tools import (
@@ -63,7 +65,9 @@ class ToolRegistry:
             tools.extend(
                 get_shell_tools(allowed_commands=builtin.shell.allowed_commands)
             )
-            logger.info("ToolRegistry: shell tool added")
+            logger.info(
+                f"ToolRegistry: shell tool added (allowed_commands={builtin.shell.allowed_commands})"
+            )
 
         if builtin.web_search.enabled:
             from src.services.agent_service.tools.builtin.search_tools import (
