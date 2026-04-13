@@ -9,6 +9,8 @@
 #
 # Environment:
 #   BACKEND_PORT             — override computed port (used by e2e.sh)
+#   YAML_FILE                — override main config file (default: yaml_files/main.yml)
+#   SKIP_SERVICE_CHECKS      — skip external dependency checks when set to true
 
 set -euo pipefail
 
@@ -16,6 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
+
+MAIN_YAML_FILE="${YAML_FILE:-yaml_files/main.yml}"
 
 # ---------------------------------------------------------------------------
 # Port calculation
@@ -64,63 +68,145 @@ fi
 # ---------------------------------------------------------------------------
 # External service checks
 # ---------------------------------------------------------------------------
+_resolve_services_yml() {
+    local main_yml="$1"
+    local services_file
+
+    if [[ ! -f "$main_yml" ]]; then
+        return 0
+    fi
+
+    services_file=$(grep -E '^services_file:' "$main_yml" | sed 's/.*services_file:[[:space:]]*//' | tr -d '"' | head -1)
+    if [[ -z "$services_file" ]]; then
+        return 0
+    fi
+
+    if [[ "$services_file" = /* ]]; then
+        echo "$services_file"
+    else
+        echo "$REPO_ROOT/yaml_files/$services_file"
+    fi
+}
+
+_read_mongo_uri() {
+    local yml="$1"
+    if [[ -f "$yml" ]]; then
+        grep -E 'connection_string:' "$yml" | sed 's/.*connection_string:[[:space:]]*//' | tr -d '"' | head -1
+    fi
+}
+
+_read_qdrant_url() {
+    local yml="$1"
+    if [[ -f "$yml" ]]; then
+        grep -A5 'provider: "qdrant"' "$yml" | grep -E '^\s+url:' | sed 's/.*url:[[:space:]]*//' | tr -d '"' | head -1
+    fi
+}
+
+_read_neo4j_url() {
+    local yml="$1"
+    if [[ -f "$yml" ]]; then
+        grep -A5 'provider: "neo4j"' "$yml" | grep -E '^\s+url:' | sed 's/.*url:[[:space:]]*//' | tr -d '"' | head -1
+    fi
+}
+
+_parse_host_port_from_mongo_uri() {
+    local uri="$1"
+    local hostport
+
+    hostport=$(echo "$uri" | sed -E 's|mongodb://([^@]*@)?([^/]+).*|\2|')
+    echo "$hostport"
+}
+
+_parse_host_port_from_url() {
+    local url="$1"
+    local default_port="$2"
+    local host port
+
+    if [[ "$url" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*:// ]]; then
+        host=$(echo "$url" | sed -E 's|^[a-zA-Z][a-zA-Z0-9+.-]*://([^:/]+).*|\1|')
+        port=$(echo "$url" | sed -E 's|^[a-zA-Z][a-zA-Z0-9+.-]*://[^:]+:([0-9]+).*|\1|')
+        [[ "$port" == "$url" ]] && port="$default_port"
+    else
+        host="${url%%:*}"
+        port="${url##*:}"
+        [[ "$port" == "$host" ]] && port="$default_port"
+    fi
+
+    echo "${host}:${port}"
+}
+
+_print_service_hint() {
+    local service_name="$1"
+    local endpoint="$2"
+    local helper_script="$3"
+
+    echo "[run.sh] ${service_name}에 연결할 수 없습니다 (${endpoint})." >&2
+    echo "         먼저 다음 스크립트로 서비스를 실행하세요: bash ${helper_script}" >&2
+}
+
 _check_mongodb() {
     local uri="$1"
-    # Extract host:port from mongodb://[user:pass@]host:port/
-    local hostport
-    hostport=$(echo "$uri" | sed -E 's|mongodb://([^@]*@)?([^/]+).*|\2|')
-    local host="${hostport%%:*}"
-    local port="${hostport##*:}"
-    # Remove db name if accidentally included
+    local hostport host port
+
+    hostport=$(_parse_host_port_from_mongo_uri "$uri")
+    host="${hostport%%:*}"
+    port="${hostport##*:}"
     port="${port%%/*}"
+
     if ! nc -z -w2 "$host" "$port" 2>/dev/null; then
-        echo "[run.sh] MongoDB에 연결할 수 없습니다 ($uri)."
-        echo "         서비스를 실행한 후 Enter 키를 누르세요..."
-        read -r
+        _print_service_hint "MongoDB" "$uri" "scripts/test_dbs/run_mongodb.sh"
+        exit 1
     fi
 }
 
 _check_qdrant() {
     local url="$1"
-    # url may be just "localhost" without scheme/port
-    local host port
-    if [[ "$url" =~ ^https?:// ]]; then
-        host=$(echo "$url" | sed -E 's|https?://([^:/]+).*|\1|')
-        port=$(echo "$url" | sed -E 's|https?://[^:]+:([0-9]+).*|\1|')
-        [[ "$port" == "$url" ]] && port=6333
-    else
-        host="${url%%:*}"
-        port="${url##*:}"
-        [[ "$port" == "$host" ]] && port=6333
-    fi
+    local hostport host port
+
+    hostport=$(_parse_host_port_from_url "$url" "6333")
+    host="${hostport%%:*}"
+    port="${hostport##*:}"
+
     if ! nc -z -w2 "$host" "$port" 2>/dev/null; then
-        echo "[run.sh] Qdrant에 연결할 수 없습니다 ($url)."
-        echo "         서비스를 실행한 후 Enter 키를 누르세요..."
-        read -r
+        _print_service_hint "Qdrant" "$url" "scripts/test_dbs/run_qdrant.sh"
+        exit 1
     fi
 }
 
-# Read MongoDB URI from yaml_files/services/checkpointer.yml
-MONGO_URI=""
-CHECKPOINTER_YML="$REPO_ROOT/yaml_files/services/checkpointer.yml"
-if [[ -f "$CHECKPOINTER_YML" ]]; then
-    MONGO_URI=$(grep -E 'connection_string:' "$CHECKPOINTER_YML" | sed 's/.*connection_string:[[:space:]]*//' | tr -d '"' | head -1)
-fi
+_check_neo4j() {
+    local url="$1"
+    local hostport host port
 
-# Read Qdrant URL from yaml_files/services/ltm_service/mem0.yml
-QDRANT_URL=""
-MEM0_YML="$REPO_ROOT/yaml_files/services/ltm_service/mem0.yml"
-if [[ -f "$MEM0_YML" ]]; then
-    # Look for vector_store url under qdrant provider
-    QDRANT_URL=$(grep -A5 'provider: "qdrant"' "$MEM0_YML" | grep -E '^\s+url:' | sed 's/.*url:[[:space:]]*//' | tr -d '"' | head -1)
-fi
+    hostport=$(_parse_host_port_from_url "$url" "7687")
+    host="${hostport%%:*}"
+    port="${hostport##*:}"
 
-if [[ -n "$MONGO_URI" ]]; then
-    _check_mongodb "$MONGO_URI"
-fi
+    if ! nc -z -w2 "$host" "$port" 2>/dev/null; then
+        _print_service_hint "Neo4j" "$url" "scripts/test_dbs/run_neo4j.sh"
+        exit 1
+    fi
+}
 
-if [[ -n "$QDRANT_URL" ]]; then
-    _check_qdrant "$QDRANT_URL"
+if [[ "${SKIP_SERVICE_CHECKS:-false}" != "true" ]]; then
+    SERVICES_YML=$(_resolve_services_yml "$MAIN_YAML_FILE")
+
+    if [[ -n "$SERVICES_YML" ]]; then
+        MONGO_URI=$(_read_mongo_uri "$SERVICES_YML")
+        QDRANT_URL=$(_read_qdrant_url "$SERVICES_YML")
+        NEO4J_URL=$(_read_neo4j_url "$SERVICES_YML")
+
+        if [[ -n "$MONGO_URI" ]]; then
+            _check_mongodb "$MONGO_URI"
+        fi
+
+        if [[ -n "$QDRANT_URL" ]]; then
+            _check_qdrant "$QDRANT_URL"
+        fi
+
+        if [[ -n "$NEO4J_URL" ]]; then
+            _check_neo4j "$NEO4J_URL"
+        fi
+    fi
 fi
 
 # ---------------------------------------------------------------------------
