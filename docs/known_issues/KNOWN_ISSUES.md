@@ -58,12 +58,18 @@
 
 ## `refactor/yaml-config-unify` — Callback / STM
 
-- [ ] **KI-17** [Medium] architecture: `pending_tasks`가 LangGraph checkpointer state에 종속 — 모델 추론에 미사용(bookkeeping 전용)임에도 LangGraph state 필드로 관리됨. `as_node="model"` 필수, `_ALLOWED_METADATA_KEYS` whitelist 관리 필요, agent service 미초기화 시 읽기/쓰기 불가 등 coupling 발생. **해결 방향: `pending_tasks`를 별도 MongoDB 컬렉션으로 분리하고 callback/delegate/sweep이 직접 읽기/쓰기하도록 리팩토링.**
+- [x] **KI-17** [Medium] architecture: `pending_tasks`가 LangGraph checkpointer state에 종속 — **PR #30에서 해결**: `pending_tasks`를 별도 MongoDB 컬렉션(`pending_tasks`)으로 분리. `PendingTaskRepository` 패턴(SessionRegistry와 동일)으로 callback/delegate/sweep이 직접 읽기/쓰기. LangGraph state에서 `pending_tasks` 필드 제거.
 - [ ] **KI-18** [Low] test: E2E 테스트 실행 시 MongoDB에 테스트 세션이 누적됨 — `e2e-test-user` / `e2e-test-agent` prefix 세션이 LangGraph checkpointer 및 session_registry에 잔류. 누적된 세션은 `task_sweep_service`가 불필요한 aupdate_state를 시도해 ERROR 로그를 발생시킴. **해결 방향: E2E 테스트 teardown(fixture `yield` 이후 또는 conftest `autouse` session-scoped fixture)에서 생성된 세션을 `DELETE /v1/stm/sessions/{sid}`로 삭제.**
 
 ---
 
 ## PatchNote
+
+**2026-04-14**: PR #30 머지 — KI-17 해결
+- `pending_tasks`를 LangGraph state에서 MongoDB 컬렉션으로 분리
+- `PendingTaskRepository` 추가, `task_status_middleware` 추가
+- callback 엔드포인트 경로 변경: `/nanoclaw/{session_id}` → `/nanoclaw/{task_id}`
+- sweep 서비스 단순화: find_expirable 단일 쿼리로 O(N×M) 루프 제거
 
 **2026-04-13**: PR #28, #29 리뷰 완료 및 KNOWN_ISSUES 업데이트
 - KI-10, KI-12, KI-13, KI-15 완료 표시 (#28에서 해결)
