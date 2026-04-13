@@ -4,7 +4,21 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
-### Added
+### Changed
+
+- Unify 10+ per-service YAML configs into 3 environment-specific standalone files (`services.yml`, `services.docker.yml`, `services.e2e.yml`) — replace `services:` dict with `services_file:` key (#29)
+- Extract `classify_health_severity()` as module-level function from inner `_severity()`, strengthen `ModuleStatus.severity` type from `str | None` to `ErrorSeverity | None` (#28)
+- Add `cleanup_async()` no-op base method to `AgentService`, remove `hasattr` guard in `main.py` (#28)
+- Remove duplicate logging from tool factories, enrich ToolRegistry logs with config details (#28)
+- e2e.sh: export `YAML_FILE=yaml_files/e2e.yml`, add null-guarded stale log cleanup, rename `FASTAPI_URL` → `BACKEND_URL` for `test_real_e2e.py` (#29)
+- Add `@pytest.mark.e2e` markers to `TestBackendConnectivity` and `TestBackendCallbackDirect` (#29)
+- Add empty/whitespace string guard to `classify_health_severity()` — returns `RECOVERABLE` instead of `FATAL` (#28)
+- Add null guard for `_LOG_DIR` in e2e.sh stale log cleanup (#29)
+
+### Fixed
+
+- Remove duplicate `import os` in `initialize_channel_service()` (#28)
+- e2e.sh: prevent `rm -f /app_*.log` when `_LOG_DIR` is empty (#29)
 
 - ToolGateMiddleware: defense-in-depth middleware that validates shell commands against whitelist and filesystem paths against allowed directories before tool execution (#27)
 - Builtin Tool Registry: YAML-config-driven `ToolRegistry` enabling LangChain builtin tools (FileSystem, Shell with command whitelist, DuckDuckGoSearch) — all disabled by default (#25)
