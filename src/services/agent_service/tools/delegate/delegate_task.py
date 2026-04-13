@@ -66,6 +66,16 @@ class DelegateTaskTool(BaseTool):
                 logger.error(
                     f"Failed to insert pending task to DB: task_id={task_id}, error={e}"
                 )
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                content=f"작업 등록에 실패했습니다. (task_id: {task_id})",
+                                tool_call_id=task_id,
+                            )
+                        ]
+                    }
+                )
 
         _settings = get_settings()
         payload = {

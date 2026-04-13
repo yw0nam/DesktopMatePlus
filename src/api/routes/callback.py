@@ -31,9 +31,13 @@ async def nanoclaw_callback(task_id: str, payload: NanoClawCallbackRequest):
     if task_record is None:
         raise HTTPException(404, f"Task {payload.task_id} not found")
 
-    await asyncio.to_thread(
+    updated = await asyncio.to_thread(
         repo.update_status, payload.task_id, payload.status, payload.summary
     )
+    if not updated:
+        logger.warning(
+            f"Task {payload.task_id} not updated — may have expired between lookup and update"
+        )
 
     # Route to originating channel via task-level reply_channel
     reply_channel = task_record.get("reply_channel")

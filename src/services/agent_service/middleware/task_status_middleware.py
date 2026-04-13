@@ -41,11 +41,11 @@ async def task_status_inject_hook(state, runtime):
         if t["status"] == "running":
             visible.append(t)
         elif t["status"] in ("done", "failed"):
-            created = t.get("created_at")
-            if isinstance(created, datetime):
-                if created.tzinfo is None:
-                    created = created.replace(tzinfo=UTC)
-                if (now - created).total_seconds() < _RECENT_WINDOW_SECONDS:
+            completed = t.get("completed_at")
+            if isinstance(completed, datetime):
+                if completed.tzinfo is None:
+                    completed = completed.replace(tzinfo=UTC)
+                if (now - completed).total_seconds() < _RECENT_WINDOW_SECONDS:
                     visible.append(t)
 
     if not visible:

@@ -1,6 +1,7 @@
 """MongoDB repository for delegated task tracking (KI-17 decoupling)."""
 
 from datetime import UTC, datetime
+from typing import Literal
 
 import pymongo
 from pydantic import BaseModel, Field
@@ -15,8 +16,9 @@ class PendingTaskDocument(BaseModel):
     user_id: str
     agent_id: str
     description: str
-    status: str = Field(description="running | done | failed")
+    status: Literal["running", "done", "failed"] = "running"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = None
     result_summary: str | None = None
     reply_channel: dict | None = None
 
@@ -71,16 +73,23 @@ class PendingTaskRepository:
         )
 
     def update_status(
-        self, task_id: str, status: str, result_summary: str | None = None
+        self,
+        task_id: str,
+        status: Literal["done", "failed"],
+        result_summary: str | None = None,
     ) -> bool:
         """Update a task's status and optional result summary.
 
-        Returns ``True`` if a document was matched.
+        Sets ``completed_at`` to the current UTC time when transitioning to a
+        terminal status. Returns ``True`` if a document was matched.
         """
-        update: dict = {"$set": {"status": status}}
+        fields: dict = {"status": status, "completed_at": datetime.now(UTC)}
         if result_summary is not None:
-            update["$set"]["result_summary"] = result_summary
-        return self._col.update_one({"task_id": task_id}, update).matched_count > 0
+            fields["result_summary"] = result_summary
+        return (
+            self._col.update_one({"task_id": task_id}, {"$set": fields}).matched_count
+            > 0
+        )
 
     def delete_by_session_id(self, session_id: str) -> int:
         """Delete all tasks for a session. Returns count of deleted documents."""
