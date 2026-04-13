@@ -1,6 +1,6 @@
 # =============================================================================
 # services.e2e.yml — Unified service configuration (E2E testing)
-# Uses unauthenticated local MongoDB (no user/pass).
+# Uses dedicated test-only local ports for test_dbs helper scripts.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -65,7 +65,7 @@ tool_config:
 # MongoDB (Checkpointer + Session Registry)
 # -----------------------------------------------------------------------------
 checkpointer_config:
-  connection_string: "mongodb://localhost:27017/"
+  connection_string: "mongodb://localhost:10003/"
   db_name: "desktopmate"
 
 # -----------------------------------------------------------------------------
@@ -91,13 +91,13 @@ ltm_config:
     vector_store:
       provider: "qdrant"
       config:
-        url: "http://192.168.0.43"
+        url: "http://localhost:10002"
         embedding_model_dims: 2560
         collection_name: "ltm_collection"
     graph_store:
       provider: "neo4j"
       config:
-        url: "bolt://192.168.0.43:7687"
+        url: "bolt://localhost:10001"
         # username: ${NEO4J_USER}
         # password: ${NEO4J_PASSWORD}
 

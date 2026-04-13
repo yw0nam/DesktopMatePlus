@@ -1,5 +1,5 @@
 # e2e variant of main.yml
-# Uses services.e2e.yml with unauthenticated local MongoDB.
+# Uses services.e2e.yml with dedicated test-only helper service ports.
 # Usage: YAML_FILE=yaml_files/e2e.yml in e2e.sh
 
 services_file: services.e2e.yml

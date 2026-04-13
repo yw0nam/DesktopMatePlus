@@ -114,6 +114,9 @@ class OpenAIChatAgent(AgentService):
             summary_consolidation_hook,
             summary_inject_hook,
         )
+        from src.services.agent_service.middleware.task_status_middleware import (
+            task_status_inject_hook,
+        )
         from src.services.agent_service.tools.profile import UpdateUserProfileTool
         from src.services.service_manager import (
             get_mongo_client,
@@ -167,6 +170,7 @@ class OpenAIChatAgent(AgentService):
                 before_model(profile_retrieve_hook),
                 before_model(summary_inject_hook),
                 before_model(ltm_retrieve_hook),
+                before_model(task_status_inject_hook),
                 after_model(ltm_consolidation_hook),
                 after_model(summary_consolidation_hook),
             ],

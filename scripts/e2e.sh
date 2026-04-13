@@ -5,12 +5,12 @@
 #   bash scripts/e2e.sh
 #
 # Prerequisites:
-#   - MongoDB running (host/port from yaml_files/services/checkpointer.yml)
-#   - Qdrant running (host/port from yaml_files/services/ltm_service/mem0.yml)
-#   - TTS server optional (warning + skip if not available)
+#   - MongoDB, Qdrant, Neo4j running with the ports from yaml_files/services.e2e.yml
+#   - If a DB is not running, start it with scripts/test_dbs/run_<service>.sh
+#   - TTS server optional (warning + skip if unavailable)
 #
 # Phases:
-#   Phase 1  : Check MongoDB + Qdrant connectivity
+#   Phase 1  : Check MongoDB + Qdrant + Neo4j connectivity
 #   Phase 1.5: Check TTS server (WARNING + SKIP if unavailable)
 #   Phase 2  : Start backend on random port 7000-8999
 #   Phase 3  : Wait for health (30s) — kill-0 + HTTP 200
@@ -25,6 +25,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
+
+export YAML_FILE="yaml_files/e2e.yml"
 
 # ---------------------------------------------------------------------------
 # Cleanup trap — called on ERR / INT / TERM and at normal exit
@@ -51,26 +53,61 @@ P4_STATUS="SKIP"
 P5_STATUS="SKIP"
 OVERALL_PASS=true
 TTS_SKIPPED=false
+PYTEST_MARK_EXPR="e2e"
 
 # ---------------------------------------------------------------------------
 # Helpers: read YAML fields (same pattern as run.sh)
 # ---------------------------------------------------------------------------
+_resolve_services_yml() {
+    local main_yml="$1"
+    local services_file
+
+    if [[ ! -f "$main_yml" ]]; then
+        return 0
+    fi
+
+    services_file=$(grep -E '^services_file:' "$main_yml" | sed 's/.*services_file:[[:space:]]*//' | tr -d '"' | head -1)
+    if [[ -z "$services_file" ]]; then
+        return 0
+    fi
+
+    if [[ "$services_file" = /* ]]; then
+        echo "$services_file"
+    else
+        echo "$REPO_ROOT/yaml_files/$services_file"
+    fi
+}
+
+SERVICES_YML=$(_resolve_services_yml "$YAML_FILE")
+
+if [[ -z "$SERVICES_YML" || ! -f "$SERVICES_YML" ]]; then
+    echo "[e2e] FAILED: Could not resolve services config from $YAML_FILE" >&2
+    exit 1
+fi
+
 _read_mongo_uri() {
-    local yml="$REPO_ROOT/yaml_files/services.e2e.yml"
+    local yml="$1"
     if [[ -f "$yml" ]]; then
         grep -E 'connection_string:' "$yml" | sed 's/.*connection_string:[[:space:]]*//' | tr -d '"' | head -1
     fi
 }
 
 _read_qdrant_url() {
-    local yml="$REPO_ROOT/yaml_files/services.e2e.yml"
+    local yml="$1"
     if [[ -f "$yml" ]]; then
         grep -A5 'provider: "qdrant"' "$yml" | grep -E '^\s+url:' | sed 's/.*url:[[:space:]]*//' | tr -d '"' | head -1
     fi
 }
 
+_read_neo4j_url() {
+    local yml="$1"
+    if [[ -f "$yml" ]]; then
+        grep -A5 'provider: "neo4j"' "$yml" | grep -E '^\s+url:' | sed 's/.*url:[[:space:]]*//' | tr -d '"' | head -1
+    fi
+}
+
 _read_tts_base_url() {
-    local yml="$REPO_ROOT/yaml_files/services.e2e.yml"
+    local yml="$1"
     if [[ -f "$yml" ]]; then
         grep -E '^\s+base_url:' "$yml" | sed 's/.*base_url:[[:space:]]*//' | tr -d '"' | head -1
     fi
@@ -85,31 +122,54 @@ _parse_host_port_from_mongo_uri() {
 
 _parse_host_port_from_url() {
     local url="$1"
+    local default_port="$2"
     local host port
-    if [[ "$url" =~ ^https?:// ]]; then
-        host=$(echo "$url" | sed -E 's|https?://([^:/]+).*|\1|')
-        port=$(echo "$url" | sed -E 's|https?://[^:]+:([0-9]+).*|\1|')
-        [[ "$port" == "$url" ]] && port=6333
+    if [[ "$url" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*:// ]]; then
+        host=$(echo "$url" | sed -E 's|^[a-zA-Z][a-zA-Z0-9+.-]*://([^:/]+).*|\1|')
+        port=$(echo "$url" | sed -E 's|^[a-zA-Z][a-zA-Z0-9+.-]*://[^:]+:([0-9]+).*|\1|')
+        [[ "$port" == "$url" ]] && port="$default_port"
     else
         host="${url%%:*}"
         port="${url##*:}"
-        [[ "$port" == "$host" ]] && port=6333
+        [[ "$port" == "$host" ]] && port="$default_port"
     fi
     echo "${host}:${port}"
 }
 
+_print_summary() {
+    echo ""
+    echo "=== e2e Summary ==="
+    printf "  %-14s %s\n" "Phase 1"   "$P1_STATUS"
+    printf "  %-14s %s\n" "Phase 1.5" "$P1_5_STATUS"
+    printf "  %-14s %s\n" "Phase 2"   "$P2_STATUS"
+    printf "  %-14s %s\n" "Phase 3"   "$P3_STATUS"
+    printf "  %-14s %s\n" "Phase 4"   "$P4_STATUS"
+    printf "  %-14s %s\n" "Phase 5"   "$P5_STATUS"
+}
+
+_print_start_hint() {
+    local service_name="$1"
+    local endpoint="$2"
+    local helper_script="$3"
+
+    echo "[e2e] FAILED: ${service_name} not reachable (${endpoint})" >&2
+    echo "[e2e] Start it with: bash ${helper_script}" >&2
+}
+
 # ---------------------------------------------------------------------------
-# Phase 1: Check MongoDB + Qdrant
+# Phase 1: Check MongoDB + Qdrant + Neo4j
 # ---------------------------------------------------------------------------
 echo ""
 echo "=== Phase 1: External Service Checks ==="
 P1_STATUS="FAIL"
 
-MONGO_URI=$(_read_mongo_uri)
-QDRANT_URL=$(_read_qdrant_url)
+MONGO_URI=$(_read_mongo_uri "$SERVICES_YML")
+QDRANT_URL=$(_read_qdrant_url "$SERVICES_YML")
+NEO4J_URL=$(_read_neo4j_url "$SERVICES_YML")
 
 MONGO_OK=true
 QDRANT_OK=true
+NEO4J_OK=true
 
 if [[ -n "$MONGO_URI" ]]; then
     HOSTPORT=$(_parse_host_port_from_mongo_uri "$MONGO_URI")
@@ -120,42 +180,51 @@ if [[ -n "$MONGO_URI" ]]; then
     if nc -z -w2 "$HOST" "$PORT_NUM" 2>/dev/null; then
         echo "[e2e] MongoDB OK ($MONGO_URI_SAFE)"
     else
-        echo "[e2e] FAILED: MongoDB not reachable ($MONGO_URI_SAFE)" >&2
+        _print_start_hint "MongoDB" "$MONGO_URI_SAFE" "scripts/test_dbs/run_mongodb.sh"
         MONGO_OK=false
     fi
 else
-    echo "[e2e] WARNING: Could not read MongoDB URI from yaml — skipping check"
+    echo "[e2e] FAILED: Could not read MongoDB URI from $SERVICES_YML" >&2
+    MONGO_OK=false
 fi
 
 if [[ -n "$QDRANT_URL" ]]; then
-    HOSTPORT=$(_parse_host_port_from_url "$QDRANT_URL")
+    HOSTPORT=$(_parse_host_port_from_url "$QDRANT_URL" "6333")
     HOST="${HOSTPORT%%:*}"
     PORT_NUM="${HOSTPORT##*:}"
     if nc -z -w2 "$HOST" "$PORT_NUM" 2>/dev/null; then
         echo "[e2e] Qdrant OK ($QDRANT_URL)"
     else
-        echo "[e2e] FAILED: Qdrant not reachable ($QDRANT_URL)" >&2
+        _print_start_hint "Qdrant" "$QDRANT_URL" "scripts/test_dbs/run_qdrant.sh"
         QDRANT_OK=false
     fi
 else
-    echo "[e2e] WARNING: Could not read Qdrant URL from yaml — skipping check"
+    echo "[e2e] FAILED: Could not read Qdrant URL from $SERVICES_YML" >&2
+    QDRANT_OK=false
 fi
 
-if $MONGO_OK && $QDRANT_OK; then
+if [[ -n "$NEO4J_URL" ]]; then
+    HOSTPORT=$(_parse_host_port_from_url "$NEO4J_URL" "7687")
+    HOST="${HOSTPORT%%:*}"
+    PORT_NUM="${HOSTPORT##*:}"
+    if nc -z -w2 "$HOST" "$PORT_NUM" 2>/dev/null; then
+        echo "[e2e] Neo4j OK ($NEO4J_URL)"
+    else
+        _print_start_hint "Neo4j" "$NEO4J_URL" "scripts/test_dbs/run_neo4j.sh"
+        NEO4J_OK=false
+    fi
+else
+    echo "[e2e] FAILED: Could not read Neo4j URL from $SERVICES_YML" >&2
+    NEO4J_OK=false
+fi
+
+if $MONGO_OK && $QDRANT_OK && $NEO4J_OK; then
     P1_STATUS="OK"
     echo "[e2e] Phase 1: PASSED"
 else
     OVERALL_PASS=false
     echo "[e2e] Phase 1: FAILED — required services not running"
-    # Exit early: no point starting backend without required services
-    echo ""
-    echo "=== e2e Summary ==="
-    printf "  %-14s %s\n" "Phase 1"   "$P1_STATUS"
-    printf "  %-14s %s\n" "Phase 1.5" "$P1_5_STATUS"
-    printf "  %-14s %s\n" "Phase 2"   "$P2_STATUS"
-    printf "  %-14s %s\n" "Phase 3"   "$P3_STATUS"
-    printf "  %-14s %s\n" "Phase 4"   "$P4_STATUS"
-    printf "  %-14s %s\n" "Phase 5"   "$P5_STATUS"
+    _print_summary
     echo ""
     echo "-> e2e: FAILED"
     exit 1
@@ -167,14 +236,12 @@ fi
 echo ""
 echo "=== Phase 1.5: TTS Server Check (optional) ==="
 
-TTS_BASE_URL=$(_read_tts_base_url)
+TTS_BASE_URL=$(_read_tts_base_url "$SERVICES_YML")
 if [[ -n "$TTS_BASE_URL" ]]; then
     # Parse host:port from base_url (e.g. http://localhost:8091)
-    TTS_HOST=$(echo "$TTS_BASE_URL" | sed -E 's|https?://([^:/]+).*|\1|')
-    TTS_PORT=$(echo "$TTS_BASE_URL" | sed -E 's|https?://[^:]+:([0-9]+).*|\1|')
-    if [[ "$TTS_PORT" == "$TTS_BASE_URL" ]]; then
-        TTS_PORT=80
-    fi
+    TTS_HOSTPORT=$(_parse_host_port_from_url "$TTS_BASE_URL" "80")
+    TTS_HOST="${TTS_HOSTPORT%%:*}"
+    TTS_PORT="${TTS_HOSTPORT##*:}"
     if nc -z -w2 "$TTS_HOST" "$TTS_PORT" 2>/dev/null; then
         echo "[e2e] TTS server OK ($TTS_BASE_URL)"
         P1_5_STATUS="OK"
@@ -182,14 +249,14 @@ if [[ -n "$TTS_BASE_URL" ]]; then
         echo "[e2e] WARNING: TTS server not reachable ($TTS_BASE_URL) — TTS tests will be skipped"
         P1_5_STATUS="WARN (TTS server not running)"
         TTS_SKIPPED=true
+        PYTEST_MARK_EXPR="e2e and not requires_tts"
     fi
 else
     echo "[e2e] WARNING: Could not read TTS base_url from yaml — TTS tests will be skipped"
     P1_5_STATUS="WARN (TTS url not configured)"
     TTS_SKIPPED=true
+    PYTEST_MARK_EXPR="e2e and not requires_tts"
 fi
-
-export YAML_FILE="yaml_files/e2e.yml"
 
 # ---------------------------------------------------------------------------
 # Phase 2: Start backend on random port 7000-8999
@@ -198,17 +265,11 @@ echo ""
 echo "=== Phase 2: Start Backend ==="
 P2_STATUS="FAIL"
 
-# Delete ALL stale log files so Phase 5 only sees errors from this run
-_LOGDIR_PRE="$REPO_ROOT/.run.logdir"
-if [[ -f "$_LOGDIR_PRE" ]]; then
-    _LOG_DIR="$(cat "$_LOGDIR_PRE")"
-    [[ -n "$_LOG_DIR" ]] && rm -f "$_LOG_DIR"/app_*.log 2>/dev/null || true
-fi
-
 RAND_PORT=$(( 7000 + RANDOM % 2000 ))
 echo "[e2e] Using port $RAND_PORT"
 
 export BACKEND_PORT="$RAND_PORT"
+export SKIP_SERVICE_CHECKS="true"
 bash "$SCRIPT_DIR/run.sh" --bg
 
 # Read PID from .run.pid (written by run.sh)
@@ -225,14 +286,7 @@ fi
 
 if [[ "$P2_STATUS" == "FAIL" ]]; then
     OVERALL_PASS=false
-    echo ""
-    echo "=== e2e Summary ==="
-    printf "  %-14s %s\n" "Phase 1"   "$P1_STATUS"
-    printf "  %-14s %s\n" "Phase 1.5" "$P1_5_STATUS"
-    printf "  %-14s %s\n" "Phase 2"   "$P2_STATUS"
-    printf "  %-14s %s\n" "Phase 3"   "$P3_STATUS"
-    printf "  %-14s %s\n" "Phase 4"   "$P4_STATUS"
-    printf "  %-14s %s\n" "Phase 5"   "$P5_STATUS"
+    _print_summary
     echo ""
     echo "-> e2e: FAILED"
     exit 1
@@ -298,8 +352,8 @@ if [[ "$P3_STATUS" != "OK" ]]; then
     echo "[e2e] Skipping examples — backend not healthy"
     P4_STATUS="SKIP (backend not healthy)"
 else
-    echo "[e2e] Running pytest -m e2e..."
-    if BACKEND_URL="$BASE_URL" uv run pytest -m e2e --tb=long -v; then
+    echo "[e2e] Running pytest -m $PYTEST_MARK_EXPR..."
+    if BACKEND_URL="$BASE_URL" FASTAPI_URL="$BASE_URL" uv run pytest -m "$PYTEST_MARK_EXPR" --tb=long -v; then
         P4_STATUS="OK"
         echo "[e2e] Phase 4: PASSED"
     else
@@ -351,14 +405,7 @@ echo "[e2e] Phase 6: Done"
 # ---------------------------------------------------------------------------
 # Phase 7: Summary
 # ---------------------------------------------------------------------------
-echo ""
-echo "=== e2e Summary ==="
-printf "  %-14s %s\n" "Phase 1"   "$P1_STATUS"
-printf "  %-14s %s\n" "Phase 1.5" "$P1_5_STATUS"
-printf "  %-14s %s\n" "Phase 2"   "$P2_STATUS"
-printf "  %-14s %s\n" "Phase 3"   "$P3_STATUS"
-printf "  %-14s %s\n" "Phase 4"   "$P4_STATUS"
-printf "  %-14s %s\n" "Phase 5"   "$P5_STATUS"
+_print_summary
 
 echo ""
 if $OVERALL_PASS; then

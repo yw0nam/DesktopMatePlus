@@ -130,6 +130,7 @@ class TestWebSocketE2E:
             f"  concatenated: {concatenated!r}"
         )
 
+    @pytest.mark.requires_tts
     async def test_tts_chunks_when_tts_enabled(self, e2e_session):
         """When tts_enabled=True, tts_chunk events must be present with ordered seq and audio_base64."""
         result = await _run_ws_turn(

@@ -152,6 +152,7 @@ asyncio_mode = "auto"
 markers = [
     "slow: marks tests as slow (full E2E with real Claude processing, use -m slow to run)",
     "e2e: marks tests as end-to-end (requires real backend at FASTAPI_URL, use -m e2e to run)",
+    "requires_tts: marks tests that need a reachable TTS backend",
 ]
 
 [tool.coverage.run]
