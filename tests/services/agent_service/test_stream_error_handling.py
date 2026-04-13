@@ -98,25 +98,6 @@ class TestStreamErrorHandling:
 
 
 class TestCustomAgentStateDefaults:
-    def test_pending_tasks_has_default(self):
-        """CustomAgentState.pending_tasks must have a default (empty list)."""
-        from src.services.agent_service.state import CustomAgentState
-
-        # Access the field annotation/default info
-        # In LangGraph TypedDict, we verify the field can be omitted
-        # by checking the schema or annotation
-        hints = CustomAgentState.__annotations__
-        # Verify the field exists
-        assert "pending_tasks" in hints
-
-        # Check if field has a default — inspect via __required_keys__ / __optional_keys__
-        optional_keys = getattr(CustomAgentState, "__optional_keys__", set())
-        required_keys = getattr(CustomAgentState, "__required_keys__", set())
-
-        assert (
-            "pending_tasks" in optional_keys or "pending_tasks" not in required_keys
-        ), "pending_tasks must be optional (have a default value)"
-
     def test_ltm_last_consolidated_at_turn_has_default(self):
         """ltm_last_consolidated_at_turn must have a default."""
         from src.services.agent_service.state import CustomAgentState

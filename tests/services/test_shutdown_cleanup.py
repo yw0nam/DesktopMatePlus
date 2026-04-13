@@ -10,19 +10,15 @@ class TestShutdownCleanup:
         """sweep_service.stop() must be awaitable and complete without error."""
         from unittest.mock import MagicMock
 
-        from src.services.agent_service.session_registry import SessionRegistry
         from src.services.task_sweep_service.sweep import (
             BackgroundSweepService,
             SweepConfig,
         )
 
-        registry = MagicMock(spec=SessionRegistry)
-        agent_svc = MagicMock()
-        agent_svc.agent = MagicMock()
+        mock_repo = MagicMock()
 
         svc = BackgroundSweepService(
-            agent_service=agent_svc,
-            session_registry=registry,
+            pending_task_repo=mock_repo,
             config=SweepConfig(sweep_interval_seconds=60, task_ttl_seconds=300),
         )
         # stop() on a never-started service must be a no-op, not raise

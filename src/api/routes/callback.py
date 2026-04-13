@@ -3,74 +3,58 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException, status
-from langchain_core.messages import SystemMessage
 from loguru import logger
 
 from src.models.callback import NanoClawCallbackRequest, NanoClawCallbackResponse
-from src.services import get_agent_service
+from src.services.service_manager import get_pending_task_repo
 
 router = APIRouter(prefix="/v1/callback", tags=["Callback"])
 
 
 @router.post(
-    "/nanoclaw/{session_id}",
+    "/nanoclaw/{task_id}",
     response_model=NanoClawCallbackResponse,
     summary="Receive task result from NanoClaw",
     status_code=status.HTTP_200_OK,
     responses={
         404: {"description": "Task not found"},
-        503: {"description": "Agent service not initialized or state update failed"},
+        503: {"description": "Task repository not initialized"},
     },
 )
-async def nanoclaw_callback(session_id: str, payload: NanoClawCallbackRequest):
-    """Inject synthetic message into agent state; route result to originating channel."""
-    agent_svc = get_agent_service()
-    if agent_svc is None:
-        raise HTTPException(503, "Agent service not initialized")
+async def nanoclaw_callback(task_id: str, payload: NanoClawCallbackRequest):
+    """Update task status in MongoDB; route result to originating channel."""
+    repo = get_pending_task_repo()
+    if repo is None:
+        raise HTTPException(503, "Task repository not initialized")
 
-    config = {"configurable": {"thread_id": session_id}}
-    state = (await agent_svc.agent.aget_state(config)).values
-    pending_tasks = list(state.get("pending_tasks", []))
-
-    task_record = next(
-        (t for t in pending_tasks if t.get("task_id") == payload.task_id), None
-    )
+    task_record = await asyncio.to_thread(repo.find_by_task_id, payload.task_id)
     if task_record is None:
-        raise HTTPException(
-            404, f"Task {payload.task_id} not found in session {session_id}"
-        )
+        raise HTTPException(404, f"Task {payload.task_id} not found")
 
-    task_record["status"] = payload.status
-    prefix = "TaskResult" if payload.status == "done" else "TaskFailed"
-    synthetic_msg = SystemMessage(
-        content=f"[{prefix}:{payload.task_id}] {payload.summary}"
+    await asyncio.to_thread(
+        repo.update_status, payload.task_id, payload.status, payload.summary
     )
-
-    try:
-        await agent_svc.agent.aupdate_state(
-            config, {"messages": [synthetic_msg], "pending_tasks": pending_tasks}
-        )
-    except Exception as e:
-        logger.error(f"State update failed for session {session_id}: {e}")
-        raise HTTPException(503, "State update failed") from e
 
     # Route to originating channel via task-level reply_channel
     reply_channel = task_record.get("reply_channel")
     if reply_channel:
+        from src.services import get_agent_service
         from src.services.channel_service import process_message
 
-        asyncio.create_task(
-            process_message(
-                text="",
-                session_id=session_id,
-                provider=reply_channel["provider"],
-                channel_id=reply_channel["channel_id"],
-                user_id=state.get("user_id", "default"),
-                agent_id=state.get("agent_id", "yuri"),
-                agent_service=agent_svc,
+        agent_svc = get_agent_service()
+        if agent_svc is not None:
+            asyncio.create_task(
+                process_message(
+                    text="",
+                    session_id=task_record.get("session_id", ""),
+                    provider=reply_channel["provider"],
+                    channel_id=reply_channel["channel_id"],
+                    user_id=task_record.get("user_id", "default"),
+                    agent_id=task_record.get("agent_id", "yuri"),
+                    agent_service=agent_svc,
+                )
             )
-        )
-        logger.info(f"Callback routing to {reply_channel['provider']} for {session_id}")
+            logger.info(f"Callback routing to {reply_channel['provider']}")
 
     logger.info(f"Callback processed: task={payload.task_id} status={payload.status}")
     return NanoClawCallbackResponse(

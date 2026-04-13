@@ -1,14 +1,14 @@
 """DelegateTaskTool — async, uses ToolRuntime to read/write agent state."""
 
-from datetime import UTC, datetime
+import asyncio
 from uuid import uuid4
 
 import httpx
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.types import Command
+from loguru import logger
 
-from src.services.agent_service.state import PendingTask
 from src.services.agent_service.tools.delegate.schemas import DelegateTaskInput
 
 NANOCLAW_WEBHOOK_PATH = "/api/webhooks/fastapi"
@@ -32,23 +32,40 @@ class DelegateTaskTool(BaseTool):
 
     async def _arun(self, task: str, runtime=None, **kwargs) -> Command:
         from src.configs.settings import get_settings
+        from src.services.pending_task_repository import PendingTaskDocument
+        from src.services.service_manager import get_pending_task_repo
 
         task_id = str(uuid4())
-        now = datetime.now(UTC).isoformat()
 
         state = getattr(runtime, "state", {}) or {}
         context = getattr(runtime, "context", {}) or {}
-        pending = list(state.get("pending_tasks", []))
         reply_channel = context.get("reply_channel")
 
-        task_record: PendingTask = {
-            "task_id": task_id,
-            "description": task,
-            "status": "running",
-            "created_at": now,
-            "reply_channel": reply_channel,
-        }
-        pending.append(task_record)
+        session_id = runtime.config["configurable"]["thread_id"]
+        user_id = state.get("user_id", "default")
+        agent_id = state.get("agent_id", "yuri")
+
+        repo = get_pending_task_repo()
+        if repo is None:
+            logger.warning(
+                f"PendingTaskRepo not available, skipping DB insert for task_id={task_id}"
+            )
+        else:
+            task_doc = PendingTaskDocument(
+                task_id=task_id,
+                session_id=session_id,
+                user_id=user_id,
+                agent_id=agent_id,
+                description=task,
+                status="running",
+                reply_channel=reply_channel,
+            )
+            try:
+                await asyncio.to_thread(repo.insert, task_doc)
+            except Exception as e:
+                logger.error(
+                    f"Failed to insert pending task to DB: task_id={task_id}, error={e}"
+                )
 
         _settings = get_settings()
         payload = {
@@ -68,7 +85,6 @@ class DelegateTaskTool(BaseTool):
 
         return Command(
             update={
-                "pending_tasks": pending,
                 "messages": [ToolMessage(content=msg_content, tool_call_id=task_id)],
             }
         )

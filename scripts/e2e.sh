@@ -299,7 +299,7 @@ if [[ "$P3_STATUS" != "OK" ]]; then
     P4_STATUS="SKIP (backend not healthy)"
 else
     echo "[e2e] Running pytest -m e2e..."
-    if BACKEND_URL="$BASE_URL" uv run pytest -m e2e --tb=long -v; then
+    if BACKEND_URL="$BASE_URL" FASTAPI_URL="$BASE_URL" uv run pytest -m e2e --tb=long -v; then
         P4_STATUS="OK"
         echo "[e2e] Phase 4: PASSED"
     else

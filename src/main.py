@@ -139,16 +139,14 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             try:
                 from src.services.channel_service import get_slack_service
                 from src.services.service_manager import (
-                    get_session_registry,
+                    get_pending_task_repo,
                     initialize_sweep_service,
                 )
 
-                registry = get_session_registry()
-                agent_for_sweep = get_agent_service()
-                if registry is not None and agent_for_sweep is not None:
+                pending_repo = get_pending_task_repo()
+                if pending_repo is not None:
                     sweep_service = initialize_sweep_service(
-                        agent_service=agent_for_sweep,
-                        session_registry=registry,
+                        pending_task_repo=pending_repo,
                         config_path=svc_config,
                         slack_service_fn=get_slack_service,
                     )
@@ -160,7 +158,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                     )
                 else:
                     logger.warning(
-                        "Task sweep skipped: agent or session registry not available"
+                        "Task sweep skipped: pending task repository not available"
                     )
             except Exception:
                 logger.exception("Failed to start background sweep service")

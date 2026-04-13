@@ -1,4 +1,4 @@
-from src.services.agent_service.state import CustomAgentState, PendingTask
+from src.services.agent_service.state import CustomAgentState
 
 
 def test_custom_agent_state_fields():
@@ -6,17 +6,15 @@ def test_custom_agent_state_fields():
         messages=[],
         user_id="u1",
         agent_id="yuri",
-        pending_tasks=[],
         ltm_last_consolidated_at_turn=0,
         knowledge_saved=False,
     )
     assert state["user_id"] == "u1"
-    assert state["pending_tasks"] == []
     assert state["knowledge_saved"] is False
 
 
 def test_pending_task_with_reply_channel():
-    task: PendingTask = {
+    task: dict = {
         "task_id": "t1",
         "description": "do something",
         "status": "running",
@@ -27,7 +25,7 @@ def test_pending_task_with_reply_channel():
 
 
 def test_pending_task_reply_channel_none():
-    task: PendingTask = {
+    task: dict = {
         "task_id": "t2",
         "description": "ws task",
         "status": "running",

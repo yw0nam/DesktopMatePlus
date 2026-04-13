@@ -172,21 +172,18 @@ class TestInitializeChannelService:
 
 
 class TestInitializeSweepService:
-    def _make_deps(self):
-        agent_svc = MagicMock()
-        registry = MagicMock()
-        return agent_svc, registry
+    def _make_repo(self):
+        return MagicMock()
 
     def test_returns_sweep_service_with_yaml_config(self, tmp_path):
         """initialize_sweep_service creates BackgroundSweepService with YAML values."""
         config_path = _write_sweep_yaml(tmp_path, interval=45, ttl=180)
-        agent_svc, registry = self._make_deps()
+        mock_repo = self._make_repo()
 
         from src.services.service_manager import initialize_sweep_service
 
         svc = initialize_sweep_service(
-            agent_service=agent_svc,
-            session_registry=registry,
+            pending_task_repo=mock_repo,
             config_path=config_path,
         )
 
@@ -196,7 +193,7 @@ class TestInitializeSweepService:
 
     def test_uses_defaults_when_no_config_path(self, tmp_path):
         """initialize_sweep_service uses SweepConfig defaults when no YAML is given."""
-        agent_svc, registry = self._make_deps()
+        mock_repo = self._make_repo()
 
         # Patch _BASE_YAML to avoid loading real file
         services_dir = tmp_path / "services" / "task_sweep_service"
@@ -210,9 +207,7 @@ class TestInitializeSweepService:
         try:
             from src.services.service_manager import initialize_sweep_service
 
-            svc = initialize_sweep_service(
-                agent_service=agent_svc, session_registry=registry
-            )
+            svc = initialize_sweep_service(pending_task_repo=mock_repo)
             assert isinstance(svc, BackgroundSweepService)
             assert svc.config.sweep_interval_seconds == 60
             assert svc.config.task_ttl_seconds == 300
@@ -223,13 +218,12 @@ class TestInitializeSweepService:
         """YAML with 'sweep_config:' key but no value should not crash (None coalescence)."""
         config_path = tmp_path / "sweep.yml"
         config_path.write_text("sweep_config:\n")
-        agent_svc, registry = self._make_deps()
+        mock_repo = self._make_repo()
 
         from src.services.service_manager import initialize_sweep_service
 
         svc = initialize_sweep_service(
-            agent_service=agent_svc,
-            session_registry=registry,
+            pending_task_repo=mock_repo,
             config_path=config_path,
         )
 
@@ -240,14 +234,13 @@ class TestInitializeSweepService:
     def test_slack_service_fn_is_passed_through(self, tmp_path):
         """initialize_sweep_service wires slack_service_fn onto the service."""
         config_path = _write_sweep_yaml(tmp_path)
-        agent_svc, registry = self._make_deps()
+        mock_repo = self._make_repo()
         slack_fn = MagicMock(return_value=None)
 
         from src.services.service_manager import initialize_sweep_service
 
         svc = initialize_sweep_service(
-            agent_service=agent_svc,
-            session_registry=registry,
+            pending_task_repo=mock_repo,
             config_path=config_path,
             slack_service_fn=slack_fn,
         )
@@ -256,13 +249,12 @@ class TestInitializeSweepService:
 
     def test_missing_yaml_file_returns_defaults(self, tmp_path):
         """Missing sweep config file returns BackgroundSweepService with SweepConfig defaults and logs warning."""
-        agent_svc, registry = self._make_deps()
+        mock_repo = self._make_repo()
 
         from src.services.service_manager import initialize_sweep_service
 
         svc = initialize_sweep_service(
-            agent_service=agent_svc,
-            session_registry=registry,
+            pending_task_repo=mock_repo,
             config_path=tmp_path / "nonexistent.yml",
         )
 
@@ -274,13 +266,12 @@ class TestInitializeSweepService:
         """Empty YAML yields default SweepConfig values."""
         config_path = tmp_path / "sweep.yml"
         config_path.write_text("")
-        agent_svc, registry = self._make_deps()
+        mock_repo = self._make_repo()
 
         from src.services.service_manager import initialize_sweep_service
 
         svc = initialize_sweep_service(
-            agent_service=agent_svc,
-            session_registry=registry,
+            pending_task_repo=mock_repo,
             config_path=config_path,
         )
 

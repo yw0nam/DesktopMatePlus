@@ -23,6 +23,7 @@ from src.core.error_classifier import ErrorClassifier, ErrorSeverity
 from src.services.agent_service import AgentFactory, AgentService
 from src.services.agent_service.session_registry import SessionRegistry
 from src.services.ltm_service import LTMFactory, LTMService
+from src.services.pending_task_repository import PendingTaskRepository
 from src.services.summary_service import SummaryService
 from src.services.tts_service import TTSFactory, TTSService
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
@@ -36,6 +37,7 @@ _emotion_motion_mapper_instance: EmotionMotionMapper | None = None
 _mongo_client: "_pymongo.MongoClient | None" = None
 _mongo_db: "_pymongo.database.Database | None" = None
 _session_registry_instance: "SessionRegistry | None" = None
+_pending_task_repo_instance: PendingTaskRepository | None = None
 _user_profile_service_instance: UserProfileService | None = None
 _summary_service_instance: SummaryService | None = None
 
@@ -170,7 +172,7 @@ def initialize_mongodb_client(
     config_path: str | Path | None = None, force_reinit: bool = False
 ) -> "_pymongo.MongoClient":
     """Initialize shared MongoDB client for checkpointer and session_registry."""
-    global _mongo_client, _mongo_db, _session_registry_instance
+    global _mongo_client, _mongo_db, _session_registry_instance, _pending_task_repo_instance
     if _mongo_client is not None and not force_reinit:
         logger.debug("MongoDB client already initialized, skipping")
         return _mongo_client
@@ -190,6 +192,7 @@ def initialize_mongodb_client(
         raise
     _mongo_db = _mongo_client[db_name]
     _session_registry_instance = SessionRegistry(_mongo_db["session_registry"])
+    _pending_task_repo_instance = PendingTaskRepository(_mongo_db["pending_tasks"])
     logger.info(f"MongoDB client initialized (db={db_name})")
     return _mongo_client
 
@@ -206,10 +209,11 @@ def reset_mongo_client() -> None:
     initialize_mongodb_client() creates a fresh connection instead of
     reusing the already-closed client.
     """
-    global _mongo_client, _mongo_db, _session_registry_instance
+    global _mongo_client, _mongo_db, _session_registry_instance, _pending_task_repo_instance
     _mongo_client = None
     _mongo_db = None
     _session_registry_instance = None
+    _pending_task_repo_instance = None
 
 
 def get_mongo_db() -> "_pymongo.database.Database | None":
@@ -220,6 +224,11 @@ def get_mongo_db() -> "_pymongo.database.Database | None":
 def get_session_registry() -> "SessionRegistry | None":
     """Get the initialized SessionRegistry instance."""
     return _session_registry_instance
+
+
+def get_pending_task_repo() -> PendingTaskRepository | None:
+    """Get the initialized PendingTaskRepository instance."""
+    return _pending_task_repo_instance
 
 
 def initialize_user_profile_service(
@@ -582,8 +591,7 @@ def initialize_channel_service(
 
 
 def initialize_sweep_service(
-    agent_service: AgentService,
-    session_registry: SessionRegistry,
+    pending_task_repo: PendingTaskRepository,
     config_path: str | Path | None = None,
     slack_service_fn: Callable[[], "SlackService | None"] | None = None,
 ) -> "BackgroundSweepService":
@@ -593,8 +601,7 @@ def initialize_sweep_service(
     Falls back to SweepConfig defaults when the section is absent.
 
     Args:
-        agent_service: Initialized AgentService instance (required).
-        session_registry: Initialized SessionRegistry instance (required).
+        pending_task_repo: Initialized PendingTaskRepository instance (required).
         config_path: Path to sweep service YAML config. If None, uses default.
         slack_service_fn: Optional callable returning SlackService for notifications.
 
@@ -615,8 +622,7 @@ def initialize_sweep_service(
     sweep_cfg = SweepConfig(**sweep_cfg_dict)
 
     return BackgroundSweepService(
-        agent_service=agent_service,
-        session_registry=session_registry,
+        pending_task_repo=pending_task_repo,
         config=sweep_cfg,
         slack_service_fn=slack_service_fn,
     )

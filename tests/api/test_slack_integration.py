@@ -125,25 +125,20 @@ class TestSlackFullFlow:
         session_id = "slack:T1:C1:default"
         task_id = "task-123"
 
-        # Mock agent with state containing pending_tasks and reply_channel
-        mock_agent = MagicMock()
-        state_values = {
-            "pending_tasks": [
-                {
-                    "task_id": task_id,
-                    "status": "running",
-                    "reply_channel": {"provider": "slack", "channel_id": "C1"},
-                }
-            ],
+        # Mock PendingTaskRepository with task record containing reply_channel
+        mock_repo = MagicMock()
+        mock_repo.find_by_task_id.return_value = {
+            "task_id": task_id,
+            "session_id": session_id,
             "user_id": "default",
             "agent_id": "yuri",
-            "messages": [],
+            "description": "test task",
+            "status": "running",
+            "reply_channel": {"provider": "slack", "channel_id": "C1"},
         }
-        checkpoint = MagicMock()
-        checkpoint.values = state_values
-        mock_agent.agent = MagicMock()
-        mock_agent.agent.aget_state = AsyncMock(return_value=checkpoint)
-        mock_agent.agent.aupdate_state = AsyncMock()
+        mock_repo.update_status.return_value = None
+
+        mock_agent = MagicMock()
         mock_agent.invoke = AsyncMock(
             return_value={
                 "content": "결과 받았어!",
@@ -154,22 +149,34 @@ class TestSlackFullFlow:
         mock_slack_svc.send_message = AsyncMock()
 
         # Step 1: 콜백 엔드포인트가 200을 반환하고 process_message를 스케줄링하는지 확인
+        captured_coros = []
+
+        def capture_coro(coro):
+            captured_coros.append(coro)
+            coro.close()  # prevent "never awaited" warning
+
         with (
-            patch("src.api.routes.callback.get_agent_service", return_value=mock_agent),
             patch(
-                "src.services.channel_service.process_message", new=AsyncMock()
-            ) as mock_pm,
+                "src.api.routes.callback.get_pending_task_repo",
+                return_value=mock_repo,
+            ),
+            patch(
+                "src.services.get_agent_service",
+                return_value=mock_agent,
+            ),
+            patch(
+                "src.api.routes.callback.asyncio.create_task",
+                side_effect=capture_coro,
+            ),
         ):
             response = client.post(
-                f"/v1/callback/nanoclaw/{session_id}",
+                f"/v1/callback/nanoclaw/{task_id}",
                 json=CALLBACK_PAYLOAD,
             )
             assert response.status_code == 200
-            mock_pm.assert_called_once()
-            call_kwargs = mock_pm.call_args[1]
-            assert call_kwargs["text"] == ""
-            assert call_kwargs["provider"] == "slack"
-            assert call_kwargs["channel_id"] == "C1"
+            # Verify process_message coroutine was scheduled via create_task
+            assert len(captured_coros) == 1
+            assert "process_message" in captured_coros[0].__qualname__
 
         # Step 2: process_message(text="") 자체가 send_message를 호출하는지 직접 테스트
         await _run_process_message_directly(
