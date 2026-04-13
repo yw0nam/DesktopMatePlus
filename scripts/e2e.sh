@@ -202,7 +202,7 @@ P2_STATUS="FAIL"
 _LOGDIR_PRE="$REPO_ROOT/.run.logdir"
 if [[ -f "$_LOGDIR_PRE" ]]; then
     _LOG_DIR="$(cat "$_LOGDIR_PRE")"
-    rm -f "$_LOG_DIR"/app_*.log 2>/dev/null || true
+    [[ -n "$_LOG_DIR" ]] && rm -f "$_LOG_DIR"/app_*.log 2>/dev/null || true
 fi
 
 RAND_PORT=$(( 7000 + RANDOM % 2000 ))
