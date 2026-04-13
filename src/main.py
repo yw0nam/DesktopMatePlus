@@ -213,7 +213,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             from src.services import get_agent_service
 
             agent_svc = get_agent_service()
-            if agent_svc is not None and hasattr(agent_svc, "cleanup_async"):
+            if agent_svc is not None:
                 await agent_svc.cleanup_async()
         except Exception:
             logger.exception("Error cleaning up agent MCP client")

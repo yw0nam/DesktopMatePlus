@@ -24,6 +24,10 @@ class AgentService(ABC):
         """Async initialization: MCP tool fetch + agent creation. Default: no-op."""
         pass
 
+    async def cleanup_async(self) -> None:
+        """Async cleanup hook. Default: no-op."""
+        pass
+
     @abstractmethod
     async def is_healthy(self) -> tuple[bool, str]:
         """Check if the Agent is healthy and ready."""

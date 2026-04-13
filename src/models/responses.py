@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.core.error_classifier import ErrorSeverity
+
 
 class ModuleStatus(BaseModel):
     """Status of an individual module."""
@@ -11,7 +13,7 @@ class ModuleStatus(BaseModel):
     name: str = Field(..., description="Module name (TTS, or Agent)")
     ready: bool = Field(..., description="Whether the module is ready")
     error: str | None = Field(None, description="Error message if module is not ready")
-    severity: str | None = Field(
+    severity: ErrorSeverity | None = Field(
         None,
         description="Error severity when not ready: transient | recoverable | fatal",
     )

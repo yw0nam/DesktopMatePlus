@@ -6,7 +6,6 @@ from langchain_community.tools.file_management import (
     WriteFileTool,
 )
 from langchain_core.tools import BaseTool
-from loguru import logger
 
 
 def get_filesystem_tools(root_dir: str) -> list[BaseTool]:
@@ -18,7 +17,6 @@ def get_filesystem_tools(root_dir: str) -> list[BaseTool]:
     Returns:
         List of three BaseTool instances for file read, write, and list.
     """
-    logger.info(f"Filesystem tools enabled (root_dir={root_dir})")
     return [
         ReadFileTool(root_dir=root_dir),
         WriteFileTool(root_dir=root_dir),
