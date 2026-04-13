@@ -16,5 +16,13 @@ def test_severity_not_initialized_returns_recoverable() -> None:
     assert classify_health_severity("not initialized") == ErrorSeverity.RECOVERABLE
 
 
+def test_severity_empty_string_returns_recoverable() -> None:
+    assert classify_health_severity("") == ErrorSeverity.RECOVERABLE
+
+
+def test_severity_whitespace_only_returns_recoverable() -> None:
+    assert classify_health_severity("   ") == ErrorSeverity.RECOVERABLE
+
+
 def test_severity_unknown_error_returns_fatal() -> None:
     assert classify_health_severity("unknown error xyz") == ErrorSeverity.FATAL

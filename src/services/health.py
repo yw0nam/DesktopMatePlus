@@ -15,6 +15,8 @@ def classify_health_severity(error: str | None) -> ErrorSeverity | None:
     """
     if error is None:
         return None
+    if not error.strip():
+        return ErrorSeverity.RECOVERABLE
     lower = error.lower()
     if any(
         kw in lower
