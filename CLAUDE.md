@@ -97,7 +97,6 @@ backend/
 - **Never** log sensitive data (passwords, tokens, PII).
 - **Never** hardcode service URLs or credentials.
 - **TDD mandatory**: RED → GREEN → REFACTOR. No exceptions.
-- **Learner 게이트**: PR 생성 직전에 `/oh-my-claudecode:learner` 실행 — 작업 중 발견한 비자명한 인사이트(디버깅 삽질, 숨겨진 gotcha, 코드베이스 특수 패턴)를 `.omc/skills/`에 skill로 저장. 저장할 게 없으면 스킵.
 
 ## 3. Coding Conventions
 
