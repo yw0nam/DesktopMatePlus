@@ -44,15 +44,13 @@ def load_main_config(yaml_file: str | Path) -> dict:
     with open(yaml_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
-    # Resolve service config paths relative to main.yml location
+    # Resolve services config path relative to main.yml location
     base_dir = yaml_path.parent
-    services = config.get("services", {})
+    services_file = config.get("services_file")
 
     resolved_paths = {}
-    for service_name, config_file in services.items():
-        if config_file:
-            service_path = base_dir / "services" / service_name / config_file
-            resolved_paths[f"{service_name}_path"] = service_path
+    if services_file:
+        resolved_paths["services_config_path"] = base_dir / services_file
 
     return resolved_paths
 
@@ -93,24 +91,15 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 initialize_user_profile_service,
             )
 
-            logger.info("📋 Loading service configurations...")
+            svc_config = config_paths.get("services_config_path")
+            logger.info(f"📋 Loading service configurations from {svc_config}")
 
-            if config_paths.get("tts_config_path"):
-                logger.info(f"  - TTS config: {config_paths['tts_config_path']}")
-                initialize_tts_service(config_path=config_paths["tts_config_path"])
-            else:
-                logger.info("  - TTS config: Using default")
-                initialize_tts_service()
+            initialize_tts_service(config_path=svc_config)
 
             initialize_emotion_motion_mapper()
 
             # MongoDB client for checkpointer + session_registry (before agent)
-            if config_paths.get("checkpointer_config_path"):
-                initialize_mongodb_client(
-                    config_path=config_paths["checkpointer_config_path"]
-                )
-            else:
-                initialize_mongodb_client()
+            initialize_mongodb_client(config_path=svc_config)
 
             try:
                 initialize_user_profile_service()
@@ -118,21 +107,9 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             except Exception:
                 logger.exception("Failed to initialize user profile service")
 
-            if config_paths.get("agent_config_path"):
-                logger.info(f"  - Agent config: {config_paths['agent_config_path']}")
-                initialize_agent_service(
-                    config_path=config_paths["agent_config_path"],
-                )
-            else:
-                logger.info("  - Agent config: Using default")
-                initialize_agent_service()
+            initialize_agent_service(config_path=svc_config)
 
-            if config_paths.get("ltm_config_path"):
-                logger.info(f"  - LTM config: {config_paths['ltm_config_path']}")
-                initialize_ltm_service(config_path=config_paths["ltm_config_path"])
-            else:
-                logger.info("  - LTM config: Using default")
-                initialize_ltm_service()
+            initialize_ltm_service(config_path=svc_config)
 
             # Async initialization: MCP tools + agent creation
             agent_svc = get_agent_service()
@@ -153,9 +130,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 from src.services.channel_service import init_channel_service
                 from src.services.service_manager import initialize_channel_service
 
-                slack_settings = initialize_channel_service(
-                    config_path=config_paths.get("channel_service_path")
-                )
+                slack_settings = initialize_channel_service(config_path=svc_config)
                 await init_channel_service(slack_settings)
                 logger.info("Channel service initialized")
             except Exception:
@@ -174,7 +149,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                     sweep_service = initialize_sweep_service(
                         agent_service=agent_for_sweep,
                         session_registry=registry,
-                        config_path=config_paths.get("task_sweep_service_path"),
+                        config_path=svc_config,
                         slack_service_fn=get_slack_service,
                     )
                     await sweep_service.start()

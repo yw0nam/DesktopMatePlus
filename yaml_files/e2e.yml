@@ -1,24 +1,19 @@
-services_file: services.yml
+# e2e variant of main.yml
+# Uses services.e2e.yml with unauthenticated local MongoDB.
+# Usage: YAML_FILE=yaml_files/e2e.yml in e2e.sh
 
-# Main application settings
+services_file: services.e2e.yml
+
+# Main application settings (same as main.yml)
 settings:
-  # Server configuration
   host: "127.0.0.1"
   port: 5500
-
-  # CORS configuration
   cors_origins:
     - "*"
-
-  # Application metadata
   app_name: "DesktopMate+ Backend"
   app_version: "0.1.0"
   debug: false
-
-  # Health check settings
   health_check_timeout: 5
-
-  # WebSocket configuration
   websocket:
     ping_interval_seconds: 30
     pong_timeout_seconds: 10

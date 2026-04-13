@@ -1,4 +1,0 @@
-# MongoDB checkpointer — used by MongoDBSaver and session_registry
-checkpointer_config:
-  connection_string: "mongodb://admin:test@192.168.0.43:27017/"
-  db_name: "desktopmate"

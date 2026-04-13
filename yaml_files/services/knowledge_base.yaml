@@ -1,4 +1,0 @@
-knowledge_base:
-  path: /home/spow12/data/knowledge_base
-  min_turns_for_summary: 3
-  stm_inline_max_turns: 30

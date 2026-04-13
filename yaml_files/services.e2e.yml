@@ -1,0 +1,129 @@
+# =============================================================================
+# services.e2e.yml — Unified service configuration (E2E testing)
+# Uses unauthenticated local MongoDB (no user/pass).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# TTS Service
+# -----------------------------------------------------------------------------
+tts_config:
+  type: "irodori"  # irodori | fish_local_tts
+  configs:
+    base_url: "http://192.168.0.41:8091"
+    ref_audio_dir: "resources/references_voices"  # Path to voices dir ({name}/merged_audio.mp3); null for no-reference mode
+    seconds: 30.0
+    num_steps: 40
+    cfg_scale_text: 3.0
+    cfg_scale_speaker: 5.0
+    seed: null
+
+# # Alternative: vLLM Omni TTS
+# tts_config:
+#   type: "fish_local_tts"
+#   configs:
+#     base_url: "http://192.168.0.41:5517/v1/tts"
+#     # api_key: {{ env.TTS_API_KEY }}  # Optional API key from environment
+#     model: "chat_model"
+#     task_type: "Base"
+#     response_format: "mp3"
+#     ref_audio_dir: "./resources/references_voices"
+#     timeout: 300.0
+
+# -----------------------------------------------------------------------------
+# Agent Service (LLM)
+# -----------------------------------------------------------------------------
+llm_config:
+  type: "openai_chat_agent"  # Service type for factory
+  configs:
+    openai_api_base: "http://192.168.0.41:5535/v1"
+    model_name: chat_model
+    temperature: 0.7
+    top_p: 0.9
+    support_image: True  # Enable image support
+    # openai_api_key is loaded from LLM_API_KEY environment variable
+
+# MCP Server Configuration (commented out)
+# mcp_config:
+#   "code-sandbox":
+#     command: "docker"
+#     args: ["run", "--rm", "-i", "--net=none", "--memory=512m", "--cpus=1", "ghcr.io/pydantic/mcp-run-python"]
+#     transport: "stdio"
+
+# Builtin Tool Configuration
+tool_config:
+  builtin:
+    filesystem:
+      enabled: false
+      root_dir: "/tmp/agent-workspace"
+    shell:
+      enabled: false
+      allowed_commands: ["ls", "cat", "ps", "date", "whoami", "pwd", "wc", "head", "tail"]
+    web_search:
+      enabled: false
+
+# -----------------------------------------------------------------------------
+# MongoDB (Checkpointer + Session Registry)
+# -----------------------------------------------------------------------------
+checkpointer_config:
+  connection_string: "mongodb://localhost:27017/"
+  db_name: "desktopmate"
+
+# -----------------------------------------------------------------------------
+# LTM Service (mem0)
+# -----------------------------------------------------------------------------
+ltm_config:
+  type: "mem0"  # Service type for factory
+  configs:
+    llm:
+      provider: "openai"
+      config:
+        openai_base_url: "http://192.168.0.41:5535/v1"
+        model: "chat_model"
+        enable_vision: false
+        # api_key: "${LTM_API_KEY}"
+    embedder:
+      provider: "langchain"  # Currently only langchain is supported. This is compatible with OpenAI compatible embeddings API.
+      config:
+        openai_base_url: "http://192.168.0.41:5504/v1"
+        model_name: "embedding_model"
+        # embedding_dims: 2560 Qwen Embedding doesn't support dimensions parameter, it will be determined by the model itself. You can remove this line or set it to null.
+        # openai_api_key: "${EMB_API_KEY}"
+    vector_store:
+      provider: "qdrant"
+      config:
+        url: "http://192.168.0.43"
+        embedding_model_dims: 2560
+        collection_name: "ltm_collection"
+    graph_store:
+      provider: "neo4j"
+      config:
+        url: "bolt://192.168.0.43:7687"
+        # username: ${NEO4J_USER}
+        # password: ${NEO4J_PASSWORD}
+
+# -----------------------------------------------------------------------------
+# Background Sweep Service
+# -----------------------------------------------------------------------------
+sweep_config:
+  # How often (seconds) the sweep loop wakes up to scan sessions
+  sweep_interval_seconds: 60
+
+  # Maximum age (seconds) a pending/running task may have before being
+  # automatically marked as failed.  Tasks younger than this are untouched.
+  task_ttl_seconds: 300
+
+# -----------------------------------------------------------------------------
+# Channel Service (Slack)
+# -----------------------------------------------------------------------------
+slack:
+  enabled: true
+  bot_token: ""                              # SLACK_BOT_TOKEN env var
+  signing_secret: ""                         # SLACK_SIGNING_SECRET env var
+
+# -----------------------------------------------------------------------------
+# Summary Service
+# -----------------------------------------------------------------------------
+summary_config:
+  enabled: true
+  turn_threshold: 20
+  max_summary_length: 500

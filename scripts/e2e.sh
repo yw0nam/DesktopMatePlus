@@ -56,21 +56,21 @@ TTS_SKIPPED=false
 # Helpers: read YAML fields (same pattern as run.sh)
 # ---------------------------------------------------------------------------
 _read_mongo_uri() {
-    local yml="$REPO_ROOT/yaml_files/services/checkpointer.yml"
+    local yml="$REPO_ROOT/yaml_files/services.e2e.yml"
     if [[ -f "$yml" ]]; then
         grep -E 'connection_string:' "$yml" | sed 's/.*connection_string:[[:space:]]*//' | tr -d '"' | head -1
     fi
 }
 
 _read_qdrant_url() {
-    local yml="$REPO_ROOT/yaml_files/services/ltm_service/mem0.yml"
+    local yml="$REPO_ROOT/yaml_files/services.e2e.yml"
     if [[ -f "$yml" ]]; then
         grep -A5 'provider: "qdrant"' "$yml" | grep -E '^\s+url:' | sed 's/.*url:[[:space:]]*//' | tr -d '"' | head -1
     fi
 }
 
 _read_tts_base_url() {
-    local yml="$REPO_ROOT/yaml_files/services/tts_service/irodori.yml"
+    local yml="$REPO_ROOT/yaml_files/services.e2e.yml"
     if [[ -f "$yml" ]]; then
         grep -E '^\s+base_url:' "$yml" | sed 's/.*base_url:[[:space:]]*//' | tr -d '"' | head -1
     fi
@@ -189,12 +189,21 @@ else
     TTS_SKIPPED=true
 fi
 
+export YAML_FILE="yaml_files/e2e.yml"
+
 # ---------------------------------------------------------------------------
 # Phase 2: Start backend on random port 7000-8999
 # ---------------------------------------------------------------------------
 echo ""
 echo "=== Phase 2: Start Backend ==="
 P2_STATUS="FAIL"
+
+# Delete ALL stale log files so Phase 5 only sees errors from this run
+_LOGDIR_PRE="$REPO_ROOT/.run.logdir"
+if [[ -f "$_LOGDIR_PRE" ]]; then
+    _LOG_DIR="$(cat "$_LOGDIR_PRE")"
+    rm -f "$_LOG_DIR"/app_*.log 2>/dev/null || true
+fi
 
 RAND_PORT=$(( 7000 + RANDOM % 2000 ))
 echo "[e2e] Using port $RAND_PORT"
@@ -290,7 +299,7 @@ if [[ "$P3_STATUS" != "OK" ]]; then
     P4_STATUS="SKIP (backend not healthy)"
 else
     echo "[e2e] Running pytest -m e2e..."
-    if FASTAPI_URL="$BASE_URL" uv run pytest -m e2e --tb=long -v; then
+    if BACKEND_URL="$BASE_URL" uv run pytest -m e2e --tb=long -v; then
         P4_STATUS="OK"
         echo "[e2e] Phase 4: PASSED"
     else
@@ -333,6 +342,10 @@ echo "=== Phase 6: Cleanup ==="
 bash "$SCRIPT_DIR/run.sh" --stop || true
 # Remove .run.pid so EXIT trap won't double-stop
 rm -f "$REPO_ROOT/.run.pid"
+# Remove e2e log file — test logs should not accumulate
+if [[ -n "$LOG_FILE" && -f "$LOG_FILE" ]]; then
+    rm -f "$LOG_FILE"
+fi
 echo "[e2e] Phase 6: Done"
 
 # ---------------------------------------------------------------------------
