@@ -4,8 +4,31 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
+_(No unreleased changes.)_
+
+## [2.5.0] - 2026-04-14
+
 ### Changed
 
+- **BREAKING**: Decouple `pending_tasks` from LangGraph checkpointer state to MongoDB (`pending_tasks` collection) — callback/delegate/sweep now read/write directly via `PendingTaskRepository` (#30)
+- Callback endpoint path changed from `/v1/callback/nanoclaw/{session_id}` to `/v1/callback/nanoclaw/{task_id}` (#30)
+- `PendingTaskDocument.status` uses `Literal["running", "done", "failed"]` for type safety (#30)
+- `update_status()` sets `completed_at` timestamp on terminal status transition (#30)
+- `task_status_middleware` uses `completed_at` (not `created_at`) for recent-window filter (#30)
+- Sweep service simplified: single `find_expirable` query replaces O(N sessions × M tasks) loop (#30)
+- E2E test service orchestration: new `scripts/test_dbs/` helpers, dedicated test ports (#30)
+
+### Added
+
+- `PendingTaskRepository`: MongoDB repository with TTL index (7-day), `find_by_task_id`, `find_by_session_id`, `find_expirable`, `update_status` (#30)
+- `task_status_inject_hook` middleware: injects delegated task status into system prompt before each model call (#30)
+- `completed_at` field on `PendingTaskDocument` for accurate recent-task display (#30)
+
+### Fixed
+
+- `callback.py`: check `update_status` return value, log warning on no-op (race condition with TTL expiry) (#30)
+- `delegate_task.py`: block webhook dispatch when DB insert fails — prevents silent partial-failure (#30)
+- Remove hardcoded `/data1/yw0nam/db/qdrant` path from `run_qdrant.sh` (#30)
 - Unify 10+ per-service YAML configs into 3 environment-specific standalone files (`services.yml`, `services.docker.yml`, `services.e2e.yml`) — replace `services:` dict with `services_file:` key (#29)
 - Extract `classify_health_severity()` as module-level function from inner `_severity()`, strengthen `ModuleStatus.severity` type from `str | None` to `ErrorSeverity | None` (#28)
 - Add `cleanup_async()` no-op base method to `AgentService`, remove `hasattr` guard in `main.py` (#28)
