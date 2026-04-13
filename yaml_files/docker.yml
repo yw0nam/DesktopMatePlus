@@ -2,17 +2,7 @@
 # Points MongoDB and Qdrant at compose service names instead of hardcoded IPs.
 # Usage: set YAML_FILE=yaml_files/docker.yml in the compose backend environment.
 
-services:
-  vlm_service: openai_compatible.yml
-  tts_service: irodori.yml
-  agent_service: openai_chat_agent.yml
-  stm_service: mongodb.yml
-  # 'checkpointer_config' produces key 'checkpointer_config_path' read by main.py
-  checkpointer_config: checkpointer.docker.yml
-  # 'ltm_config' produces key 'ltm_config_path' read by main.py
-  ltm_config: mem0.docker.yml
-  task_sweep_service: sweep.yml
-  channel_service: channel.yml
+services_file: services.docker.yml
 
 # Main application settings (same as main.yml)
 settings:

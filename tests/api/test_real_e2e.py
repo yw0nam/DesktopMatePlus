@@ -136,6 +136,7 @@ def stm_session_with_task(backend: httpx.Client, stm_session: dict) -> dict:
 # ── Tests: Backend health ─────────────────────────────────────────────────────
 
 
+@pytest.mark.e2e
 @requires_backend
 class TestBackendConnectivity:
     def test_health_endpoint_reachable(self):
@@ -206,6 +207,7 @@ class TestNanoClawHttpIngress:
 # ── Tests: Backend callback endpoint (direct, no NanoClaw) ───────────────────
 
 
+@pytest.mark.e2e
 @requires_backend
 class TestBackendCallbackDirect:
     def test_callback_done_updates_stm(

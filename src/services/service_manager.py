@@ -175,11 +175,7 @@ def initialize_mongodb_client(
         logger.debug("MongoDB client already initialized, skipping")
         return _mongo_client
 
-    resolved = (
-        Path(config_path)
-        if config_path
-        else _BASE_YAML / "services" / "checkpointer.yml"
-    )
+    resolved = Path(config_path) if config_path else _BASE_YAML / "services.yml"
     cfg = _load_yaml_config(resolved).get("checkpointer_config", {})
     connection_string: str = cfg["connection_string"]
     db_name: str = cfg["db_name"]
@@ -340,7 +336,7 @@ def initialize_tts_service(
 
     _tts_service_instance = _initialize_service(
         service_name="TTS",
-        default_config_path=_BASE_YAML / "services" / "tts_service" / "irodori.yml",
+        default_config_path=_BASE_YAML / "services.yml",
         config_key="tts_config",
         factory_fn=TTSFactory.get_tts_engine,
         config_path=config_path,
@@ -378,10 +374,7 @@ def initialize_agent_service(
 
     _agent_service_instance = _initialize_service(
         service_name="Agent",
-        default_config_path=_BASE_YAML
-        / "services"
-        / "agent_service"
-        / "openai_chat_agent.yml",
+        default_config_path=_BASE_YAML / "services.yml",
         config_key="llm_config",
         factory_fn=AgentFactory.get_agent_service,
         config_path=config_path,
@@ -415,7 +408,7 @@ def initialize_ltm_service(
 
     _ltm_service_instance = _initialize_service(
         service_name="LTM",
-        default_config_path=_BASE_YAML / "services" / "ltm_service" / "mem0.yml",
+        default_config_path=_BASE_YAML / "services.yml",
         config_key="ltm_config",
         factory_fn=LTMFactory.get_ltm_service,
         config_path=config_path,
@@ -575,7 +568,7 @@ def initialize_channel_service(
 
     slack_cfg = _load_service_yaml(
         service_name="Channel",
-        default_config_path=_BASE_YAML / "services" / "channel_service" / "channel.yml",
+        default_config_path=_BASE_YAML / "services.yml",
         config_key="slack",
         config_path=config_path,
     )
@@ -615,10 +608,7 @@ def initialize_sweep_service(
 
     sweep_cfg_dict = _load_service_yaml(
         service_name="Sweep",
-        default_config_path=_BASE_YAML
-        / "services"
-        / "task_sweep_service"
-        / "sweep.yml",
+        default_config_path=_BASE_YAML / "services.yml",
         config_key="sweep_config",
         config_path=config_path,
     )
