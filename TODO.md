@@ -60,22 +60,30 @@
 ### Medium Priority
 
 - [x] KI-11: Docker 샌드박스로 충분 — Won't fix `cc:DONE`
-- [ ] KI-13: `cleanup_async()` base `AgentService`에 default no-op 추가, `main.py` `hasattr` 가드 제거 `cc:TODO`
+- [x] KI-13: `cleanup_async()` base `AgentService`에 default no-op 추가, `main.py` `hasattr` 가드 제거 `cc:DONE` (#28)
 
 ### Low Priority (Quick-win batch)
 
-- [ ] KI-10: `ModuleStatus.severity` 타입 `str | None` → `ErrorSeverity | None` 교체 `cc:TODO`
-- [ ] KI-12: ToolRegistry/tool factory 중복 로깅 정리 — registry 레벨에서만 로깅 `cc:TODO`
+- [x] KI-10: `ModuleStatus.severity` 타입 `str | None` → `ErrorSeverity | None` 교체 `cc:DONE` (#28)
+- [x] KI-12: ToolRegistry/tool factory 중복 로깅 정리 — registry 레벨에서만 로깅 `cc:DONE` (#28)
 - [x] KI-14: MCP config `npx -y @modelcontextprotocol/server-sequential-thinking` -> 삭제할거임, 따라서 필요없음`cc:DONE`
-- [ ] KI-15: `initialize_channel_service()` 내 `import os` 로컬 임포트 중복 제거 `cc:TODO`
+- [x] KI-15: `initialize_channel_service()` 내 `import os` 로컬 임포트 중복 제거 `cc:DONE` (#28)
 
 ## YAML 설정 통합 (2026-04-13)
 
-- [ ] `yaml_files/services/` 하위 파편화된 YAML을 `services.yml` / `services.docker.yml` / `services.e2e.yml`로 통합 `cc:TODO`
-- [ ] YAML 로더 코드(`src/configs/`) 통합 구조에 맞게 수정 `cc:TODO`
-- [ ] `main.yml` / `docker.yml` 참조 경로 업데이트 `cc:TODO`
-- [ ] `e2e.sh`에서 `YAML_FILE=yaml_files/services.e2e.yml` 자동 설정 `cc:TODO`
-- [ ] Docker mongo 인증 불일치 해소 — e2e용 connection_string에 인증 없는 `localhost:27017` 사용 `cc:TODO`
+- [x] `yaml_files/services/` 하위 파편화된 YAML을 `services.yml` / `services.docker.yml` / `services.e2e.yml`로 통합 `cc:DONE` (#29)
+- [x] YAML 로더 코드(`src/configs/`) 통합 구조에 맞게 수정 `cc:DONE` (#29)
+- [x] `main.yml` / `docker.yml` 참조 경로 업데이트 `cc:DONE` (#29)
+- [x] `e2e.sh`에서 `YAML_FILE=yaml_files/services.e2e.yml` 자동 설정 `cc:DONE` (#29)
+- [x] Docker mongo 인증 불일치 해소 — e2e용 connection_string에 인증 없는 `localhost:27017` 사용 `cc:DONE` (#29)
+
+## pending_tasks 분리 (2026-04-14)
+
+- [x] KI-17: `pending_tasks`를 LangGraph state에서 MongoDB 컬렉션으로 분리 `cc:DONE` (#30)
+- [x] `PendingTaskRepository` 패턴(SessionRegistry와 동일) 추가 `cc:DONE` (#30)
+- [x] callback 엔드포인트 경로 변경: `/nanoclaw/{session_id}` → `/nanoclaw/{task_id}` `cc:DONE` (#30)
+- [x] `task_status_middleware` 추가 — 시스템 프롬프트에 task 상태 주입 `cc:DONE` (#30)
+- [x] sweep 서비스 단순화: find_expirable 단일 쿼리로 O(N×M) 루프 제거 `cc:DONE` (#30)
 
 ## 스케줄/리마인더 (검토 필요)
 
