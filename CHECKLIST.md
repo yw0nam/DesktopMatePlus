@@ -5,7 +5,7 @@ Every task MUST pass all phases before marking `cc:DONE`.
 ## Full E2E check (preferred)
 
 ```bash
-bash scripts/e2e.sh
+make e2e
 ```
 
 Must output `-> e2e: PASSED`. Requires MongoDB + Qdrant running.
@@ -22,18 +22,18 @@ Where `<keyword>` is the task identifier (e.g. `irodori`, `tts`, `slack`).
 
 | Phase | Command | Pass condition |
 |-------|---------|----------------|
-| **1 — Lint** | `sh scripts/lint.sh` | Exit 0 (ruff + black + structural tests) |
-| **2 — Unit tests** | `uv run pytest -k <keyword> -v` | All collected tests pass |
-| **3 — E2E** | `bash scripts/e2e.sh` | STM/LTM/WS examples exit 0 + no app ERROR logs |
+| **1 — Lint** | `make lint` | Exit 0 (ruff + black + structural tests) |
+| **2 — Unit tests** | `make test` | All collected tests pass (excludes e2e and slow) |
+| **3 — E2E** | `make e2e` | STM/LTM/WS examples exit 0 + no app ERROR logs |
 
-## Manual steps (if e2e.sh unavailable)
+## Manual steps (if make e2e unavailable)
 
 ```bash
 # Phase 1
-sh scripts/lint.sh
+make lint
 
 # Phase 2
-uv run pytest -k <keyword> -v
+make test
 
 # Phase 3 (manual)
 PORT=$(( 7000 + RANDOM % 2000 ))
@@ -48,17 +48,18 @@ bash scripts/run.sh --stop
 ## Notes
 
 - Phase 3 requires real external services (MongoDB, Qdrant). If unavailable, backend starts but `/health` returns 500 and examples will fail.
-- `e2e.sh` picks a random port (7000-8999) to avoid collisions with the main app on 5500.
+- `make e2e` picks a random port (7000-8999) to avoid collisions with the main app on 5500.
 - LTM test auto-skips if Qdrant is not running (prints "LTM SKIPPED").
-- 신규 태스크: TODO.md DoD에 `bash scripts/e2e.sh PASSED` 체크 필수.
+- 신규 태스크: TODO.md DoD에 `make e2e PASSED` 체크 필수.
 
 ## Appendix
 
 ```bash
-uv run pytest                                              # all tests
+make test                                                 # unit tests only
+make e2e                                                  # E2E test suite
+uv run pytest                                             # all tests
 uv run pytest tests/path/test_file.py                     # specific file
 uv run pytest tests/path/test_file.py::TestClass::test_name  # single test
-uv run pytest -m slow                                     # E2E tests (requires real services)
 uv run pytest --cov=src                                   # with coverage
 ```
 
@@ -69,7 +70,8 @@ uv run pytest --cov=src                                   # with coverage
 ### E. Linting & Formatting
 
 ```bash
-sh scripts/lint.sh   # ruff + black + structural tests — run before ending any task
+make lint   # ruff + black + structural tests — run before ending any task
+make fmt    # Format code with black and ruff
 ```
 
 ### F. Architecture Enforcement

@@ -2,6 +2,8 @@
 
 All notable changes to DesktopMatePlus Backend will be documented in this file.
 
+**READ [guidelines](docs/guidelines/changelog_guideline.md) FIRST BEFORE EDITING**
+
 ## [Unreleased]
 
 ### Added
@@ -78,7 +80,7 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Security
 
-- ToolGateMiddleware blocks shell metacharacters (`;|&\`$\n(){}` etc.) and path traversal attacks (`../../`) at middleware level (#27)
+- ToolGateMiddleware blocks shell metacharacters (`;|&\`$\n(){}`etc.) and path traversal attacks (`../../`) at middleware level (#27)
 - Remove security whitelist exposure from log messages — blocked commands/paths no longer log allowed lists (#27)
 - Remove `type: ignore[override]` suppression from ToolGateMiddleware (#27)
 

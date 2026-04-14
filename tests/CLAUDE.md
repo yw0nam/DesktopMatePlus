@@ -13,12 +13,33 @@ uv run pytest -m e2e                                         # E2E integration t
 uv run pytest --cov=src                                      # with coverage
 ```
 
-## Project-Specific Conventions
+## Principles
+
+1. **Boundary tests**: always cover edge cases and boundary values
+2. **Happy + error paths**: cover both success and failure cases
+3. **Independence**: each test must not depend on other test state
+4. **Clear naming**: test name must describe what is being tested
+
+## Naming Convention
+
+```python
+class TestServiceName:
+    async def test_does_expected_behavior_when_condition(self): ...
+```
+
+## Pytest Config
 
 - `asyncio_mode = "auto"` in `pyproject.toml` — no `@pytest.mark.asyncio` decorator needed
 - `slow` marker: tests that hit real MongoDB / Qdrant / LLM — skipped in CI unless services are up
 - `e2e` marker: integration tests requiring live backend + NanoClaw — use `@pytest.mark.e2e`
+- Run fast tests only: `uv run pytest -m "not slow"`
 - `sh scripts/lint.sh` includes structural tests (`tests/structural/`) — always run before ending a task
+
+## Do Not
+
+- Mock the database for integration tests — real MongoDB/Qdrant for integration coverage
+- Share mutable state between tests
+- Test implementation internals — test behavior via public interfaces
 
 ## Directory Layout
 
