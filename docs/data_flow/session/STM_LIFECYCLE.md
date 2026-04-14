@@ -1,11 +1,11 @@
 # STM Lifecycle Data Flow
 
-Updated: 2026-04-08
+Updated: 2026-04-14
 
 ## 1. Synopsis
 
 - **Purpose**: Short-Term Memory(대화 이력) 생성·복원·만료·정리 전체 라이프사이클
-- **I/O**: `session_id` (UUID) ↔ MongoDB (LangGraph checkpointer + session_registry)
+- **I/O**: `session_id` (UUID) ↔ MongoDB (LangGraph checkpointer + session_registry + pending_tasks)
 - **핵심**: `session_id` = LangGraph `thread_id` — 모든 STM 작업의 기준 키
 
 ## 2. Core Logic
@@ -50,11 +50,14 @@ LangGraph astream():
   "messages":   list[BaseMessage],       # 전체 대화 이력
   "user_id":    str,
   "agent_id":   str,
-  "pending_tasks": list[PendingTask],    # 위임 태스크 상태
-  "ltm_last_consolidated_at_turn": int,
-  "knowledge_saved": bool                # 중복 저장 방지 플래그
+  "ltm_last_consolidated_at_turn": int,  # (NotRequired)
+  "knowledge_saved": bool,               # (NotRequired) 중복 저장 방지
+  "user_profile_loaded": bool,           # (NotRequired)
+  "summary_last_consolidated_at_turn": int,  # (NotRequired)
 }
 ```
+
+> **Note (PR #30)**: `pending_tasks`가 LangGraph state에서 분리되어 별도 MongoDB 컬렉션(`pending_tasks`)으로 이전됨. 이제 `PendingTaskRepository`를 통해 직접 접근.
 
 ### 2-3. 백그라운드 Sweep (만료 처리)
 
@@ -62,15 +65,14 @@ LangGraph astream():
 
 ```
 BackgroundSweepService._sweep_once():
-  for session in registry.find_all():
-    state = agent.aget_state(config)
-    for task in state["pending_tasks"]:
-      if status in {"pending", "running"} and age > 300s:
-        task["status"] = "failed"
-    agent.aupdate_state(config, {"pending_tasks": updated})
-    if failed and reply_channel:
+  expired = pending_task_repo.find_expirable({"pending", "running"}, ttl_seconds=300)
+  for task in expired:
+    pending_task_repo.update_status(task_id, "failed")
+    if reply_channel.provider == "slack":
       → Slack 알림 전송
 ```
+
+**Key Change (PR #30)**: O(N sessions × M tasks) 루프 → 단일 MongoDB 쿼리(`find_expirable`)로 최적화. LangGraph state 접근 제거.
 
 ### 2-4. 연결 종료 처리
 
@@ -94,6 +96,7 @@ sequenceDiagram
     participant Reg as SessionRegistry (MongoDB)
     participant Agent as AgentService (LangGraph)
     participant DB as MongoDB (Checkpointer)
+    participant TaskDB as PendingTasks (MongoDB)
     participant Sweep as BackgroundSweep
 
     Note over Client, WS: 신규 세션
@@ -116,9 +119,11 @@ sequenceDiagram
     Agent-->>WS: stream events
 
     Note over Sweep: 60s 주기
-    Sweep->>Reg: find_all() → session 목록
-    Sweep->>Agent: aget_state(per session)
-    Sweep->>Agent: aupdate_state(failed tasks)
+    Sweep->>TaskDB: find_expirable(statuses, ttl)
+    loop 만료된 태스크
+        Sweep->>TaskDB: update_status(task_id, "failed")
+        Sweep-->>Slack: 알림 전송 (reply_channel이 slack인 경우)
+    end
 
     Note over Client, WS: 연결 종료
     Client->>WS: disconnect
@@ -135,12 +140,14 @@ sequenceDiagram
 | 파일 | 역할 |
 |------|------|
 | `src/services/agent_service/openai_chat_agent.py` | stream(), LangGraph agent 초기화 |
-| `src/services/agent_service/state.py` | CustomAgentState, PendingTask |
+| `src/services/agent_service/state.py` | CustomAgentState |
 | `src/services/agent_service/session_registry.py` | MongoDB session_registry CRUD |
-| `src/services/task_sweep_service/sweep.py` | 백그라운드 만료 처리 |
+| `src/services/pending_task_repository.py` | MongoDB pending_tasks CRUD + TTL (7-day) |
+| `src/services/task_sweep_service/sweep.py` | 백그라운드 만료 처리 (find_expirable) |
+| `src/services/agent_service/middleware/task_status_middleware.py` | before_model hook — running/recent tasks 주입 |
 | `src/services/websocket_service/manager/disconnect_handler.py` | 연결 종료 처리 |
 | `src/services/agent_service/middleware/ltm_middleware.py` | LTM inject/consolidate |
-| `yaml_files/services/checkpointer.yml` | MongoDB 연결 설정 |
+| `yaml_files/services.yml` | MongoDB + 서비스 통합 설정 |
 | **`docs/data_flow/chat/CONTEXT_INJECTION_FLOW.md`** | **프로필 동적 주입 및 요약 압축 플로우 (Phase 7)** |
 
 ### B. MongoDB 컬렉션 구조
@@ -159,12 +166,33 @@ sequenceDiagram
 **checkpointer collections** (LangGraph 자동 관리):
 - 내부 스키마, 직접 접근 금지. `aget_state()` / `aupdate_state()` API만 사용.
 
-### C. PendingTask TTL
+### C. PendingTask MongoDB 컬렉션
 
-- 기본값: 300초 (`yaml_files/services/task_sweep_service/sweep.yml`)
-- 만료 시 `status = "failed"`, reply_channel이 있으면 Slack 알림
-- 상태: `pending` → `running` → `done` | `failed`
+**pending_tasks** (MongoDB, `PendingTaskRepository`):
+```json
+{
+  "task_id": "string (unique)",
+  "session_id": "string",
+  "user_id": "string",
+  "agent_id": "string",
+  "description": "string",
+  "status": "running | done | failed",
+  "created_at": "ISO timestamp",
+  "completed_at": "ISO timestamp | null",
+  "result_summary": "string | null",
+  "reply_channel": {"provider": "slack", "channel_id": "string"} | null
+}
+```
+
+**인덱스:**
+- `task_id` (unique)
+- `session_id`
+- `(status, created_at)` 복합 인덱스
+- `created_at` TTL: `expireAfterSeconds=604800` (7일)
+
+**상태 전이**: `running` → `done` | `failed`
 
 ### D. PatchNote
 
+2026-04-14: PR #30 반영 — pending_tasks를 LangGraph state에서 MongoDB pending_tasks 컬렉션으로 분리. Sweep 서비스가 find_expirable 단일 쿼리 사용. CustomAgentState에서 pending_tasks 필드 제거.
 2026-04-08: 최초 작성. LangGraph MongoDBSaver 기반 STM 라이프사이클 코드베이스 추적 기반.

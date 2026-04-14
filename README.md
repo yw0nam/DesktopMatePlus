@@ -34,7 +34,8 @@ src/
 ├── api/                          # FastAPI routes
 │   └── routes/                   # API endpoints (STM, TTS, WebSocket)
 ├── services/                     # Service layer
-│   ├── agent_service/            # OpenAI chat agent with tools
+│   ├── agent_service/            # OpenAI chat agent with tools + middleware
+│   │   └── middleware/           # before_model hooks (ToolGate, LTM, Profile, Summary, TaskStatus)
 │   ├── ltm_service/              # Long-term memory (mem0)
 │   ├── stm_service/              # Short-term memory (MongoDB)
 │   ├── tts_service/              # Text-to-speech (IrodoriTTS, emoji emotion detection)
@@ -42,10 +43,11 @@ src/
 │   ├── task_sweep_service/       # Background expired task cleanup
 │   ├── websocket_service/        # WebSocket streaming gateway
 │   │   └── message_processor/    # Token processing and TTS chunk generation
-│   └── screen_capture_service/   # Screen capture utilities
+│   ├── screen_capture_service/   # Screen capture utilities
+│   └── pending_task_repository.py # MongoDB repository for delegated tasks (TTL 7-day)
 ├── configs/                      # Configuration management
 ├── models/                       # Pydantic models and schemas
-├── core/                         # Core utilities (logging, etc.)
+├── core/                         # Core utilities (logging, error_classifier)
 └── main.py                       # Application entry point
 
 examples/                         # Example scripts
