@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-09
-**Commit:** b93e091
+**Generated:** 2026-04-14
+**Commit:** 9975c71
 **Branch:** master
 
 ## OVERVIEW
@@ -47,20 +47,22 @@ backend/
 | Add service | `src/services/<name>/` | Init in `service_manager.py`, register in `main.py` lifespan |
 | Modify agent | `src/services/agent_service/` | See `agent_service/CLAUDE.md` |
 | Add agent tool | `src/services/agent_service/tools/` | Follow existing tool pattern |
+| Add agent middleware | `src/services/agent_service/middleware/` | `before_model` hook pattern (see `task_status_middleware.py`) |
 | Change TTS | `src/services/tts_service/` | See `tts_service/CLAUDE.md` |
 | WebSocket protocol | `src/services/websocket_service/` | See `websocket_service/AGENTS.md` + `docs/websocket/CLAUDE.md` |
 | Add env variable | `src/configs/settings.py` | Document in `docs/setup/ENVIRONMENT.md` |
-| Add YAML config | `yaml_files/` | Load via `src/configs/` loader |
+| Add YAML config | `yaml_files/` | **Unified**: `services.yml` (local), `services.docker.yml`, `services.e2e.yml` |
 | Slack integration | `src/services/channel_service/` | See `channel_service/CLAUDE.md` |
+| MongoDB repository | `src/services/<name>/` | Follow `pending_task_repository.py` pattern (TTL index, async CRUD) |
 
 ## COMPLEXITY HOTSPOTS
 
 | File | Lines | Concern |
 |------|-------|---------|
 | `services/websocket_service/message_processor/processor.py` | 626 | Turn lifecycle, async task coordination |
+| `services/service_manager.py` | 652 | Singleton init, async/sync bridging, YAML config loading |
 | `services/websocket_service/message_processor/event_handlers.py` | 448 | Agent event → TTS chunk pipeline |
-| `services/websocket_service/manager/websocket_manager.py` | 438 | Connection lifecycle, heartbeat |
-| `services/service_manager.py` | 412 | Singleton init, async/sync bridging |
+| `services/websocket_service/manager/websocket_manager.py` | 455 | Connection lifecycle, heartbeat |
 | `services/websocket_service/manager/handlers.py` | 393 | Message routing, chat turn management |
 
 ## CONTEXT-SENSITIVE DOCS
@@ -87,6 +89,34 @@ backend/
 - **Service singletons**: Module-level lazy init via `service_manager.py`.
 - **Pydantic V2**: All request/response models. Validators, not manual checks.
 - **Request ID**: Bound at middleware, threaded through all logs.
+
+## ARCHITECTURAL PATTERNS (PR #26-#30)
+
+### MongoDB Repository Pattern
+- Async CRUD with Motor driver, TTL index for auto-cleanup
+- Follow `pending_task_repository.py` pattern: `find_by_id`, `insert`, `update_status`, `find_expirable`
+- TTL index: `expireAfterSeconds=604800` (7 days)
+
+### Agent Middleware Chain
+- `before_model` hook: inject ephemeral context (task status, profile, summary) into system prompt
+- Middleware order matters: ToolGate → Delegate → LTM → Profile → Summary → TaskStatus
+- Never persist injected data to state — ephemeral only
+
+### ToolGateMiddleware (Defense-in-Depth)
+- Validates shell commands against whitelist + rejects metacharacters (`;|&\`$\n`)
+- Filesystem: `Path.resolve()` + `relative_to()` for allowed-dir enforcement
+- Fail-closed: `None` = inactive, `[]` = deny all
+- Error messages never leak whitelist/paths
+
+### Stateless MCP Client (langchain-mcp-adapters 0.2.2)
+- No `__aenter__/__aexit__` — direct `await client.get_tools()`
+- Graceful degradation: MCP failure → empty tools, no crash
+- `cleanup_async()` no-op in shutdown
+
+### Unified YAML Config
+- 3 environment files: `services.yml` (local), `services.docker.yml`, `services.e2e.yml`
+- Single `services_file` key in main config, not N service paths
+- `YAML_FILE` env var override for custom configs
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -155,4 +185,5 @@ uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
 - [Golden Principles](./docs/GOLDEN_PRINCIPLES.md): 10 architectural invariants enforced by garden.sh.
 - [Quality Score](./docs/QUALITY_SCORE.md): GP verification grade matrix.
 - [Known Issues](./docs/known_issues/KNOWN_ISSUES.md): 기술 부채 추적.
+- [Release Notes](./docs/release_notes/): 완료된 작업 이력 보관.
 - [Scripts Reference](./docs/scripts-reference.md): scripts/clean/ 스크립트 레퍼런스.

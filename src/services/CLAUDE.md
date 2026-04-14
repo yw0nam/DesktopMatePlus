@@ -9,10 +9,10 @@
 ```
 services/
 ├── __init__.py              # Re-exports service getters
-├── service_manager.py       # Singleton factory (412 lines) — ALL service init here
+├── service_manager.py       # Singleton factory (652 lines) — ALL service init here
 ├── health.py                # Aggregated health check endpoint
 ├── agent_service/           # LangChain/LangGraph agent (CLAUDE.md)
-│   ├── middleware/           # LTM hooks, delegate task injection
+│   ├── middleware/           # before_model hooks (ToolGate, LTM, Profile, Summary, TaskStatus)
 │   ├── tools/               # MCP + custom tools (memory/, delegate)
 │   └── utils/               # Agent utilities
 ├── websocket_service/       # WebSocket streaming gateway (AGENTS.md)
@@ -22,7 +22,7 @@ services/
 ├── ltm_service/             # mem0 long-term memory
 ├── channel_service/         # Slack integration (CLAUDE.md)
 ├── knowledge_base_service/  # RAG knowledge base
-└── task_sweep_service/      # Expired task cleanup
+└── task_sweep_service/      # Expired task cleanup (MongoDB PendingTaskRepository)
 ```
 
 ## INIT ORDER (CRITICAL)
@@ -55,7 +55,9 @@ task_sweep_service → channel_service (lazy injection via callable)
 | Add new service | Create `<name>/`, update `service_manager.py`, register in `main.py` lifespan |
 | Change init | `service_manager.py` | Respect init order above |
 | Health check | `health.py` | Aggregates `.is_healthy()` per service |
-| Service config | `yaml_files/services/<name>/*.yml` | Loaded via `src/configs/` |
+| Service config | `yaml_files/services.yml` | Unified config (also `services.docker.yml`, `services.e2e.yml`) |
+| Add middleware | `agent_service/middleware/` | `before_model` hook pattern |
+| MongoDB repository | Follow `pending_task_repository.py` | TTL index (7-day), async CRUD |
 
 ## PATTERNS
 
@@ -63,6 +65,8 @@ task_sweep_service → channel_service (lazy injection via callable)
 - **Lazy init**: Created only when first accessed or explicitly initialized in lifespan.
 - **Async bridge**: `_run_async_callable()` handles async init from sync context.
 - **Health pattern**: Each service implements `.is_healthy() -> bool`. `swallow_health_error=True` for non-critical.
+- **MongoDB Repository**: Async CRUD with Motor driver, TTL index for auto-cleanup (see `pending_task_repository.py`).
+- **Middleware Chain**: `before_model` hook for ephemeral context injection — never persist to state.
 
 ## ANTI-PATTERNS
 

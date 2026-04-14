@@ -12,7 +12,7 @@ websocket_service/
 ├── error_classifier.py       # Classifies errors as recoverable/fatal
 ├── text_processors.py        # Token text cleaning (emoji strip, whitespace normalize)
 ├── manager/
-│   ├── websocket_manager.py  # Connection lifecycle (438 lines) — auth, heartbeat, routing
+│   ├── websocket_manager.py  # Connection lifecycle (455 lines) — auth, heartbeat, routing
 │   └── handlers.py           # Message type handlers (393 lines) — chat turn orchestration
 └── message_processor/
     ├── processor.py           # Turn processor (626 lines) — task lifecycle, event queues
