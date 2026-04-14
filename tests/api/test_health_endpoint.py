@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import status
 
+from src.core.error_classifier import ErrorSeverity
 from src.models.responses import HealthResponse, ModuleStatus
 from src.services.health import HealthService
 
@@ -44,13 +45,29 @@ class TestHealthEndpoint:
         mock_health_response = HealthResponse(
             status="unhealthy",
             modules=[
-                ModuleStatus(name="TTS", ready=False, error="TTS service unavailable"),
                 ModuleStatus(
-                    name="Agent", ready=False, error="Agent initialization failed"
+                    name="TTS",
+                    ready=False,
+                    error="TTS service unavailable",
+                    severity=ErrorSeverity.RECOVERABLE,
                 ),
-                ModuleStatus(name="LTM", ready=False, error="LTM service unavailable"),
                 ModuleStatus(
-                    name="MongoDB", ready=False, error="MongoDB service unavailable"
+                    name="Agent",
+                    ready=False,
+                    error="Agent initialization failed",
+                    severity=ErrorSeverity.FATAL,
+                ),
+                ModuleStatus(
+                    name="LTM",
+                    ready=False,
+                    error="LTM service unavailable",
+                    severity=ErrorSeverity.TRANSIENT,
+                ),
+                ModuleStatus(
+                    name="MongoDB",
+                    ready=False,
+                    error="MongoDB service unavailable",
+                    severity=ErrorSeverity.RECOVERABLE,
                 ),
             ],
         )
@@ -67,6 +84,9 @@ class TestHealthEndpoint:
             assert data["status"] == "unhealthy"
             assert all(not module["ready"] for module in data["modules"])
             assert all(module["error"] is not None for module in data["modules"])
+            assert all(
+                module["severity"] in ErrorSeverity for module in data["modules"]
+            )
 
     @pytest.mark.asyncio
     async def test_health_check_response_structure(self, client):
@@ -97,6 +117,7 @@ class TestHealthEndpoint:
                 assert "name" in module
                 assert "ready" in module
                 assert "error" in module
+                assert "severity" in module
 
 
 class TestHealthService:
