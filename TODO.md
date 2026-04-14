@@ -6,6 +6,22 @@
 
 - [ ] MCP code-sandbox 서버 연결 — `pydantic/mcp-run-python` (Docker 격리) `cc:TODO`
 
+## Proactive Talking
+
+> 조사 문서: [docs/todo/proactive-talking.md](docs/todo/proactive-talking.md)
+
+- [ ] Phase 1: Idle timer 트리거 — 일정 시간 무입력 시 자동 발화 `cc:TODO`
+- [ ] Phase 2: APScheduler 기반 시각 트리거 — 특정 시각 인사/알림 `cc:TODO`
+- [ ] Phase 3: 외부 웹훅 트리거 — `POST /v1/proactive/trigger` `cc:TODO`
+
+## Human in the Loop (HitL)
+
+> 조사 문서: [docs/todo/human-in-the-loop.md](docs/todo/human-in-the-loop.md)
+
+- [ ] Phase 1: MVP — 도구 실행 전 WS 승인 요청 (`HitLRequest` / `HitLResponse` 메시지 타입 + `asyncio.Queue` 대기/재개) `cc:TODO`
+- [ ] Phase 2: 도구 카테고리별 선택적 승인 — 위험도 분류 + `HitLMiddleware` `cc:TODO`
+- [ ] Phase 3: 인자 편집 후 재실행 — `edited_args` 지원 `cc:TODO`
+
 ## 스케줄/리마인더 (검토 필요)
 
 - [ ] 스케줄/리마인더 시스템 — cron 기반 예약 메시지 ("3시에 알려줘") `cc:TODO`
