@@ -18,8 +18,8 @@
 
 > 조사 문서: [docs/todo/human-in-the-loop.md](docs/todo/human-in-the-loop.md)
 
-- [ ] Phase 1: MVP — 도구 실행 전 WS 승인 요청 (`HitLRequest` / `HitLResponse` 메시지 타입 + `asyncio.Queue` 대기/재개) `cc:TODO`
-- [ ] Phase 2: 도구 카테고리별 선택적 승인 — 위험도 분류 + `HitLMiddleware` `cc:TODO`
+- [x] Phase 1: MVP — 도구 실행 전 WS 승인 요청 (`HitLRequest` / `HitLResponse` 메시지 타입 + LangGraph `interrupt()` 기반 대기/재개) `cc:DONE` — PR #36
+- [ ] Phase 2: 도구 카테고리별 선택적 승인 — 위험도 분류 + `HitLMiddleware` 설정화 `cc:TODO`
 - [ ] Phase 3: 인자 편집 후 재실행 — `edited_args` 지원 `cc:TODO`
 
 ## 스케줄/리마인더 (검토 필요)
