@@ -18,6 +18,7 @@ class MessageType(StrEnum):
     PONG = "pong"
     CHAT_MESSAGE = "chat_message"
     INTERRUPT_STREAM = "interrupt_stream"
+    HITL_RESPONSE = "hitl_response"
 
     # Server -> Client
     AUTHORIZE_SUCCESS = "authorize_success"
@@ -32,6 +33,7 @@ class MessageType(StrEnum):
     ERROR = "error"
     AVATAR_CONFIG_FILES = "avatar_config_files"
     AVATAR_CONFIG_SWITCHED = "avatar_config_switched"
+    HITL_REQUEST = "hitl_request"
     SET_MODEL_AND_CONF = "set_model_and_conf"
 
 
@@ -139,6 +141,14 @@ class InterruptStreamMessage(BaseMessage):
     )
 
 
+class HitLResponseMessage(BaseMessage):
+    """Client message with approval decision."""
+
+    type: MessageType = MessageType.HITL_RESPONSE
+    request_id: str = Field(..., description="Must match the hitl_request request_id")
+    approved: bool = Field(..., description="True to execute, False to deny")
+
+
 # =================================================================================
 # Server -> Client Messages
 # =================================================================================
@@ -206,6 +216,16 @@ class StreamEndMessage(BaseMessage):
     content: str
 
 
+class HitLRequestMessage(BaseMessage):
+    """Server message requesting user approval for a tool call."""
+
+    type: MessageType = MessageType.HITL_REQUEST
+    request_id: str = Field(..., description="Unique ID linking request/response")
+    tool_name: str = Field(..., description="Name of the tool requiring approval")
+    tool_args: dict[str, Any] = Field(..., description="Tool call arguments")
+    session_id: str = Field(..., description="Session ID for graph resume")
+
+
 # TimelineKeyframe matches desktop-homunculus POST /vrm/{entity}/speech/timeline format.
 # { "duration": float, "targets": { "expression_name": weight } }
 TimelineKeyframe = dict[str, float | dict[str, float]]
@@ -251,7 +271,13 @@ class ErrorMessage(BaseMessage):
 # =================================================================================
 
 # Union type for all possible client messages
-ClientMessage = AuthorizeMessage | PongMessage | ChatMessage | InterruptStreamMessage
+ClientMessage = (
+    AuthorizeMessage
+    | PongMessage
+    | ChatMessage
+    | InterruptStreamMessage
+    | HitLResponseMessage
+)
 
 # Union type for all possible server messages
 ServerMessage = (
@@ -263,6 +289,7 @@ ServerMessage = (
     | ToolCallMessage
     | ToolResultMessage
     | StreamEndMessage
+    | HitLRequestMessage
     | TtsChunkMessage
     | ErrorMessage
 )

@@ -269,7 +269,7 @@ class MessageProcessor:
             turn.metadata.update(metadata)
 
         await self.update_turn_status(turn_id, TurnStatus.FAILED, error_message)
-        logger.error(f"Failed turn {turn_id}: {error_message}")
+        logger.warning(f"Failed turn {turn_id}: {error_message}")
         return True
 
     async def handle_interrupt(
@@ -298,6 +298,24 @@ class MessageProcessor:
             return None
 
         previous_status = turn.status
+
+        # If turn is awaiting HitL approval, send deny to clear graph checkpoint
+        if previous_status == TurnStatus.AWAITING_APPROVAL:
+            from src.services.service_manager import get_agent_service
+
+            agent_service = get_agent_service()
+            if agent_service:
+                session_id = turn.session_id
+                try:
+                    async for _ in agent_service.resume_after_approval(
+                        session_id=session_id, approved=False, request_id=""
+                    ):
+                        pass
+                except Exception:
+                    logger.warning(
+                        f"Failed to clear HitL checkpoint for turn {target_turn_id}"
+                    )
+
         await self.update_turn_status(target_turn_id, TurnStatus.INTERRUPTED, reason)
         if previous_status != TurnStatus.INTERRUPTED:
             self.total_interrupted += 1
@@ -397,6 +415,9 @@ class MessageProcessor:
         turn = self.turns.get(turn_id)
         if not turn:
             raise ValueError(f"Unknown turn: {turn_id}")
+
+        # Reset token stream state for resume path (HitL approval)
+        turn.token_stream_closed = False
 
         self._task_manager.ensure_token_consumer(turn_id)
 
@@ -510,16 +531,18 @@ class MessageProcessor:
         if queue is None:
             raise ValueError(f"Turn {turn_id} has no event queue")
 
+        event: dict[str, Any] = {}
         try:
             while True:
                 event = await queue.get()
                 queue.task_done()
                 yield event
 
-                if event.get("type") in {"stream_end", "error"}:
+                if event.get("type") in {"stream_end", "error", "hitl_request"}:
                     break
         finally:
-            await self.cleanup(turn_id)
+            if event.get("type") != "hitl_request":
+                await self.cleanup(turn_id)
 
     async def _put_event(self, turn_id: str, event: dict[str, Any]) -> None:
         """Put an event onto the turn's queue respecting backpressure."""

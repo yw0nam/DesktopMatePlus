@@ -19,6 +19,7 @@ from loguru import logger
 from src.services.agent_service.middleware.delegate_middleware import (
     DelegateToolMiddleware,
 )
+from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
 from src.services.agent_service.middleware.tool_gate_middleware import (
     ToolGateMiddleware,
 )
@@ -159,6 +160,9 @@ class OpenAIChatAgent(AgentService):
             ),
         )
 
+        mcp_tool_names = {t.name for t in self._mcp_tools}
+        hitl_gate = HitLMiddleware(mcp_tool_names=mcp_tool_names)
+
         self.agent = create_agent(
             model=self.llm,
             tools=custom_tools,
@@ -166,6 +170,7 @@ class OpenAIChatAgent(AgentService):
             checkpointer=checkpointer,
             middleware=[
                 tool_gate,
+                hitl_gate,
                 DelegateToolMiddleware(),
                 before_model(profile_retrieve_hook),
                 before_model(summary_inject_hook),
@@ -232,6 +237,7 @@ class OpenAIChatAgent(AgentService):
 
             new_chats: list[BaseMessage] = []
             had_error = False
+            had_hitl_request = False
             async for item in self._process_message(
                 messages=messages,
                 config=config,
@@ -239,14 +245,17 @@ class OpenAIChatAgent(AgentService):
                 agent_id=agent_id,
                 context=context,
             ):
-                if item["type"] != "final_response":
+                if item["type"] == "hitl_request":
+                    had_hitl_request = True
+                    yield item
+                elif item["type"] != "final_response":
                     if item["type"] == "error":
                         had_error = True
                     yield item
                 else:
                     new_chats = item["data"]
 
-            if not had_error:
+            if not had_error and not had_hitl_request:
                 content = new_chats[-1].content if new_chats else ""
                 yield {
                     "type": "stream_end",
@@ -258,6 +267,46 @@ class OpenAIChatAgent(AgentService):
         except Exception:
             logger.exception("Error in stream method")
             raise
+
+    async def resume_after_approval(
+        self,
+        session_id: str,
+        approved: bool,
+        request_id: str,
+        *,
+        user_id: str = "",
+        agent_id: str = "",
+        context: dict | None = None,
+    ):
+        """Resume graph after HitL approval/denial.
+
+        CRITICAL: Command(resume=...) is passed as the FIRST POSITIONAL argument
+        to astream, replacing the normal input dict. This is the documented
+        LangGraph resume convention.
+        """
+        from langgraph.types import Command
+
+        config = {"configurable": {"thread_id": session_id}}
+        resume_value = Command(resume={"approved": approved, "request_id": request_id})
+        astream_iter = self.agent.astream(
+            resume_value,
+            config=config,
+            stream_mode=["messages", "updates"],
+            context=context,
+        )
+        async for event in self._consume_astream(astream_iter, session_id):
+            if event["type"] == "final_response":
+                new_chats = event["data"]
+                content = new_chats[-1].content if new_chats else ""
+                yield {
+                    "type": "stream_end",
+                    "turn_id": "",
+                    "session_id": session_id,
+                    "content": content,
+                    "new_chats": new_chats,
+                }
+            else:
+                yield event
 
     async def invoke(
         self,
@@ -319,6 +368,18 @@ class OpenAIChatAgent(AgentService):
     ):
         """Process messages and yield streaming events."""
         logger.debug(f"Processing {len(messages)} messages with agent")
+        astream_iter = self.agent.astream(
+            {"messages": messages, "user_id": user_id, "agent_id": agent_id},
+            config=config,
+            context=context,
+            stream_mode=["messages", "updates"],
+        )
+        session_id = config["configurable"]["thread_id"]
+        async for event in self._consume_astream(astream_iter, session_id):
+            yield event
+
+    async def _consume_astream(self, astream_iter, session_id: str):
+        """Consume agent astream iterator, yielding streaming events."""
         node = None
         tool_called = False
         gathered = ""
@@ -327,13 +388,19 @@ class OpenAIChatAgent(AgentService):
         new_chats: list[BaseMessage] = []
 
         try:
-            async for stream_type, data in self.agent.astream(
-                {"messages": messages, "user_id": user_id, "agent_id": agent_id},
-                config=config,
-                context=context,
-                stream_mode=["messages", "updates"],
-            ):
+            async for stream_type, data in astream_iter:
                 if stream_type == "updates":
+                    if data.get("__interrupt__"):
+                        interrupt_value = data["__interrupt__"][0].value
+                        yield {
+                            "type": "hitl_request",
+                            "request_id": interrupt_value["request_id"],
+                            "tool_name": interrupt_value["tool_name"],
+                            "tool_args": interrupt_value["tool_args"],
+                            "session_id": session_id,
+                        }
+                        return
+
                     for node_name, updates in data.items():
                         if node_name in ("model", "tools"):
                             new_chats.extend(updates.get("messages", []))
@@ -380,10 +447,10 @@ class OpenAIChatAgent(AgentService):
                 chunk_count += 1
 
             yield {"type": "final_response", "data": new_chats}
-            logger.info(f"Processing completed: {chunk_count} chunks")
+            logger.info(f"Stream processing completed: {chunk_count} chunks")
 
         except Exception:
-            logger.exception("Error in process_message")
+            logger.warning("Error in stream processing", exc_info=True)
             if remaining := buffer.flush():
                 yield self._flush_buffer(node, remaining)
             yield {"type": "error", "error": "메시지 처리 중 오류가 발생했습니다."}

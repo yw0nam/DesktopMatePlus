@@ -16,6 +16,12 @@
 
 ---
 
+### `feat/human_in_the_loop` — HitL Gate
+
+- [ ] **KI-22** [Low] test: `tests/e2e/test_hitl_e2e.py::TestHitLExistingFlowUnchanged::test_safe_tool_no_hitl_request` E2E 테스트가 비결정적 — LLM이 의도한 빌트인 `search_memory` 대신 위험 MCP 툴을 선택할 경우 `pytest.skip()`으로 처리됨. 안전 툴의 HitL 게이트 우회를 E2E 수준에서 신뢰성 있게 검증하지 못함. **단위 테스트 커버리지 충분**: `test_hitl_middleware.py::test_safe_tool_passes_through`, `test_builtin_tool_is_safe`가 결정론적으로 동일 로직을 검증함. **해결 방향: skip 패턴을 LLM 비결정성의 내재적 한계로 수용하거나, MCP 툴 없이 에이전트를 초기화하는 전용 E2E 픽스처를 추가해 safe-tool-only 경로를 강제함.**
+
+---
+
 ## Resolved Issues
 
 | Issue | PR | Summary | Resolution |

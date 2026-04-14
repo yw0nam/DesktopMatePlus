@@ -398,6 +398,17 @@ class WebSocketManager:
                 message = InterruptStreamMessage(**message_data)
                 await self.interrupt_active_turn(connection_id, message.turn_id)
 
+            elif message_type == MessageType.HITL_RESPONSE:
+                if not connection_state.is_authenticated:
+                    await self.send_message(
+                        connection_id,
+                        ErrorMessage(error="Authentication required"),
+                    )
+                    return
+                await self._message_handler.handle_hitl_response(
+                    connection_id, message_data, self._forward_turn_events
+                )
+
             else:
                 # Check if connection is authenticated for other message types
                 if not connection_state.is_authenticated:
