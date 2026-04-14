@@ -24,6 +24,7 @@ class TurnStatus(Enum):
     COMPLETED = "completed"
     INTERRUPTED = "interrupted"
     FAILED = "failed"
+    AWAITING_APPROVAL = "awaiting_approval"
 
 
 @dataclass

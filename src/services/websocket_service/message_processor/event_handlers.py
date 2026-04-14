@@ -55,6 +55,15 @@ class EventHandler:
                     )
                     continue
 
+                if event_type == "hitl_request":
+                    await self.processor.update_turn_status(
+                        turn_id, TurnStatus.AWAITING_APPROVAL
+                    )
+                    await self.processor._put_event(turn_id, event)
+                    await self._signal_token_stream_closed(turn_id)
+                    await self._wait_for_token_queue(turn_id)
+                    return  # Exit producer; graph is suspended at checkpoint
+
                 if event_type == "stream_end":
                     # Pop new_chats before forwarding — BaseMessage objects are not
                     # JSON-serializable and must not reach the WebSocket client.

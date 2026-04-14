@@ -22,6 +22,7 @@ from src.services.service_manager import (
     get_tts_service,
 )
 from src.services.websocket_service.message_processor import MessageProcessor
+from src.services.websocket_service.message_processor.models import TurnStatus
 
 
 class MessageHandler:
@@ -272,6 +273,71 @@ class MessageHandler:
                 connection_id,
                 ErrorMessage(error=f"Failed to process message: {e!s}"),
             )
+
+    async def handle_hitl_response(
+        self,
+        connection_id: UUID,
+        message_data: dict,
+        forward_events_fn,
+    ) -> None:
+        """Handle HitL approval/denial from client.
+
+        Args:
+            connection_id: Connection identifier.
+            message_data: Message data containing request_id and approved.
+            forward_events_fn: Function to forward events to client.
+        """
+        connection_state = self.get_connection(connection_id)
+        if not connection_state or not connection_state.message_processor:
+            await self.send_message(
+                connection_id, ErrorMessage(error="No active session", code=4004)
+            )
+            return
+
+        processor = connection_state.message_processor
+        turn_id = processor._current_turn_id
+        if not turn_id:
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="No active turn awaiting approval", code=4004),
+            )
+            return
+
+        turn = processor.turns.get(turn_id)
+        if not turn or turn.status != TurnStatus.AWAITING_APPROVAL:
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="No pending approval request", code=4004),
+            )
+            return
+
+        request_id = message_data.get("request_id", "")
+        approved = message_data.get("approved", False)
+        session_id = turn.session_id
+
+        agent_service = get_agent_service()
+        if not agent_service:
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="Agent service unavailable"),
+            )
+            return
+
+        await processor.update_turn_status(turn_id, TurnStatus.PROCESSING)
+
+        agent_stream = agent_service.resume_after_approval(
+            session_id=session_id,
+            approved=approved,
+            request_id=request_id,
+        )
+
+        await processor.attach_agent_stream(turn_id, agent_stream)
+
+        forward_task = asyncio.create_task(
+            forward_events_fn(connection_id, turn_id),
+            name=f"ws-forward-events-hitl-{turn_id}",
+        )
+        await processor.add_task_to_turn(turn_id, forward_task)
 
     async def handle_interrupt(
         self, connection_id: UUID, turn_id: str | None = None
