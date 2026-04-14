@@ -276,6 +276,7 @@ class OpenAIChatAgent(AgentService):
         *,
         user_id: str = "",
         agent_id: str = "",
+        context: dict | None = None,
     ):
         """Resume graph after HitL approval/denial.
 
@@ -288,7 +289,10 @@ class OpenAIChatAgent(AgentService):
         config = {"configurable": {"thread_id": session_id}}
         resume_value = Command(resume={"approved": approved, "request_id": request_id})
         astream_iter = self.agent.astream(
-            resume_value, config=config, stream_mode=["messages", "updates"]
+            resume_value,
+            config=config,
+            stream_mode=["messages", "updates"],
+            context=context,
         )
         async for event in self._consume_astream(astream_iter, session_id):
             if event["type"] == "final_response":
@@ -386,7 +390,7 @@ class OpenAIChatAgent(AgentService):
         try:
             async for stream_type, data in astream_iter:
                 if stream_type == "updates":
-                    if "__interrupt__" in data:
+                    if data.get("__interrupt__"):
                         interrupt_value = data["__interrupt__"][0].value
                         yield {
                             "type": "hitl_request",

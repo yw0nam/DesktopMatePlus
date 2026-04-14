@@ -58,4 +58,4 @@ class HitLMiddleware(AgentMiddleware):
             return await handler(request)
 
         logger.info(f"HitL gate: '{tool_name}' denied (request_id={request_id})")
-        return f"User denied execution of '{tool_name}'. Try a different approach."
+        return f"사용자가 '{tool_name}' 도구 실행을 거부했습니다. 다른 방법을 시도해 주세요."

@@ -222,7 +222,7 @@ class HitLRequestMessage(BaseMessage):
     type: MessageType = MessageType.HITL_REQUEST
     request_id: str = Field(..., description="Unique ID linking request/response")
     tool_name: str = Field(..., description="Name of the tool requiring approval")
-    tool_args: dict[str, str] = Field(..., description="Tool call arguments")
+    tool_args: dict[str, Any] = Field(..., description="Tool call arguments")
     session_id: str = Field(..., description="Session ID for graph resume")
 
 
