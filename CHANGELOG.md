@@ -4,7 +4,11 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
-_(No unreleased changes.)_
+### Fixed
+
+- Move resolved KI-18/19/20/21 from Open Issues to new Resolved Issues table in KNOWN_ISSUES.md (#35)
+- Use `ErrorSeverity` enum for severity membership check in health endpoint test (#35)
+- Add `.raise_for_status()` to E2E `stm_session` fixture teardown (#35)
 
 ## [2.5.0] - 2026-04-14
 
