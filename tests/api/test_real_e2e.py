@@ -110,7 +110,7 @@ def stm_session(backend: httpx.Client, session_id: str):
     backend.delete(
         f"/v1/stm/sessions/{session_id}",
         params={"user_id": USER_ID, "agent_id": AGENT_ID},
-    )
+    ).raise_for_status()
 
 
 # ── Tests: Backend health ─────────────────────────────────────────────────────

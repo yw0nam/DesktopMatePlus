@@ -85,8 +85,7 @@ class TestHealthEndpoint:
             assert all(not module["ready"] for module in data["modules"])
             assert all(module["error"] is not None for module in data["modules"])
             assert all(
-                module["severity"] in ("transient", "recoverable", "fatal")
-                for module in data["modules"]
+                module["severity"] in ErrorSeverity for module in data["modules"]
             )
 
     @pytest.mark.asyncio
