@@ -4,8 +4,13 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- implement Human-in-the-Loop approval gate for dangerous tool calls (#36)
+
 ### Fixed
 
+- address PR review comments (#36)
 - Move resolved KI-18/19/20/21 from Open Issues to new Resolved Issues table in KNOWN_ISSUES.md (#35)
 - Use `ErrorSeverity` enum for severity membership check in health endpoint test (#35)
 - Add `.raise_for_status()` to E2E `stm_session` fixture teardown (#35)
