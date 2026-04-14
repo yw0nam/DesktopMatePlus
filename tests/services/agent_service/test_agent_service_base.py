@@ -28,8 +28,7 @@ class _ConcreteAgent(AgentService):
         context: dict | None = None,
         is_new_session: bool = False,
     ):
-        return
-        yield  # make it a generator
+        yield  # empty async generator — no events to emit
 
     async def invoke(
         self,

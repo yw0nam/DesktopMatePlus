@@ -93,7 +93,7 @@ def session_id() -> str:
 
 
 @pytest.fixture
-def stm_session(backend: httpx.Client, session_id: str) -> dict:
+def stm_session(backend: httpx.Client, session_id: str):
     """Create a real STM session in the live backend and return session info."""
     resp = backend.post(
         "/v1/stm/add-chat-history",
@@ -105,7 +105,12 @@ def stm_session(backend: httpx.Client, session_id: str) -> dict:
         },
     )
     assert resp.status_code == 201, f"Failed to create STM session: {resp.text}"
-    return {"session_id": session_id, "user_id": USER_ID, "agent_id": AGENT_ID}
+    yield {"session_id": session_id, "user_id": USER_ID, "agent_id": AGENT_ID}
+    # teardown: delete session to avoid MongoDB accumulation and task_sweep ERRORs
+    backend.delete(
+        f"/v1/stm/sessions/{session_id}",
+        params={"user_id": USER_ID, "agent_id": AGENT_ID},
+    )
 
 
 # ── Tests: Backend health ─────────────────────────────────────────────────────
