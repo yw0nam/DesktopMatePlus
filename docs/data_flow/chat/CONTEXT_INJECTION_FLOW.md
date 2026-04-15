@@ -61,6 +61,14 @@ sequenceDiagram
 | **요약 주입 구분자** | `\n\nPrevious Conversation Summary:` | `src/services/agent_service/middleware/summary_middleware.py` 내 `_SUMMARY_SECTION_HEADER` | SystemMessage 내에서 요약본을 찾아 치환할 때 사용하는 고정 문자열. **임의 변경 시 치환 버그 발생 주의** |
 | **프로필 주입 구분자** | `\n\nUser Profile:` | `src/services/agent_service/middleware/profile_middleware.py` 내 `_PROFILE_SECTION_HEADER` | SystemMessage 내에서 프로필을 찾아 치환할 때 사용하는 고정 문자열. |
 
+### Middleware Chain Order
+
+```
+ToolGate → Delegate → LTM → Profile → Summary → TaskStatus → HitL
+```
+
+- **HitLMiddleware** (PR #36): chain 마지막 위치. MCP 도구 + `delegate_task` 호출 시 `interrupt()`로 FE 승인 게이트. Safe 도구(`search_memory`, `update_user_profile`)는 통과.
+
 ### 2-2. 제약 및 주의 사항 (Constraints)
 
 - **문자열 치환 기반 주입**: Pre-hook은 `SystemMessage` 내에서 `_SUMMARY_SECTION_HEADER`와 `_PROFILE_SECTION_HEADER`를 `.split()`으로 찾아 텍스트를 통째로 교체합니다. **이 구분자 문자열을 함부로 수정하면 중복 주입되거나 주입이 누락되는 치명적 버그가 발생합니다.**

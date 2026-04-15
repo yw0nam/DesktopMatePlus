@@ -56,6 +56,18 @@ sequenceDiagram
             FE-->>User: Play VRM Motion & Expression
         end
 
+        alt HitL Gate Trigger (위험 도구 호출 시)
+            Note right of BE: MCP 도구 또는 delegate_task 호출 시<br/>HitLMiddleware가 interrupt() 발생
+            BE-->>FE: hitl_request (tool_name, tool_args, request_id)
+            BE->>BE: TurnStatus → AWAITING_APPROVAL<br/>Producer exit (graph suspended at checkpoint)
+            FE->>FE: 승인 UI 표시 (사용자에게 도구 실행 확인)
+            FE->>BE: hitl_response (request_id, approved=true/false)
+            BE->>BE: TurnStatus → PROCESSING
+            BE->>BE: agent_service.resume_after_approval()
+            BE-->>FE: stream_start (재개)
+            BE-->>FE: stream_token / tts_chunk (계속)
+        end
+
         BE->>STM: save_turn(user+assistant messages)<br/>(asyncio.create_task — non-blocking)
         BE-->>FE: stream_end (session_id, content)
         Note right of FE: Guaranteed: all tts_chunk events arrive before stream_end
@@ -114,7 +126,16 @@ sequenceDiagram
 - Frontend does not directly call STM APIs for saving; it only reads history when loading sessions.
 - Session persistence is guaranteed by the backend's `stream_end` logic.
 
+### HitL Gate
+
+- **Trigger**: MCP 도구 또는 `delegate_task` 호출 시 `HitLMiddleware.awrap_tool_call()`이 `interrupt()` 발생
+- **Safe tools**: `search_memory`, `update_user_profile` 등 — HitL 없이 즉시 실행
+- **Dangerous tools**: 모든 MCP 도구 + `delegate_task` + static deny-list
+- **Resume**: FE에서 `hitl_response` 전송 → `agent_service.resume_after_approval()` → graph 재개
+- **Denial**: 거부 시 `"사용자가 '{tool_name}' 도구 실행을 거부했습니다."` 메시지 반환
+
 ## Appendix
 
 - [Backend WebSocket API](../../websocket/WEBSOCKET_API_GUIDE.md)
 - [TTS Chunk Event](../../websocket/WebSocket_TtsChunk.md)
+- [HitL Gate Flow](../../data_flow/agent/HITL_GATE_FLOW.md)

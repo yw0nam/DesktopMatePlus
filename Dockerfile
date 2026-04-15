@@ -4,7 +4,7 @@ FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /usr/local/bin/
 
 # Create non-root user before any file operations
-RUN adduser --disabled-password --gecos '' appuser
+RUN adduser --disabled-password --gecos '' --uid 1002 appuser
 
 WORKDIR /app
 
