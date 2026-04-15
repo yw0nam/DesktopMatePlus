@@ -10,6 +10,8 @@ import json
 import pytest
 import websockets
 
+from src.services.websocket_service.text_processors import strip_emotion_tags
+
 TOKEN = "demo-token"
 AGENT_ID = "e2e-agent"
 USER_ID = "e2e-user"
@@ -39,6 +41,9 @@ async def _run_ws_turn(
             ping_interval=20,
             ping_timeout=10,
             close_timeout=5,
+            max_size=2
+            * 1024
+            * 1024,  # 2MB — TTS audio_base64 chunks can exceed 1MB default
         ) as ws:
             await ws.send(json.dumps({"type": "authorize", "token": TOKEN}))
 
@@ -112,7 +117,11 @@ class TestWebSocketE2E:
         assert len(token_events) > 0, "Expected at least one stream_token event"
 
     async def test_stream_end_content_matches_tokens(self, e2e_session):
-        """stream_end content should match the concatenation of stream_token deltas."""
+        """stream_end content (emotion tags stripped) matches concatenated stream_token chunks.
+
+        stream_token chunks have emotion emojis stripped before reaching FE (KI-23 fix),
+        so we compare against strip_emotion_tags(stream_end.content).
+        """
         result = await _run_ws_turn(e2e_session["ws_url"], None, TURN1_MSG)
 
         token_events = [e for e in result["events"] if e["type"] == "stream_token"]
@@ -124,9 +133,11 @@ class TestWebSocketE2E:
         end_content = stream_end.get("content", "")
 
         assert end_content, "stream_end has no content field"
-        assert end_content.strip() == concatenated.strip(), (
-            f"stream_end content does not match concatenated tokens.\n"
-            f"  stream_end: {end_content!r}\n"
+        end_content_stripped = strip_emotion_tags(end_content)
+        assert end_content_stripped.strip() == concatenated.strip(), (
+            f"stream_end content (stripped) does not match concatenated tokens.\n"
+            f"  stream_end (original): {end_content!r}\n"
+            f"  stream_end (stripped): {end_content_stripped!r}\n"
             f"  concatenated: {concatenated!r}"
         )
 
