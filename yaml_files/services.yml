@@ -126,3 +126,16 @@ summary_config:
   enabled: true
   turn_threshold: 20
   max_summary_length: 500
+
+# -----------------------------------------------------------------------------
+# Proactive Talking Service
+# -----------------------------------------------------------------------------
+proactive:
+  idle_timeout_seconds: 300
+  cooldown_seconds: 600
+  watcher_interval_seconds: 30
+  schedules:
+    - id: morning_greeting
+      cron: "0 9 * * *"
+      prompt_key: morning
+      enabled: true
