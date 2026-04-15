@@ -9,10 +9,20 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 ### Added
 
 - implement Human-in-the-Loop approval gate for dangerous tool calls (#36)
+- add proactive talking feature — idle watcher, scheduled triggers, webhook endpoint (#38)
+- add ProactiveConfig model, PromptLoader, IdleWatcher, ScheduleManager, ProactiveService (#38)
+- add persona_id field to ConnectionState for per-connection persona tracking (#38)
+- add POST /v1/proactive/trigger webhook endpoint with 200/400/404/503 responses (#38)
+- add E2E tests for proactive webhook trigger and idle timeout (#38)
 
 ### Fixed
 
 - address PR review comments (#36)
+- fix persona_id="" bug in ProactiveService — now uses conn.persona_id instead of hardcoded empty string (#38)
+- fix persona-specific idle timeouts not applied during background scanning — IdleWatcher now passes get_persona_fn through _loop() (#38)
+- replace O(N) session lookup with O(1) UUID direct lookup in proactive route (#38)
+- add stale entry cleanup for _triggered_connections and _last_proactive_at dicts (#38)
+- add invalid session_id format handling (400 response) in proactive route (#38)
 - Move resolved KI-18/19/20/21 from Open Issues to new Resolved Issues table in KNOWN_ISSUES.md (#35)
 - Use `ErrorSeverity` enum for severity membership check in health endpoint test (#35)
 - Add `.raise_for_status()` to E2E `stm_session` fixture teardown (#35)
