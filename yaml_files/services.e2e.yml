@@ -127,3 +127,12 @@ summary_config:
   enabled: true
   turn_threshold: 20
   max_summary_length: 500
+
+# -----------------------------------------------------------------------------
+# Proactive Talking Service (E2E — short timeouts for fast testing)
+# -----------------------------------------------------------------------------
+proactive:
+  idle_timeout_seconds: 3
+  cooldown_seconds: 5
+  watcher_interval_seconds: 1
+  schedules: []
