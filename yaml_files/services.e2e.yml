@@ -136,3 +136,5 @@ proactive:
   cooldown_seconds: 5
   watcher_interval_seconds: 1
   schedules: []
+  persona_overrides:
+    yuri: 3

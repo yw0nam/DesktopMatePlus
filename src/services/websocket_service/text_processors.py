@@ -16,10 +16,26 @@ from src.services.agent_service.utils.text_chunker import (
 )
 from src.services.agent_service.utils.text_processor import (
     ProcessedText,
+    _load_emojis_from_yaml,
 )
 from src.services.agent_service.utils.text_processor import (
     TTSTextProcessor as AgentTTSTextProcessor,
 )
+
+_KNOWN_EMOTION_EMOJIS: frozenset[str] = _load_emojis_from_yaml()
+
+
+def strip_emotion_tags(text: str) -> str:
+    """Remove known emotion emoji tags from a raw stream token.
+
+    Used to clean chunks forwarded to the FE client — the FE does not render
+    emotion emojis correctly (KI-23). The TTS pipeline receives the original
+    chunk (with emojis) for emotion detection.
+    """
+    for emoji in _KNOWN_EMOTION_EMOJIS:
+        text = text.replace(emoji, "")
+    return text
+
 
 _DEFAULT_RULES: list[dict] = [
     {"pattern": r"\((?:웃음|giggle)\)", "replacement": ""},

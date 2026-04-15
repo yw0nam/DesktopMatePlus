@@ -37,6 +37,11 @@ _cleanup() {
         echo "[e2e] Stopping backend..."
         bash "$SCRIPT_DIR/run.sh" --stop || true
     fi
+    # Always clean up the isolated e2e log file
+    if [[ -n "${E2E_LOG_FILE:-}" && -f "$E2E_LOG_FILE" ]]; then
+        rm -f "$E2E_LOG_FILE"
+    fi
+    rm -f "$REPO_ROOT/.run.logfile"
     exit "$exit_code"
 }
 trap '_cleanup $?' EXIT
@@ -268,6 +273,12 @@ P2_STATUS="FAIL"
 RAND_PORT=$(( 7000 + RANDOM % 2000 ))
 echo "[e2e] Using port $RAND_PORT"
 
+# Isolated log file per e2e run — avoids cross-run contamination from shared daily log
+TMP_LOG_DIR="$REPO_ROOT/tmp"
+mkdir -p "$TMP_LOG_DIR"
+export E2E_LOG_FILE="$TMP_LOG_DIR/e2e_$(date +%Y-%m-%d)_${RAND_PORT}.log"
+echo "[e2e] Log file: $E2E_LOG_FILE"
+
 export BACKEND_PORT="$RAND_PORT"
 export SKIP_SERVICE_CHECKS="true"
 bash "$SCRIPT_DIR/run.sh" --bg
@@ -340,12 +351,11 @@ P4_STATUS="FAIL"
 
 BASE_URL="http://127.0.0.1:${RAND_PORT}"
 
-# Read LOG_DIR from .run.logdir (written by run.sh)
-LOGDIR_FILE="$REPO_ROOT/.run.logdir"
+# Read the isolated log file path written by run.sh
+LOGFILE_PTR="$REPO_ROOT/.run.logfile"
 LOG_FILE=""
-if [[ -f "$LOGDIR_FILE" ]]; then
-    LOG_DIR_PATH=$(cat "$LOGDIR_FILE")
-    LOG_FILE="$LOG_DIR_PATH/app_$(date +%Y-%m-%d).log"
+if [[ -f "$LOGFILE_PTR" ]]; then
+    LOG_FILE=$(cat "$LOGFILE_PTR")
 fi
 
 if [[ "$P3_STATUS" != "OK" ]]; then
@@ -389,17 +399,13 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Phase 6: Cleanup (handled by EXIT trap)
+# Phase 6: Cleanup (log deletion handled by _cleanup EXIT trap)
 # ---------------------------------------------------------------------------
 echo ""
 echo "=== Phase 6: Cleanup ==="
 bash "$SCRIPT_DIR/run.sh" --stop || true
 # Remove .run.pid so EXIT trap won't double-stop
 rm -f "$REPO_ROOT/.run.pid"
-# Remove e2e log file — test logs should not accumulate
-if [[ -n "$LOG_FILE" && -f "$LOG_FILE" ]]; then
-    rm -f "$LOG_FILE"
-fi
 echo "[e2e] Phase 6: Done"
 
 # ---------------------------------------------------------------------------

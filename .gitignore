@@ -117,5 +117,7 @@ agents-v3/
 .claude/settings.json
 .omc
 .run.logdir
+.run.logfile
 *graphify*
 state/
+tmp/

@@ -13,6 +13,7 @@ from src.services.tts_service.tts_pipeline import synthesize_chunk
 from src.services.websocket_service.text_processors import (
     TextChunkProcessor,
     TTSTextProcessor,
+    strip_emotion_tags,
 )
 
 from .constants import INTERRUPT_WAIT_TIMEOUT, TOKEN_QUEUE_SENTINEL
@@ -45,7 +46,11 @@ class EventHandler:
 
                 if event_type == "stream_token":
                     await self._put_token_event(turn_id, event)
-                    await self.processor._put_event(turn_id, event)
+                    fe_event = {
+                        **event,
+                        "chunk": strip_emotion_tags(event.get("chunk", "")),
+                    }
+                    await self.processor._put_event(turn_id, fe_event)
                     continue
 
                 if event_type == "stream_start":
@@ -68,6 +73,10 @@ class EventHandler:
                     # Pop new_chats before forwarding — BaseMessage objects are not
                     # JSON-serializable and must not reach the WebSocket client.
                     event.pop("new_chats", [])
+
+                    # Strip emotion emojis from stream_end content — FE cannot render
+                    # them correctly (KI-23). TTS pipeline already received the original.
+                    event["content"] = strip_emotion_tags(event.get("content", ""))
 
                     # Capture turn metadata before complete_turn() in case the turn
                     # is removed from the turns dict in the future.

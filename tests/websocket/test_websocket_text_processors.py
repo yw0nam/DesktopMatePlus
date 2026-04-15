@@ -6,6 +6,7 @@ from src.services.websocket_service.text_processors import (
     TextChunkProcessor,
     TTSTextProcessor,
     build_sentence_pipeline,
+    strip_emotion_tags,
 )
 
 
@@ -170,3 +171,36 @@ class TestPipelineIntegration:
         texts = [item.filtered_text for item in processed]
         assert any("Hello" in t for t in texts)
         assert any("All set" in t for t in texts)
+
+
+class TestStripEmotionTags:
+    """KI-23: strip_emotion_tags removes known emotion emojis from raw stream tokens."""
+
+    def test_strips_known_emoji_at_start(self):
+        result = strip_emotion_tags("😊 안녕하세요!")
+        assert "😊" not in result
+        assert "안녕하세요" in result
+
+    def test_strips_known_emoji_mid_sentence(self):
+        result = strip_emotion_tags("hello 😭 world")
+        assert "😭" not in result
+        assert "hello" in result
+        assert "world" in result
+
+    def test_strips_multiple_known_emojis(self):
+        result = strip_emotion_tags("😊 hello 😠 world")
+        assert "😊" not in result
+        assert "😠" not in result
+        assert "hello" in result
+        assert "world" in result
+
+    def test_returns_text_unchanged_when_no_emoji(self):
+        text = "안녕하세요!"
+        assert strip_emotion_tags(text) == text
+
+    def test_empty_string_returns_empty_string(self):
+        assert strip_emotion_tags("") == ""
+
+    def test_only_emoji_returns_empty_or_whitespace(self):
+        result = strip_emotion_tags("😊")
+        assert "😊" not in result

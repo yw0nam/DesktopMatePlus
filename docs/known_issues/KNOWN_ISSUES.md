@@ -22,13 +22,6 @@
 
 ---
 
-### FE emotion tag rendering Issue
-
-- [ ] **KI-23** [Low] FE rendering: Emotion이 Unity FE에서 깨짐. stream token으로 FE에 쏠때, emotion tag를 삭제후 token을 쏴야함.
-
----
-
-
 ### PR #38 (`feat/proactive-talking`) — Proactive Talking
 
 - [ ] **KI-24** [Low] proactive: `IdleWatcher.scan_once()`가 idle connection을 순차 처리 — `trigger_proactive()` 완료까지 다음 connection 처리 차단. 현재 데스크톱 앱 단일 유저라 미발현. **해결 방향: `asyncio.create_task`로 trigger를 비동기 dispatch하여 connection 간 blocking 제거.**
@@ -40,6 +33,7 @@
 
 | Issue | PR | Summary | Resolution |
 |-------|-----|---------|------------|
+| KI-23 | — | stream_token FE 전달 시 emotion emoji 렌더링 깨짐 | `strip_emotion_tags()` 추가, `event_handlers.py`에서 FE 전달 전 emoji 제거 (TTS 파이프라인은 원본 유지) |
 | KI-18 | #30 | E2E 테스트 시 MongoDB 세션 누적 | `stm_session` fixture를 `yield` + teardown `DELETE`로 수정 |
 | KI-19 | #28 | `_ConcreteAgent.stream` 타입 시그니처 불일치 | `return` 제거, bare `yield`만 남겨 async generator로 수정 |
 | KI-20 | #28 | `/health` severity 직렬화 검증 부재 | `ErrorSeverity` enum 사용, `"severity" in module` assertion 추가 |
