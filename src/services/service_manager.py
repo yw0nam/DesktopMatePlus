@@ -12,8 +12,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
+    from src.services.agent_service.service import AgentService as AgentService
     from src.services.channel_service.slack_service import SlackService, SlackSettings
+    from src.services.proactive_service.proactive_service import ProactiveService
     from src.services.task_sweep_service.sweep import BackgroundSweepService
+    from src.services.websocket_service.manager.websocket_manager import (
+        WebSocketManager,
+    )
 
 import pymongo as _pymongo
 import yaml
@@ -40,6 +45,7 @@ _session_registry_instance: "SessionRegistry | None" = None
 _pending_task_repo_instance: PendingTaskRepository | None = None
 _user_profile_service_instance: UserProfileService | None = None
 _summary_service_instance: SummaryService | None = None
+_proactive_service_instance: "ProactiveService | None" = None
 
 T = TypeVar("T")
 
@@ -628,12 +634,73 @@ def initialize_sweep_service(
     )
 
 
+def initialize_proactive_service(
+    ws_manager: "WebSocketManager",
+    agent_service: "AgentService",
+    config_path: str | Path | None = None,
+) -> "ProactiveService":
+    """Build ProactiveService from YAML configuration.
+
+    Reads the ``proactive`` section from the services YAML config and optionally
+    loads per-persona ``idle_timeout_seconds`` overrides from personas.yml.
+
+    Args:
+        ws_manager: Initialized WebSocketManager instance (required).
+        agent_service: Initialized AgentService instance (required).
+        config_path: Path to services YAML config. If None, uses default.
+
+    Returns:
+        Configured ProactiveService (not yet started).
+    """
+    global _proactive_service_instance
+
+    from src.services.proactive_service.config import ProactiveConfig
+    from src.services.proactive_service.proactive_service import ProactiveService
+
+    proactive_cfg_dict = _load_service_yaml(
+        service_name="Proactive",
+        default_config_path=_BASE_YAML / "services.yml",
+        config_key="proactive",
+        config_path=config_path,
+    )
+
+    # Extract persona overrides from personas.yml
+    persona_overrides: dict[str, int] = {}
+    try:
+        personas_path = _BASE_YAML / "personas.yml"
+        if personas_path.exists():
+            with open(personas_path, encoding="utf-8") as f:
+                personas_data = yaml.safe_load(f) or {}
+            for pid, pdata in personas_data.get("personas", {}).items():
+                if "idle_timeout_seconds" in pdata:
+                    persona_overrides[pid] = pdata["idle_timeout_seconds"]
+    except Exception:
+        logger.exception("Failed to load persona idle_timeout overrides")
+
+    config = ProactiveConfig(**proactive_cfg_dict)
+
+    _proactive_service_instance = ProactiveService(
+        config=config,
+        ws_manager=ws_manager,
+        agent_service=agent_service,
+        persona_overrides=persona_overrides,
+    )
+    logger.info("ProactiveService initialized")
+    return _proactive_service_instance
+
+
+def get_proactive_service() -> "ProactiveService | None":
+    """Get the initialized ProactiveService instance."""
+    return _proactive_service_instance
+
+
 __all__ = [
     "get_agent_service",
     "get_emotion_motion_mapper",
     "get_ltm_service",
     "get_mongo_client",
     "get_mongo_db",
+    "get_proactive_service",
     "get_session_registry",
     "get_summary_service",
     "get_tts_service",
@@ -643,6 +710,7 @@ __all__ = [
     "initialize_emotion_motion_mapper",
     "initialize_ltm_service",
     "initialize_mongodb_client",
+    "initialize_proactive_service",
     "initialize_services",
     "initialize_summary_service",
     "initialize_sweep_service",
