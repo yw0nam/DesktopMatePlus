@@ -22,6 +22,20 @@
 
 ---
 
+### FE emotion tag rendering Issue
+
+- [ ] **KI-23** [Low] FE rendering: Emotion이 Unity FE에서 깨짐. stream token으로 FE에 쏠때, emotion tag를 삭제후 token을 쏴야함.
+
+---
+
+
+### PR #38 (`feat/proactive-talking`) — Proactive Talking
+
+- [ ] **KI-24** [Low] proactive: `IdleWatcher.scan_once()`가 idle connection을 순차 처리 — `trigger_proactive()` 완료까지 다음 connection 처리 차단. 현재 데스크톱 앱 단일 유저라 미발현. **해결 방향: `asyncio.create_task`로 trigger를 비동기 dispatch하여 connection 간 blocking 제거.**
+- [ ] **KI-25** [Low] proactive: `ScheduleManager._on_schedule_fire()`가 활성 connection에 순차 broadcast — 동일 원인. **해결 방향: `asyncio.gather`로 동시 broadcast.**
+
+---
+
 ## Resolved Issues
 
 | Issue | PR | Summary | Resolution |

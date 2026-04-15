@@ -14,7 +14,7 @@ DesktopMate+ backend — Python 3.13 / FastAPI server for AI desktop companion (
 - **Web Framework:** FastAPI
 - **Server:** Uvicorn
 - **Package Manager:** uv
-- **AI/LLM Framework:** LangChain (`langchain.agents.create_agent`), LangGraph
+- **AI/LLM Framework:** LangChain, LangGraph
 - **Memory/Vector DB:** Mem0, Qdrant, MongoDB
 - **Validation:** Pydantic V2
 - **Testing:** Pytest
