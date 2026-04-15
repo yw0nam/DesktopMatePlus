@@ -15,3 +15,7 @@ class ProactiveConfig(BaseModel):
     cooldown_seconds: int = Field(default=600, ge=0)
     watcher_interval_seconds: int = Field(default=30, ge=1)
     schedules: list[ScheduleEntry] = Field(default_factory=list)
+    persona_overrides: dict[str, int] = Field(
+        default_factory=dict,
+        description="Per-persona idle_timeout_seconds overrides. Takes precedence over personas.yml values.",
+    )

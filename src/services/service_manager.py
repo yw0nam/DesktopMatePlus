@@ -679,6 +679,12 @@ def initialize_proactive_service(
 
     config = ProactiveConfig(**proactive_cfg_dict)
 
+    # Config-level persona_overrides take precedence over personas.yml values.
+    # This allows environment-specific configs (e.g. services.e2e.yml) to
+    # override per-persona timeouts without modifying personas.yml.
+    if config.persona_overrides:
+        persona_overrides.update(config.persona_overrides)
+
     _proactive_service_instance = ProactiveService(
         config=config,
         ws_manager=ws_manager,

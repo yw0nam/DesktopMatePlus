@@ -228,11 +228,18 @@ fi
 CMD_ARGS=(uv run uvicorn "src.main:get_app" --factory --port "$PORT" --reload)
 
 if $BG_MODE; then
-    LOG_FILE="$LOG_DIR/app_$(date +%Y-%m-%d).log"
+    # E2E_LOG_FILE allows callers (e2e.sh) to use an isolated temp log path
+    # instead of the shared daily log file. This prevents cross-run contamination.
+    if [[ -n "${E2E_LOG_FILE:-}" ]]; then
+        LOG_FILE="$E2E_LOG_FILE"
+    else
+        LOG_FILE="$LOG_DIR/app_$(date +%Y-%m-%d).log"
+    fi
     echo "[run.sh] Starting in background on port $PORT (log: $LOG_FILE)"
     LOG_DIR="$LOG_DIR" nohup "${CMD_ARGS[@]}" >> "$LOG_FILE" 2>&1 &
     APP_PID=$!
     echo "$APP_PID" > "$REPO_ROOT/.run.pid"
+    echo "$LOG_FILE" > "$REPO_ROOT/.run.logfile"
     echo "[run.sh] PID $APP_PID written to .run.pid"
 else
     echo "[run.sh] Starting on port $PORT (foreground)"
