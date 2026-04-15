@@ -139,6 +139,11 @@ class MessageHandler:
             )
             return
 
+        # Update idle tracking timestamp
+        import time as _time
+
+        connection_state.last_user_message_at = _time.time()
+
         agent_service = get_agent_service()
 
         if agent_service is None:
@@ -155,6 +160,7 @@ class MessageHandler:
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
             persona_id = message_data.get("persona_id", "yuri")
+            connection_state.persona_id = persona_id
             # Extract session_id from client (None for new conversations)
             session_id = message_data.get("session_id")
             message_data.get("limit", 10)

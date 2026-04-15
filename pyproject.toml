@@ -55,6 +55,7 @@ dependencies = [
     "basedpyright>=1.39.0",
     "langchain-community>=0.4.1",
     "ddgs>=9.13.0",
+    "apscheduler>=3.11.2",
 ]
 
 [project.optional-dependencies]

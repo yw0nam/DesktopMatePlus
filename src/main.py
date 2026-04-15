@@ -4,6 +4,7 @@ import argparse
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import uvicorn
 import yaml
@@ -16,6 +17,10 @@ from src.api.routes import router as api_router
 from src.configs.settings import get_settings, initialize_settings
 from src.core.logger import setup_logging
 from src.core.middleware import RequestIDMiddleware
+
+if TYPE_CHECKING:
+    from src.services.proactive_service.proactive_service import ProactiveService
+    from src.services.task_sweep_service.sweep import BackgroundSweepService
 
 load_dotenv()
 
@@ -66,7 +71,9 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
 
     settings = get_settings()
 
-    async def _startup() -> "BackgroundSweepService | None":
+    async def _startup() -> (
+        "tuple[BackgroundSweepService | None, ProactiveService | None]"
+    ):
         log_level = os.getenv("LOG_LEVEL", "INFO")
         log_retention = os.getenv("LOG_RETENTION", "30 days")
         setup_logging(level=log_level, retention=log_retention)
@@ -79,6 +86,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
         logger.info(f"📊 Log level: {log_level} | Retention: {log_retention}")
 
         sweep_service: BackgroundSweepService | None = None
+        proactive_service: ProactiveService | None = None
 
         try:
             from src.services import (
@@ -163,17 +171,48 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             except Exception:
                 logger.exception("Failed to start background sweep service")
 
+            # Proactive talking service
+            try:
+                from src.services.service_manager import initialize_proactive_service
+                from src.services.websocket_service.manager import (
+                    websocket_manager as _ws_mgr,
+                )
+
+                agent_svc = get_agent_service()
+                if agent_svc is not None:
+                    proactive_service = initialize_proactive_service(
+                        ws_manager=_ws_mgr,
+                        agent_service=agent_svc,
+                        config_path=svc_config,
+                    )
+                    await proactive_service.start()
+                    logger.info("Proactive service started")
+                else:
+                    logger.warning(
+                        "Proactive service skipped: agent service not available"
+                    )
+            except Exception:
+                logger.exception("Failed to start proactive service")
+
         except Exception:
             logger.exception("⚠️  Failed to initialize services")
 
-        return sweep_service
+        return sweep_service, proactive_service
 
     async def _shutdown(
         sweep_service: "BackgroundSweepService | None",
+        proactive_service: "ProactiveService | None",
     ) -> None:
         logger.info(f"👋 Shutting down {settings.app_name}")
 
-        # Shutdown in reverse init order: sweep → channel → websocket → mongo
+        # Shutdown in reverse init order: proactive → sweep → channel → websocket → mongo
+
+        if proactive_service is not None:
+            try:
+                await proactive_service.stop()
+                logger.info("Proactive service stopped")
+            except Exception:
+                logger.exception("Error stopping proactive service")
 
         if sweep_service is not None:
             try:
@@ -224,9 +263,9 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """Manage application lifespan events."""
-        sweep_service = await _startup()
+        sweep_service, proactive_service = await _startup()
         yield
-        await _shutdown(sweep_service)
+        await _shutdown(sweep_service, proactive_service)
 
     # Create FastAPI application instance
     app = FastAPI(

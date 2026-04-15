@@ -180,6 +180,7 @@ class StreamStartMessage(BaseMessage):
     type: MessageType = MessageType.STREAM_START
     turn_id: str
     session_id: str
+    proactive: bool | None = None
 
 
 class StreamTokenMessage(BaseMessage):

@@ -25,5 +25,7 @@ class ConnectionState:
         self.last_ping_time: float | None = None
         self.last_pong_time: float | None = None
         self.user_id: str | None = None
+        self.persona_id: str = "yuri"
         self.created_at = time.time()
+        self.last_user_message_at: float = self.created_at
         self.message_processor: MessageProcessor | None = None
