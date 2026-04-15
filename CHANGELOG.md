@@ -17,6 +17,11 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Fixed
 
+- strip emotion emoji tags from `stream_token` chunks and `stream_end` content forwarded to Unity FE — FE cannot render emojis correctly (KI-23) (#39)
+- TTS pipeline receives original chunks with emojis intact for emotion detection (#39)
+- E2E test `test_stream_end_content_matches_tokens` updated to compare against stripped content (#39)
+- add `persona_overrides` to `ProactiveConfig` — env-specific per-persona idle timeouts without modifying `personas.yml` (#39)
+- e2e.sh: isolate log files per run using temp dir — prevents cross-run contamination from shared daily log (#39)
 - address PR review comments (#36)
 - fix persona_id="" bug in ProactiveService — now uses conn.persona_id instead of hardcoded empty string (#38)
 - fix persona-specific idle timeouts not applied during background scanning — IdleWatcher now passes get_persona_fn through _loop() (#38)
