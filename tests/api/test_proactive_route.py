@@ -48,6 +48,16 @@ class TestProactiveTriggerEndpoint:
         assert resp.status_code == 404
 
     @patch("src.api.routes.proactive.get_proactive_service")
+    def test_invalid_session_id_format_returns_400(self, mock_get, client):
+        mock_svc = MagicMock()
+        mock_get.return_value = mock_svc
+        resp = client.post(
+            "/v1/proactive/trigger",
+            json={"session_id": "not-a-uuid", "trigger_type": "webhook"},
+        )
+        assert resp.status_code == 400
+
+    @patch("src.api.routes.proactive.get_proactive_service")
     def test_successful_trigger(self, mock_get, client):
         mock_svc = MagicMock()
         conn_id = uuid4()

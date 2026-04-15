@@ -47,6 +47,10 @@ class ProactiveService:
             get_connections_fn=lambda: self._ws_manager.connections,
             trigger_fn=self.trigger_proactive,
             persona_overrides=self._persona_overrides,
+            get_persona_fn=lambda cid: (
+                getattr(self._ws_manager.connections.get(cid), "persona_id", "yuri")
+                or "yuri"
+            ),
         )
         self._schedule_manager = ScheduleManager(
             config=config,
@@ -83,6 +87,13 @@ class ProactiveService:
         conn = self._ws_manager.connections.get(connection_id)
         if conn is None or conn.is_closing:
             return {"status": "skipped", "reason": "connection not found"}
+
+        # Prune stale cooldown entries for disconnected connections
+        known = set(self._ws_manager.connections.keys())
+        if len(self._last_proactive_at) > len(known):
+            self._last_proactive_at = {
+                k: v for k, v in self._last_proactive_at.items() if k in known
+            }
 
         # 2. Active turn check
         mp = conn.message_processor
@@ -124,7 +135,7 @@ class ProactiveService:
             agent_stream = self._agent_service.stream(
                 messages=[SystemMessage(content=prompt_text)],
                 session_id=str(connection_id),
-                persona_id="",
+                persona_id=conn.persona_id,
                 user_id=conn.user_id or "unknown",
                 agent_id="proactive",
                 is_new_session=False,

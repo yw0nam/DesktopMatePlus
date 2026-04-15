@@ -18,6 +18,7 @@ def _make_connection(idle_seconds: float = 400.0):
     conn.is_closing = False
     conn.last_user_message_at = time.time() - idle_seconds
     conn.user_id = "test_user"
+    conn.persona_id = "yuri"
     conn.message_processor = MagicMock()
     conn.message_processor._current_turn_id = None
     conn.websocket = AsyncMock()
@@ -192,6 +193,31 @@ class TestTriggerProactive:
             context="important event",
         )
         assert result["status"] == "triggered"
+
+    async def test_persona_id_from_connection(self, proactive_service):
+        conn = _make_connection(idle_seconds=400.0)
+        conn.persona_id = "custom_persona"
+        proactive_service._ws_manager.connections = {conn.connection_id: conn}
+
+        stream_kwargs: list[dict] = []
+
+        async def recording_stream(**kwargs):
+            stream_kwargs.append(kwargs)
+            yield {"type": "stream_start", "turn_id": "t1", "session_id": "s1"}
+            yield {
+                "type": "stream_end",
+                "turn_id": "t1",
+                "session_id": "s1",
+                "content": "",
+                "new_chats": [],
+            }
+
+        proactive_service._agent_service.stream = recording_stream
+
+        await proactive_service.trigger_proactive(
+            connection_id=conn.connection_id, trigger_type="idle", idle_seconds=400
+        )
+        assert stream_kwargs[0]["persona_id"] == "custom_persona"
 
 
 class TestOnUserMessage:

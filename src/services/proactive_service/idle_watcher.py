@@ -26,11 +26,13 @@ class IdleWatcher:
         get_connections_fn: Callable[[], dict[UUID, ConnectionState]],
         trigger_fn: Callable[..., Any],
         persona_overrides: dict[str, int] | None = None,
+        get_persona_fn: Callable[[UUID], str] | None = None,
     ):
         self._config = config
         self._get_connections = get_connections_fn
         self._trigger = trigger_fn
         self._persona_overrides = persona_overrides or {}
+        self._get_persona_fn = get_persona_fn
         self._task: asyncio.Task | None = None
         self._triggered_connections: set[UUID] = set()
 
@@ -49,7 +51,7 @@ class IdleWatcher:
     async def _loop(self) -> None:
         while True:
             try:
-                await self.scan_once()
+                await self.scan_once(get_persona_fn=self._get_persona_fn)
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -64,6 +66,8 @@ class IdleWatcher:
         now = time.time()
         connections = self._get_connections()
 
+        self._triggered_connections &= connections.keys()
+
         for connection_id, conn in connections.items():
             if not conn.is_authenticated or conn.is_closing:
                 continue
@@ -72,8 +76,9 @@ class IdleWatcher:
                 continue
 
             timeout = self._config.idle_timeout_seconds
-            if get_persona_fn is not None:
-                persona = get_persona_fn(connection_id)
+            effective_fn = get_persona_fn or self._get_persona_fn
+            if effective_fn is not None:
+                persona = effective_fn(connection_id)
                 if persona in self._persona_overrides:
                     timeout = self._persona_overrides[persona]
 

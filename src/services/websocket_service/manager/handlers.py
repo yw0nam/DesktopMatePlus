@@ -160,6 +160,7 @@ class MessageHandler:
             agent_id = message_data.get("agent_id")
             user_id = message_data.get("user_id")
             persona_id = message_data.get("persona_id", "yuri")
+            connection_state.persona_id = persona_id
             # Extract session_id from client (None for new conversations)
             session_id = message_data.get("session_id")
             message_data.get("limit", 10)

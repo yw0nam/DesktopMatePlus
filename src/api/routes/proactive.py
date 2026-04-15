@@ -29,14 +29,15 @@ async def trigger_proactive(request: ProactiveTriggerRequest) -> JSONResponse:
             content={"status": "skipped", "reason": "proactive service not available"},
         )
 
-    # Find connection by session_id
-    connection_id: UUID | None = None
-    for cid, _conn in svc._ws_manager.connections.items():
-        if str(cid) == request.session_id:
-            connection_id = cid
-            break
+    try:
+        connection_id = UUID(request.session_id)
+    except ValueError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"status": "skipped", "reason": "invalid session_id format"},
+        )
 
-    if connection_id is None:
+    if connection_id not in svc._ws_manager.connections:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"status": "skipped", "reason": "session not found"},

@@ -22,6 +22,11 @@ class TestConnectionStateTimestamp:
         conn.last_user_message_at = now
         assert conn.last_user_message_at == now
 
+    def test_persona_id_defaults_to_yuri(self):
+        ws = MagicMock()
+        conn = ConnectionState(ws, uuid4())
+        assert conn.persona_id == "yuri"
+
 
 def _make_connection(idle_seconds: float = 400.0):
     conn = MagicMock()
@@ -30,6 +35,7 @@ def _make_connection(idle_seconds: float = 400.0):
     conn.last_user_message_at = time.time() - idle_seconds
     conn.connection_id = uuid4()
     conn.user_id = "test_user"
+    conn.persona_id = "yuri"
     conn.message_processor = MagicMock()
     conn.message_processor._current_turn_id = None
     return conn
@@ -138,3 +144,17 @@ class TestIdleWatcher:
         watcher.reset_connection(conn.connection_id)
         await watcher.scan_once()
         assert trigger_fn.call_count == 2
+
+    async def test_get_persona_fn_constructor_param(self):
+        conn = _make_connection(idle_seconds=200.0)
+        trigger_fn = AsyncMock()
+        config = ProactiveConfig(idle_timeout_seconds=300, watcher_interval_seconds=1)
+        watcher = IdleWatcher(
+            config=config,
+            get_connections_fn=lambda: {conn.connection_id: conn},
+            trigger_fn=trigger_fn,
+            persona_overrides={"yuri": 150},
+            get_persona_fn=lambda cid: "yuri",
+        )
+        await watcher.scan_once()
+        trigger_fn.assert_called_once()
