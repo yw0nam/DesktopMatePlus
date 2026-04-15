@@ -74,6 +74,10 @@ class EventHandler:
                     # JSON-serializable and must not reach the WebSocket client.
                     event.pop("new_chats", [])
 
+                    # Strip emotion emojis from stream_end content — FE cannot render
+                    # them correctly (KI-23). TTS pipeline already received the original.
+                    event["content"] = strip_emotion_tags(event.get("content", ""))
+
                     # Capture turn metadata before complete_turn() in case the turn
                     # is removed from the turns dict in the future.
                     self.processor.turns.get(turn_id)
