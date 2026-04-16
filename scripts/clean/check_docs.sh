@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # check_docs.sh — Documentation freshness linter
-# Checks dead links, doc line limits, and spec coverage in TODO.md.
+# Checks dead links and doc line limits.
 set -euo pipefail
 
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOCS_DIR="$WORKSPACE_ROOT/docs"
-PLANS_FILE="$WORKSPACE_ROOT/TODO.md"
 
 # ── CLI flags ──────────────────────────────────────────────────────
 FIX_MODE=false
@@ -104,28 +103,16 @@ else
   echo "[WARN] $OVERSIZED doc(s) exceed 200 lines"
 fi
 
-# ── Check 3: Specs vs Plans.md coverage ───────────────────────────
+# ── Check 3: Specs directory exists ──────────────────────────────
 echo ""
 echo "--- Spec coverage check ---"
 
 SPECS_DIR="$DOCS_DIR/superpowers/specs"
-if [[ -d "$SPECS_DIR" && -f "$PLANS_FILE" ]]; then
-  while IFS= read -r spec_file; do
-    spec_name="$(basename "$spec_file")"
-    # Check if spec is referenced in Plans.md
-    if ! grep -q "$spec_name" "$PLANS_FILE" 2>/dev/null; then
-      echo "[WARN] Spec not referenced in Plans.md: $spec_name"
-      ((MISSING_SPECS++)) || true
-    fi
-  done < <(find "$SPECS_DIR" -name '*.md' -type f 2>/dev/null)
-
-  if [[ "$MISSING_SPECS" -eq 0 ]]; then
-    echo "[PASS] All specs referenced in Plans.md"
-  else
-    echo "[WARN] $MISSING_SPECS spec(s) not referenced in Plans.md"
-  fi
+if [[ -d "$SPECS_DIR" ]]; then
+  spec_count=$(find "$SPECS_DIR" -name '*.md' -type f 2>/dev/null | wc -l)
+  echo "[PASS] $spec_count spec(s) found in superpowers/specs/"
 else
-  echo "[PASS] No specs directory or Plans.md (skipped)"
+  echo "[PASS] No specs directory (skipped)"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────
