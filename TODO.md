@@ -2,6 +2,10 @@
 
 > 완료된 작업은 `docs/release_notes/`에 보관됩니다.
 
+## 기술 부채 관리
+
+- [ ] KNOWN_ISSUES.md → GitHub Issues 마이그레이션 — 기존 open 이슈 `gh issue create`로 이전, severity/component label 체계 수립, KNOWN_ISSUES.md 제거, CLAUDE.md 링크 교체 `cc:TODO`
+
 ## MCP 서버 연결
 
 - [ ] MCP code-sandbox 서버 연결 — `pydantic/mcp-run-python` (Docker 격리) `cc:TODO`
