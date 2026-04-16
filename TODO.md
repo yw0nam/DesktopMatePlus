@@ -4,7 +4,7 @@
 
 ## 기술 부채 관리
 
-- [ ] KNOWN_ISSUES.md → GitHub Issues 마이그레이션 — 기존 open 이슈 `gh issue create`로 이전, severity/component label 체계 수립, KNOWN_ISSUES.md 제거, CLAUDE.md 링크 교체 `cc:TODO`
+- [ ] TODO.md + KNOWN_ISSUES.md → GitHub Issues 통합 마이그레이션 — 기존 open 항목 전량 `gh issue create`로 이전, label 체계 수립 (`type:feature`/`type:tech-debt`, `severity:*`, `component:*`), 완료된 항목은 이전하지 않음, TODO.md + KNOWN_ISSUES.md 제거, CLAUDE.md Task Tracking/Appendix 섹션을 GitHub Issues 링크로 교체 `cc:TODO`
 
 ## MCP 서버 연결
 
