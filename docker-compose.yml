@@ -3,6 +3,9 @@ services:
     build: .
     volumes:
       - ./resources:/app/resources
+      - ./src:/app/src
+      - ./yaml_files:/app/yaml_files
+      - ./logs:/app/logs
     ports:
       - "5500:5500"
     env_file:

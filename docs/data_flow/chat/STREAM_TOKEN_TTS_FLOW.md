@@ -37,14 +37,18 @@ agent_service.stream()
 ```
 producer(agent_stream):
   stream_token event
-    ├─ token_queue.put(event)    # consumer가 TTS 처리에 사용
-    └─ event_queue.put(event)    # client에 즉시 전달
+    ├─ token_queue.put(event)           # consumer가 TTS 처리에 사용 (원본 chunk, 이모지 포함)
+    └─ event_queue.put(fe_event)        # client에 전달 (chunk에서 emotion emoji 제거됨)
 ```
+
+**KI-23**: Unity FE가 emotion emoji(😊, 😭 등)를 렌더링하지 못해 `strip_emotion_tags()`로 FE 전달 전 chunk에서 제거. TTS 파이프라인은 원본 chunk를 받아 emotion detection에 사용.
 
 `stream_token` 이벤트 schema:
 ```json
 { "type": "stream_token", "chunk": "str", "turn_id": "uuid", "node": "str|null" }
 ```
+- FE 전달 시: `chunk`에서 emotion emoji 제거 (`strip_emotion_tags`)
+- TTS 전달 시: `chunk` 원본 유지 (emotion detection용)
 
 ### 2-3. tts_chunk 생성 흐름
 
@@ -89,8 +93,9 @@ producer: stream_end 수신
 
 `stream_end` 이벤트 schema:
 ```json
-{ "type": "stream_end", "session_id": "uuid", "content": "전체 응답 텍스트" }
+{ "type": "stream_end", "session_id": "uuid", "content": "전체 응답 텍스트 (emotion emoji 제거됨)" }
 ```
+- `content` 필드에도 `strip_emotion_tags()` 적용 (KI-23). TTS 파이프라인은 이미 원본을 처리 완료한 시점.
 
 ## 3. 전체 시퀀스
 
@@ -114,9 +119,9 @@ sequenceDiagram
     FWD-->>Client: stream_start
 
     loop 토큰 스트리밍
-        Agent-->>Prod: stream_token(chunk)
-        Prod->>Cons: token_queue ← stream_token
-        Prod->>FWD: event_queue ← stream_token
+        Agent-->>Prod: stream_token(chunk_with_emoji)
+        Prod->>Cons: token_queue ← stream_token (원본, 이모지 포함)
+        Prod->>FWD: event_queue ← stream_token (chunk에서 이모지 제거)
         FWD-->>Client: stream_token
 
         Cons->>Cons: 문장 완성 감지
@@ -156,4 +161,5 @@ sequenceDiagram
 
 ### C. PatchNote
 
+2026-04-15: KI-23 반영 — `stream_token`/`stream_end`의 `chunk`/`content`에서 emotion emoji 제거 (`strip_emotion_tags`). TTS 파이프라인은 원본 유지.
 2026-04-08: 최초 작성. stream_token + tts_chunk 파이프라인 코드베이스 추적 기반.
