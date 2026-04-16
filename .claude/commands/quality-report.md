@@ -1,6 +1,6 @@
 # /quality-report — Daily Quality Check
 
-일일 품질 점검. garden.sh + check_docs.sh + stale TODO 탐지 + QUALITY_SCORE.md 갱신 후 리포트 PR 생성.
+일일 품질 점검. garden.sh + check_docs.sh + stale issue 탐지 + QUALITY_SCORE.md 갱신 후 리포트 PR 생성.
 
 ## 실행 순서
 
