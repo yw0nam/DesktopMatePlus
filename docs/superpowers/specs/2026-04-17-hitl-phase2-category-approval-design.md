@@ -52,8 +52,8 @@ agent:
   # MCP tools are dynamically loaded from external servers.
   # Default to dangerous since their behavior is unknown at config time.
   # Only override tools that have been verified as safe.
-  mcp_default_hitl_category: dangerous
-  mcp_hitl_overrides: {}
+  mcp_default_category: dangerous
+  mcp_overrides: {}
 ```
 
 ## Code Changes
@@ -72,7 +72,7 @@ class ToolCategory(str, Enum):
 
 ### 2. Config Model Changes (`src/configs/agent/openai_chat_agent.py`)
 
-Add `default_hitl_category` and `hitl_overrides` fields to each tool config model. Add `mcp_default_hitl_category` and `mcp_hitl_overrides` to the top-level agent config.
+Add `default_hitl_category` and `hitl_overrides` fields to each tool config model. Add `mcp_default_category` and `mcp_overrides` to the top-level agent config.
 
 ```python
 class FileSystemToolConfig(BaseModel):
@@ -135,9 +135,9 @@ _DEFAULT_CATEGORIES (ALL builtin tools — explicit name-to-category mapping)
   ↓ merge
 YAML builtin_tools hitl_overrides (per-tool exceptions from config)
   ↓ merge
-MCP tools → all set to mcp_default_hitl_category
+MCP tools → all set to mcp_default_category
   ↓ merge
-YAML mcp_hitl_overrides (per-tool exceptions)
+YAML mcp_overrides (per-tool exceptions)
   = final category_map: dict[str, ToolCategory]
 ```
 
