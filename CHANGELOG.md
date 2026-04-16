@@ -6,6 +6,10 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- add HITL gate flow and proactive trigger data flow docs; Docker UID fix and dev volume mounts; services.docker.yml proactive config (#40)
+
 ### Added
 
 - implement Human-in-the-Loop approval gate for dangerous tool calls (#36)
