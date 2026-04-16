@@ -8,6 +8,7 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Changed
 
+- migrate TODO.md + KNOWN_ISSUES.md to GitHub Issues — label taxonomy, milestones, script/doc references updated
 - add HITL gate flow and proactive trigger data flow docs; Docker UID fix and dev volume mounts; services.docker.yml proactive config (#40)
 
 ### Added
