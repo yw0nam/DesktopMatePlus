@@ -15,8 +15,8 @@
 > 조사 문서: [docs/todo/proactive-talking.md](docs/todo/proactive-talking.md)
 
 - [ ] Phase 1: Idle timer 트리거 — 일정 시간 무입력 시 자동 발화 `cc:TODO`
-- [ ] Phase 2: APScheduler 기반 시각 트리거 — 특정 시각 인사/알림 `cc:TODO`
-- [ ] Phase 3: 외부 웹훅 트리거 — `POST /v1/proactive/trigger` `cc:TODO`
+- [x] Phase 2: APScheduler 기반 시각 트리거 — 특정 시각 인사/알림 cc:DONE — PR #38`
+- [x] Phase 3: 외부 웹훅 트리거 — POST /v1/proactive/trigger cc:DONE — PR #38`
 
 ## Human in the Loop (HitL)
 
