@@ -1,16 +1,14 @@
 ---
-name: Proposal
-about: "Suggest a new feature or improve an existing one"
-labels: [enhancement]
+name: Feature Request
+about: "Suggest a new feature or improvement"
+labels: [type:feature]
 ---
 
-- [ ] I searched existing issues and discussions and found no duplicate
+- [ ] I searched existing issues and found no duplicate
 
 ## Type
 
-Is this a new feature or an improvement to an existing one?
-
-<!-- new feature / improvement to existing feature -->
+<!-- new feature / improvement to existing feature / idea -->
 
 ## Problem / Current Behavior
 
@@ -20,9 +18,9 @@ What problem does this solve, or what existing behavior would you like to change
 
 How would you like it to work?
 
-## Affected Area
+## Component
 
-<!-- engine / packages / mods / docs / website / ci/build / other -->
+<!-- backend / desktop-homunculus / nanoclaw / infra / other -->
 
 ## Alternatives Considered
 
