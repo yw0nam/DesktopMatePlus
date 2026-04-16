@@ -96,7 +96,7 @@ sequenceDiagram
     end
 ```
 
-## 3. Usage
+## 4. Usage
 
 ### Webhook Trigger
 

@@ -118,7 +118,7 @@ sequenceDiagram
     end
 ```
 
-## 3. Usage
+## 4. Usage
 
 ### FE → hitl_response 메시지 형식
 
@@ -159,10 +159,10 @@ sequenceDiagram
 ### B. Middleware Chain Order
 
 ```
-ToolGate → Delegate → LTM → Profile → Summary → TaskStatus → HitL
+ToolGate → HitL → Delegate → Profile → Summary → LTM → TaskStatus
 ```
 
-HitL은 chain 마지막에 위치 — 모든 다른 middleware가 tool call 전에 실행된 후 최종 게이트로 동작.
+HitL은 ToolGate 바로 다음(2번째)에 위치 — 위험 도구 호출을 조기에 차단하여 불필요한 downstream middleware 실행을 방지.
 
 ### C. 제약 사항
 

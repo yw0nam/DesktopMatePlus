@@ -64,10 +64,10 @@ sequenceDiagram
 ### Middleware Chain Order
 
 ```
-ToolGate → Delegate → LTM → Profile → Summary → TaskStatus → HitL
+ToolGate → HitL → Delegate → Profile → Summary → LTM → TaskStatus
 ```
 
-- **HitLMiddleware** (PR #36): chain 마지막 위치. MCP 도구 + `delegate_task` 호출 시 `interrupt()`로 FE 승인 게이트. Safe 도구(`search_memory`, `update_user_profile`)는 통과.
+- **HitLMiddleware** (PR #36): ToolGate 다음 2번째 위치. MCP 도구 + `delegate_task` 호출 시 `interrupt()`로 FE 승인 게이트. Safe 도구(`search_memory`, `update_user_profile`)는 통과.
 
 ### 2-2. 제약 및 주의 사항 (Constraints)
 
