@@ -29,6 +29,12 @@
 
 ---
 
+### PR #40 (`docs/data-flow-update`) — Docs / Config
+
+- [ ] **KI-26** [Low] docs: `CLAUDE.md` "Agent Middleware Chain" 섹션의 미들웨어 순서가 구버전 — `ToolGate → Delegate → LTM → Profile → Summary → TaskStatus`로 기재되어 있으나 실제 코드(`openai_chat_agent.py:171`)는 `ToolGate → HitL → Delegate → Profile → Summary → LTM → TaskStatus`. HitL 미기재 및 before_model 훅 순서(LTM↔Profile) 오류. **해결 방향: `CLAUDE.md` ARCHITECTURAL PATTERNS 섹션 해당 라인 수정.**
+
+---
+
 ## Resolved Issues
 
 | Issue | PR | Summary | Resolution |
