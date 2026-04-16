@@ -18,7 +18,7 @@ What currently happens, and why it's a problem (or potential problem).
 
 ## Component
 
-<!-- backend / desktop-homunculus / nanoclaw / infra / other -->
+<!-- agent / websocket / proactive / tts / docker / mcp / channel / memory / other -->
 
 ## Resolution Direction
 

@@ -25,7 +25,7 @@ Minimal steps to reproduce the issue.
 
 ## Component
 
-<!-- backend / desktop-homunculus / nanoclaw / infra / other -->
+<!-- agent / websocket / proactive / tts / docker / mcp / channel / memory / other -->
 
 ## Environment
 

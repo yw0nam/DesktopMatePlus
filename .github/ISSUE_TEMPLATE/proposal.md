@@ -20,7 +20,7 @@ How would you like it to work?
 
 ## Component
 
-<!-- backend / desktop-homunculus / nanoclaw / infra / other -->
+<!-- agent / websocket / proactive / tts / docker / mcp / channel / memory / other -->
 
 ## Alternatives Considered
 
