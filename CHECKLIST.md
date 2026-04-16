@@ -1,6 +1,6 @@
 # Task Completion Checklist (DoD)
 
-Every task MUST pass all phases before marking `cc:DONE`.
+Every task MUST pass all phases before closing the GitHub Issue.
 
 ## Full E2E check (preferred)
 
