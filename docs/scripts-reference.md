@@ -42,7 +42,7 @@ bash scripts/clean/check_docs.sh [--fix] [--dry-run]
 
 - `docs/` 내 마크다운 dead link 탐지
 - 200줄 초과 파일 경고
-- `TODO.md` cc:DONE 태스크의 spec-ref 유효성 확인 (GP-9/10)
+- GitHub Issues의 open/closed 상태 기반 검증 (GP-9/10)
 - `docs/superpowers/` 는 스캔 제외
 
 ---

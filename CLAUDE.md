@@ -177,13 +177,12 @@ uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
 
 ## Task Tracking
 
-- Tasks tracked in `TODO.md` with `cc:TODO` / `cc:WIP` / `cc:DONE` markers.
+- Tasks and known issues tracked via [GitHub Issues](https://github.com/yw0nam/DesktopMatePlus/issues) with label taxonomy (`type:*`, `severity:*`, `component:*`).
 
 ## Appendix
 
-- [TODO](./TODO.md): Active task checklist (cc:TODO / cc:WIP / cc:DONE markers).
+- [GitHub Issues](https://github.com/yw0nam/DesktopMatePlus/issues): Task and tech-debt tracking.
 - [Golden Principles](./docs/GOLDEN_PRINCIPLES.md): 10 architectural invariants enforced by garden.sh.
 - [Quality Score](./docs/QUALITY_SCORE.md): GP verification grade matrix.
-- [Known Issues](./docs/known_issues/KNOWN_ISSUES.md): 기술 부채 추적.
 - [Release Notes](./docs/release_notes/): 완료된 작업 이력 보관.
 - [Scripts Reference](./docs/scripts-reference.md): scripts/clean/ 스크립트 레퍼런스.
