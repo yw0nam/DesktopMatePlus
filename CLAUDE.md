@@ -178,6 +178,7 @@ uv run uvicorn "src.main:get_app" --factory --port 5500 --reload
 ## Task Tracking
 
 - Tasks and known issues tracked via [GitHub Issues](https://github.com/yw0nam/DesktopMatePlus/issues) with label taxonomy (`type:*`, `severity:*`, `component:*`).
+- Issue/PR 생성 시 반드시 [Issue Templates](./.github/ISSUE_TEMPLATE/)와 [PR Template](./.github/pull_request_template.md) 형식을 따른다.
 
 ## Appendix
 
