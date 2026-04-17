@@ -10,6 +10,8 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 - migrate TODO.md + KNOWN_ISSUES.md to GitHub Issues — label taxonomy, milestones, script/doc references updated
 - add HITL gate flow and proactive trigger data flow docs; Docker UID fix and dev volume mounts; services.docker.yml proactive config (#40)
+- HitL Phase 2 — `HitLMiddleware` switched from binary dangerous/safe to a category-driven gate; READ_ONLY bypasses approval, all other categories interrupt. Unknown tools fail closed to DANGEROUS (#42, #60)
+- `extra="forbid"` enforced on `FilesystemToolConfig`/`ShellToolConfig`/`WebSearchToolConfig`/`OpenAIChatAgentConfig` so stale YAML keys fail at startup (#42, #60)
 
 ### Added
 
@@ -19,9 +21,16 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 - add persona_id field to ConnectionState for per-connection persona tracking (#38)
 - add POST /v1/proactive/trigger webhook endpoint with 200/400/404/503 responses (#38)
 - add E2E tests for proactive webhook trigger and idle timeout (#38)
+- `ToolCategory` enum (`read_only`/`state_mutating`/`external`/`dangerous`) + `category` field on `HitLRequestMessage` for client-side UX differentiation (#42, #60)
+- per-builtin `hitl_overrides` + `mcp_default_hitl_category` + `mcp_hitl_overrides` YAML configuration, with operator warning when an MCP tool name shadows a built-in category (#42, #60)
+- structural test `test_default_categories_coverage.py` enforcing that every built-in tool has a category entry (#42, #60)
+- deterministic E2E test `test_read_only_tool_bypasses_hitl_via_middleware` verifying `interrupt()` is skipped for READ_ONLY tools (#42, #60)
 
 ### Fixed
 
+- HitL interrupt payload without `category` now warns before fail-closed fallback to DANGEROUS (#42, #60)
+- `scripts/e2e.sh`: preserve log on exit and sweep stale logs at next run start — enables post-hoc investigation of failed runs (#42, #60)
+- `logger.warning(..., exc_info=True)` silently dropped tracebacks (loguru ignores the stdlib kwarg) — switched to `logger.opt(exception=True)` in `openai_chat_agent.py`; added `{exception}` to file format and `backtrace=True`/`diagnose=True` on both sinks (#42, #60)
 - strip emotion emoji tags from `stream_token` chunks and `stream_end` content forwarded to Unity FE — FE cannot render emojis correctly (KI-23) (#39)
 - TTS pipeline receives original chunks with emojis intact for emotion detection (#39)
 - E2E test `test_stream_end_content_matches_tokens` updated to compare against stripped content (#39)
