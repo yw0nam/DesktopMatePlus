@@ -1,95 +1,117 @@
-"""Unit tests for HitLMiddleware."""
+"""Unit tests for HitLMiddleware (Phase 2 — category-based)."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.models.websocket import ToolCategory
 from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
 
 
-class TestHitLMiddleware:
-    """Test HitL middleware tool classification and interrupt behavior."""
-
-    def _make_middleware(
-        self, mcp_tool_names: set[str] | None = None
+class TestHitLMiddlewareCategory:
+    def _mw(
+        self, category_map: dict[str, ToolCategory] | None = None
     ) -> HitLMiddleware:
-        """Create middleware with given MCP tool names."""
-        return HitLMiddleware(mcp_tool_names=mcp_tool_names or set())
+        return HitLMiddleware(category_map=category_map or {})
 
-    def test_safe_tool_passes_through(self):
-        """Built-in tools should pass through without interrupt."""
-        mw = self._make_middleware(mcp_tool_names={"mcp_search"})
-        assert not mw.is_dangerous("memory_search")
-        assert not mw.is_dangerous("update_user_profile")
-        assert not mw.is_dangerous("some_builtin_tool")
+    def test_get_category_returns_mapped(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
+        assert mw.get_category("read_file") == ToolCategory.READ_ONLY
 
-    def test_mcp_tool_is_dangerous(self):
-        """MCP tools should be classified as dangerous."""
-        mw = self._make_middleware(mcp_tool_names={"mcp_search", "mcp_write"})
-        assert mw.is_dangerous("mcp_search")
-        assert mw.is_dangerous("mcp_write")
+    def test_get_category_unknown_is_dangerous(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
+        assert mw.get_category("ghost_tool") == ToolCategory.DANGEROUS
 
-    def test_delegate_tool_is_dangerous(self):
-        """delegate_task tool should always be dangerous."""
-        mw = self._make_middleware()
-        assert mw.is_dangerous("delegate_task")
+    def test_requires_approval_bypasses_read_only(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
+        assert mw.requires_approval("read_file") is False
 
-    def test_builtin_tool_is_safe(self):
-        """Tools not in deny list should be safe."""
-        mw = self._make_middleware(mcp_tool_names={"mcp_tool"})
-        assert not mw.is_dangerous("terminal")
-        assert not mw.is_dangerous("read_file")
+    @pytest.mark.parametrize(
+        "cat",
+        [ToolCategory.STATE_MUTATING, ToolCategory.EXTERNAL, ToolCategory.DANGEROUS],
+    )
+    def test_requires_approval_true_for_non_bypass(self, cat: ToolCategory):
+        mw = self._mw({"t": cat})
+        assert mw.requires_approval("t") is True
+
+
+class TestHitLMiddlewareInterrupt:
+    def _mw(self, category_map: dict[str, ToolCategory]) -> HitLMiddleware:
+        return HitLMiddleware(category_map=category_map)
 
     @pytest.mark.asyncio
-    async def test_safe_tool_calls_handler(self):
-        """Safe tools should call handler directly."""
-        mw = self._make_middleware(mcp_tool_names={"mcp_tool"})
+    async def test_read_only_tool_calls_handler_without_interrupt(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
         request = MagicMock()
-        request.tool_call = {"name": "safe_tool", "args": {"key": "value"}}
-        handler = AsyncMock(return_value="tool result")
+        request.tool_call = {"name": "read_file", "args": {"path": "/tmp/x"}}
+        handler = AsyncMock(return_value="contents")
 
         result = await mw.awrap_tool_call(request, handler)
 
         handler.assert_awaited_once_with(request)
-        assert result == "tool result"
+        assert result == "contents"
 
     @pytest.mark.asyncio
-    async def test_dangerous_tool_triggers_interrupt(self):
-        """Dangerous tools should call interrupt()."""
-        mw = self._make_middleware(mcp_tool_names={"mcp_search"})
+    @pytest.mark.parametrize(
+        "category",
+        [ToolCategory.STATE_MUTATING, ToolCategory.EXTERNAL, ToolCategory.DANGEROUS],
+    )
+    async def test_non_bypass_category_interrupts_with_category_payload(
+        self, category: ToolCategory
+    ):
+        mw = self._mw({"write_file": category})
         request = MagicMock()
-        request.tool_call = {"name": "mcp_search", "args": {"query": "test"}}
-        handler = AsyncMock(return_value="tool result")
+        request.tool_call = {"name": "write_file", "args": {"path": "/tmp/x"}}
+        handler = AsyncMock(return_value="ok")
 
         with patch(
             "src.services.agent_service.middleware.hitl_middleware.interrupt",
-            return_value={"approved": True, "request_id": "test-123"},
+            return_value={"approved": True, "request_id": "r-1"},
         ) as mock_interrupt:
             result = await mw.awrap_tool_call(request, handler)
 
-            mock_interrupt.assert_called_once()
-            call_args = mock_interrupt.call_args[0][0]
-            assert call_args["tool_name"] == "mcp_search"
-            assert call_args["tool_args"] == {"query": "test"}
-            assert "request_id" in call_args
+            call_payload = mock_interrupt.call_args[0][0]
+            assert call_payload["tool_name"] == "write_file"
+            assert call_payload["tool_args"] == {"path": "/tmp/x"}
+            assert call_payload["category"] == category.value
+            assert "request_id" in call_payload
 
-        # After approval, handler should be called
         handler.assert_awaited_once_with(request)
-        assert result == "tool result"
+        assert result == "ok"
 
     @pytest.mark.asyncio
-    async def test_deny_returns_error_string(self):
-        """Denied tools should return error string without calling handler."""
-        mw = self._make_middleware(mcp_tool_names={"mcp_search"})
+    async def test_unknown_tool_treated_as_dangerous(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
         request = MagicMock()
-        request.tool_call = {"name": "mcp_search", "args": {}}
+        request.tool_call = {"name": "ghost_tool", "args": {}}
         handler = AsyncMock()
 
         with patch(
             "src.services.agent_service.middleware.hitl_middleware.interrupt",
-            return_value={"approved": False, "request_id": "test-456"},
+            return_value={"approved": False, "request_id": "r-2"},
+        ) as mock_interrupt:
+            result = await mw.awrap_tool_call(request, handler)
+
+            assert (
+                mock_interrupt.call_args[0][0]["category"]
+                == ToolCategory.DANGEROUS.value
+            )
+
+        handler.assert_not_awaited()
+        assert "ghost_tool" in result.lower() or "거부" in result
+
+    @pytest.mark.asyncio
+    async def test_denied_returns_error_string_without_handler(self):
+        mw = self._mw({"write_file": ToolCategory.STATE_MUTATING})
+        request = MagicMock()
+        request.tool_call = {"name": "write_file", "args": {}}
+        handler = AsyncMock()
+
+        with patch(
+            "src.services.agent_service.middleware.hitl_middleware.interrupt",
+            return_value={"approved": False, "request_id": "r-3"},
         ):
             result = await mw.awrap_tool_call(request, handler)
 
         handler.assert_not_awaited()
-        assert "denied" in result.lower() or "mcp_search" in result.lower()
+        assert isinstance(result, str)
