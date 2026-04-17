@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from src.models.websocket import ToolCategory
 from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
 
 
@@ -242,3 +243,44 @@ class TestResumeAfterApproval:
         assert hitl_events[0]["request_id"] == "req-456"
         # Should NOT have stream_end after interrupt
         assert "stream_end" not in event_types
+
+
+class TestConsumeAstreamCategory:
+    @pytest.mark.asyncio
+    async def test_hitl_request_event_includes_category(self):
+        fake_interrupt = MagicMock()
+        fake_interrupt.value = {
+            "request_id": "r-1",
+            "tool_name": "write_file",
+            "tool_args": {"path": "/tmp/x"},
+            "category": ToolCategory.STATE_MUTATING.value,
+        }
+
+        async def fake_astream():
+            yield ("updates", {"__interrupt__": [fake_interrupt]})
+
+        agent = _make_agent()
+        events = [e async for e in agent._consume_astream(fake_astream(), "sess-1")]
+
+        assert events, "no events yielded"
+        evt = events[0]
+        assert evt["type"] == "hitl_request"
+        assert evt["category"] == ToolCategory.STATE_MUTATING.value
+        assert evt["session_id"] == "sess-1"
+
+    @pytest.mark.asyncio
+    async def test_hitl_request_event_falls_back_to_dangerous(self):
+        fake_interrupt = MagicMock()
+        fake_interrupt.value = {
+            "request_id": "r-2",
+            "tool_name": "legacy_tool",
+            "tool_args": {},
+        }
+
+        async def fake_astream():
+            yield ("updates", {"__interrupt__": [fake_interrupt]})
+
+        agent = _make_agent()
+        events = [e async for e in agent._consume_astream(fake_astream(), "sess-2")]
+
+        assert events[0]["category"] == ToolCategory.DANGEROUS.value

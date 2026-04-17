@@ -463,6 +463,11 @@ class OpenAIChatAgent(AgentService):
                             "tool_name": interrupt_value["tool_name"],
                             "tool_args": interrupt_value["tool_args"],
                             "session_id": session_id,
+                            # fail-closed: handles interrupts from older checkpoints
+                            # or any middleware that did not set `category`
+                            "category": interrupt_value.get(
+                                "category", ToolCategory.DANGEROUS.value
+                            ),
                         }
                         return
 
