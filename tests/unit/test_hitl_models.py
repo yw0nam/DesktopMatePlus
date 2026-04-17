@@ -68,14 +68,15 @@ class TestHitLRequestMessage:
 
 
 class TestToolCategoryEnum:
-    def test_enum_values_are_strings(self):
-        assert ToolCategory.READ_ONLY.value == "read_only"
-        assert ToolCategory.STATE_MUTATING.value == "state_mutating"
-        assert ToolCategory.EXTERNAL.value == "external"
-        assert ToolCategory.DANGEROUS.value == "dangerous"
+    def test_enum_values_use_snake_case_names(self):
+        """All values follow the snake-cased version of the member name."""
+        for member in ToolCategory:
+            assert member.value == member.name.lower()
 
-    def test_enum_is_str_subclass(self):
-        assert isinstance(ToolCategory.READ_ONLY, str)
+    def test_enum_is_usable_as_str(self):
+        """Wire format is string — direct comparison must work without .value."""
+        assert ToolCategory.READ_ONLY == "read_only"
+        assert ToolCategory.DANGEROUS == "dangerous"
 
 
 class TestHitLRequestMessageCategory:

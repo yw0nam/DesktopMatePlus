@@ -16,10 +16,10 @@ class ToolCategory(StrEnum):
     See docs/superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md.
     """
 
-    READ_ONLY = "read_only"
-    STATE_MUTATING = "state_mutating"
-    EXTERNAL = "external"
-    DANGEROUS = "dangerous"
+    READ_ONLY = "read_only"  # 상태를 변경하지 않는 조회성 도구 (bypass)
+    STATE_MUTATING = "state_mutating"  # 로컬 상태 변경 (파일/메모리/DB 쓰기)
+    EXTERNAL = "external"  # 다른 에이전트/샌드박스 위임
+    DANGEROUS = "dangerous"  # shell/임의 실행/미등록 도구 (fail-closed)
 
 
 class MessageType(StrEnum):
