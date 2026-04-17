@@ -45,7 +45,13 @@ class WebSearchToolConfig(BaseModel):
 
 
 class BuiltinToolConfig(BaseModel):
-    """Configuration for all builtin tools."""
+    """Configuration for all builtin tools.
+
+    Note: extra="forbid" is intentionally omitted at this wrapper level —
+    the three leaf configs (filesystem/shell/web_search) enforce unknown-key
+    rejection. Adding it here would break if a new tool group is added to
+    YAML before the code model knows about it.
+    """
 
     filesystem: FilesystemToolConfig = Field(default_factory=FilesystemToolConfig)
     shell: ShellToolConfig = Field(default_factory=ShellToolConfig)

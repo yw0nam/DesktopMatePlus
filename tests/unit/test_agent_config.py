@@ -25,14 +25,24 @@ class TestToolConfigHitLFields:
 
     def test_filesystem_rejects_unknown_key(self):
         with pytest.raises(ValidationError):
-            FilesystemToolConfig(default_hitl_category="read_only")  # type: ignore[call-arg]
+            FilesystemToolConfig.model_validate({"default_hitl_category": "read_only"})
 
     def test_shell_rejects_bad_category_value(self):
         with pytest.raises(ValidationError):
-            ShellToolConfig(hitl_overrides={"terminal": "not_a_category"})  # type: ignore[arg-type]
+            ShellToolConfig.model_validate(
+                {"hitl_overrides": {"terminal": "not_a_category"}}
+            )
+
+    def test_shell_rejects_unknown_key(self):
+        with pytest.raises(ValidationError):
+            ShellToolConfig.model_validate({"default_hitl_category": "dangerous"})
 
     def test_web_search_defaults_empty(self):
         assert WebSearchToolConfig().hitl_overrides == {}
+
+    def test_web_search_rejects_unknown_key(self):
+        with pytest.raises(ValidationError):
+            WebSearchToolConfig.model_validate({"default_hitl_category": "read_only"})
 
 
 class TestAgentConfigMCPHitL:
@@ -43,8 +53,10 @@ class TestAgentConfigMCPHitL:
 
     def test_mcp_overrides_validated(self):
         with pytest.raises(ValidationError):
-            OpenAIChatAgentConfig(mcp_hitl_overrides={"foo": "readonly"})  # type: ignore[arg-type]
+            OpenAIChatAgentConfig.model_validate(
+                {"mcp_hitl_overrides": {"foo": "readonly"}}
+            )
 
     def test_agent_config_rejects_unknown_key(self):
         with pytest.raises(ValidationError):
-            OpenAIChatAgentConfig(nonexistent_field=True)  # type: ignore[call-arg]
+            OpenAIChatAgentConfig.model_validate({"nonexistent_field": True})
