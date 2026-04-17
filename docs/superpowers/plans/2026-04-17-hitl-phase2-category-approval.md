@@ -2,69 +2,178 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace binary dangerous/safe tool classification with 4-tier category system (read_only/state_mutating/external/dangerous) configured via YAML.
+**Goal:** Replace `HitLMiddleware`'s binary dangerous/safe classification with a 4-tier category system (`read_only` / `state_mutating` / `external` / `dangerous`) driven by a code-authoritative catalog and YAML overrides, emitting `category` on every interrupt payload so future policy extensions can key off it.
 
-**Architecture:** Add `ToolCategory` enum in shared model, refactor `HitLMiddleware` to accept a pre-built `category_map`, assemble the map in `initialize_async()` from `_DEFAULT_CATEGORIES` + YAML overrides + MCP defaults. Forward `category` through interrupt payload → `_consume_astream` → WebSocket client.
+**Architecture:** A `ToolCategory` enum lives in `src/models/websocket.py` (alongside `HitLRequestMessage`). A `_DEFAULT_CATEGORIES` constant in `hitl_middleware.py` maps every built-in tool name → category. `OpenAIChatAgent.initialize_async()` merges `_DEFAULT_CATEGORIES` + validated `tool_config.builtin.*.hitl_overrides` + runtime MCP tool names (classified by `mcp_default_hitl_category`, layered with `mcp_hitl_overrides`) into a `category_map: dict[str, ToolCategory]` passed to `HitLMiddleware`. The middleware bypasses `read_only`, interrupts on everything else, and forwards the category string into the interrupt payload. Fail-closed: any tool absent from the map defaults to `dangerous`.
 
-**Tech Stack:** Python 3.13, Pydantic V2, LangGraph interrupt/Command, pytest
+**Tech Stack:** Python 3.13, FastAPI, LangChain/LangGraph, Pydantic V2, Pytest, loguru. No new dependencies.
+
+**Spec:** `docs/superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md`
+
+**Issue:** #42
 
 ---
 
-### Task 1: Add ToolCategory Enum
+## File Structure
+
+### Create
+- `tests/unit/test_category_map_assembly.py` — unit tests for the `_build_hitl_category_map` helper
+- `tests/structural/test_default_categories_coverage.py` — structural test asserting every built-in tool name is registered in `_DEFAULT_CATEGORIES`
+
+### Modify
+- `src/models/websocket.py` — add `ToolCategory` enum + `category` field on `HitLRequestMessage`
+- `src/configs/agent/openai_chat_agent.py` — add `hitl_overrides` to the three tool configs and `mcp_default_hitl_category` / `mcp_hitl_overrides` to `OpenAIChatAgentConfig`; add `ConfigDict(extra="forbid")` to all four
+- `src/services/agent_service/middleware/hitl_middleware.py` — replace `is_dangerous`/deny-list with `_DEFAULT_CATEGORIES` + `get_category` + `requires_approval`, include `category` in interrupt payload, accept `category_map` in constructor
+- `src/services/agent_service/openai_chat_agent.py` — validate `tool_config` dict → `ToolConfig` in `__init__`; add `_build_hitl_category_map` helper; pass `category_map` to `HitLMiddleware(...)` in `initialize_async`; forward `category` in `_consume_astream`
+- `tests/unit/test_hitl_middleware.py` — rewrite to the new API (`get_category` / `requires_approval` + category payload)
+- `tests/unit/test_hitl_models.py` — assert `category` field on `HitLRequestMessage`
+- `tests/unit/test_hitl_agent_stream.py` — assert `_consume_astream` forwards `category`
+- `tests/e2e/test_hitl_e2e.py` — assert `hitl_request` event includes `category`; add a `read_only` bypass case
+- `docs/data_flow/agent/HITL_GATE_FLOW.md` — replace Phase 1 binary classifier with 4-tier categories; add `category` to interrupt payload + JSON schema; PatchNote
+- `docs/data_flow/chat/ADD_CHAT_MESSAGE.md` — update HitL Gate section, mermaid notes, related-docs link
+- `docs/data_flow/chat/CONTEXT_INJECTION_FLOW.md` — update HitLMiddleware description
+
+### No Changes
+- `HitLResponseMessage`, WebSocket routing, `handle_hitl_response()`, `resume_after_approval()` — all stay as-is (see spec §7)
+
+---
+
+## Pre-flight (do once before Task 1)
+
+- [ ] **Verify worktree and branch**
+
+```bash
+cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend
+git worktree list
+```
+
+Expected: a worktree at `backend/worktrees/hitl-phase2` on branch `feat/hitl-phase2-category-approval`. If the worktree exists but the spec inside it is outdated, sync:
+
+```bash
+cp docs/superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md \
+   worktrees/hitl-phase2/docs/superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md
+cp docs/superpowers/plans/2026-04-17-hitl-phase2-category-approval.md \
+   worktrees/hitl-phase2/docs/superpowers/plans/2026-04-17-hitl-phase2-category-approval.md
+cd worktrees/hitl-phase2
+git add docs/ && git commit -m "docs: sync Phase 2 spec and plan"
+```
+
+All subsequent tasks run from the worktree:
+
+```bash
+cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
+```
+
+- [ ] **Scan for alien YAML keys (migration pre-check)**
+
+```bash
+grep -rn "default_hitl_category:" yaml_files/ ; \
+grep -rn "builtin_tools:" yaml_files/
+```
+
+Expected: no hits. The real YAML schema is `tool_config.builtin.*` (verified against `yaml_files/services.yml`), so `builtin_tools:` should never appear — any hit is truly stale from an early spec draft and should be deleted. If you find a hit and are unsure whether it's intentional, stop and check `yaml_files/services*.yml` structure before editing. These must be cleaned up before Task 2's `extra="forbid"` change, otherwise every environment will fail startup.
+
+- [ ] **Confirm tests pass on base branch**
+
+```bash
+uv run pytest tests/unit/test_hitl_middleware.py tests/unit/test_hitl_models.py tests/unit/test_hitl_agent_stream.py -v
+```
+
+Expected: all green (Phase 1 behavior). Write this baseline down — some tests must fail after Task 3 before being rewritten in Task 8.
+
+---
+
+### Task 1: Add `ToolCategory` enum and extend `HitLRequestMessage`
 
 **Files:**
-- Create: `src/models/agent.py`
-- Test: `tests/unit/test_hitl_models.py` (existing, extend)
+- Modify: `src/models/websocket.py`
+- Test: `tests/unit/test_hitl_models.py`
+
+This lands the shared type first so downstream tasks can import it. `ToolCategory` lives in the same module as `HitLRequestMessage` to keep the interrupt-payload schema co-located (spec §1, §5). `src/models/websocket.py` must remain a leaf module — no imports from `services/` or `configs/`.
+
+- [ ] **Step 0: Enumerate existing `HitLRequestMessage` call sites**
+
+Before writing new tests, find every existing instantiation so Step 5 can fix them in one pass:
+
+```bash
+grep -rn "HitLRequestMessage(" tests/ src/ | grep -v "class HitLRequestMessage"
+```
+
+Record the file:line list. Each hit that omits `category=` must be updated in Step 5.
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `tests/unit/test_hitl_models.py`:
+Edit `tests/unit/test_hitl_models.py`. Add these test methods to the existing test class (or create `TestHitLRequestMessage` if absent):
 
 ```python
-from src.models.agent import ToolCategory
+import pytest
+from pydantic import ValidationError
+
+from src.models.websocket import HitLRequestMessage, MessageType, ToolCategory
 
 
-class TestToolCategory:
-    """Test ToolCategory enum values and behavior."""
+class TestToolCategoryEnum:
+    def test_enum_values_are_strings(self):
+        assert ToolCategory.READ_ONLY.value == "read_only"
+        assert ToolCategory.STATE_MUTATING.value == "state_mutating"
+        assert ToolCategory.EXTERNAL.value == "external"
+        assert ToolCategory.DANGEROUS.value == "dangerous"
 
-    def test_enum_has_four_categories(self):
-        assert len(ToolCategory) == 4
-
-    def test_enum_values(self):
-        assert ToolCategory.READ_ONLY == "read_only"
-        assert ToolCategory.STATE_MUTATING == "state_mutating"
-        assert ToolCategory.EXTERNAL == "external"
-        assert ToolCategory.DANGEROUS == "dangerous"
-
-    def test_enum_is_str(self):
-        """ToolCategory values can be used as strings (for JSON serialization)."""
+    def test_enum_is_str_subclass(self):
+        # allows wire-format comparisons like `category == "read_only"`
         assert isinstance(ToolCategory.READ_ONLY, str)
-        assert f"{ToolCategory.DANGEROUS}" == "dangerous"
+
+
+class TestHitLRequestMessageCategory:
+    def test_category_field_required(self):
+        with pytest.raises(ValidationError):
+            HitLRequestMessage(
+                request_id="r1",
+                tool_name="write_file",
+                tool_args={},
+                session_id="s1",
+            )
+
+    def test_category_accepts_enum(self):
+        msg = HitLRequestMessage(
+            request_id="r1",
+            tool_name="write_file",
+            tool_args={},
+            session_id="s1",
+            category=ToolCategory.STATE_MUTATING,
+        )
+        assert msg.type == MessageType.HITL_REQUEST
+        assert msg.category == ToolCategory.STATE_MUTATING
+
+    def test_category_coerces_from_string(self):
+        # wire format is a string (see spec §6 "Wire format is string, not enum")
+        msg = HitLRequestMessage(
+            request_id="r1",
+            tool_name="terminal",
+            tool_args={},
+            session_id="s1",
+            category="dangerous",
+        )
+        assert msg.category == ToolCategory.DANGEROUS
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_models.py::TestToolCategory -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'src.models.agent'`
+```bash
+uv run pytest tests/unit/test_hitl_models.py::TestToolCategoryEnum -v
+```
 
-- [ ] **Step 3: Write minimal implementation**
+Expected: `ImportError` or `AttributeError` — `ToolCategory` does not exist yet.
 
-Create `src/models/agent.py`:
+- [ ] **Step 3: Add `ToolCategory` enum to `src/models/websocket.py`**
+
+Find the top of the file (imports and `MessageType`). Add `ToolCategory` immediately after `MessageType`:
 
 ```python
-"""Agent-related shared models."""
-
-from enum import StrEnum
-
-
 class ToolCategory(StrEnum):
-    """HitL tool approval category.
+    """HitL classification that determines whether a tool call requires approval.
 
-    Categories determine whether a tool call requires user approval:
-      - READ_ONLY:       auto-execute without approval
-      - STATE_MUTATING:  requires approval (file writes, memory changes)
-      - EXTERNAL:        requires approval (external system calls)
-      - DANGEROUS:       requires approval (shell execution, unclassified tools)
+    See docs/superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md.
     """
 
     READ_ONLY = "read_only"
@@ -73,112 +182,152 @@ class ToolCategory(StrEnum):
     DANGEROUS = "dangerous"
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+`StrEnum` is already imported at the top of the file (`from enum import StrEnum`).
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_models.py::TestToolCategory -v`
-Expected: PASS (3 tests)
+- [ ] **Step 4: Add `category` field to `HitLRequestMessage`**
 
-- [ ] **Step 5: Commit**
+Find `class HitLRequestMessage(BaseMessage):` (around line 220). Add the new field as the last member:
+
+```python
+class HitLRequestMessage(BaseMessage):
+    """Server message requesting user approval for a tool call."""
+
+    type: MessageType = MessageType.HITL_REQUEST
+    request_id: str = Field(..., description="Unique ID linking request/response")
+    tool_name: str = Field(..., description="Name of the tool requiring approval")
+    tool_args: dict[str, Any] = Field(..., description="Tool call arguments")
+    session_id: str = Field(..., description="Session ID for graph resume")
+    category: ToolCategory = Field(
+        ...,
+        description="HitL category of the tool (drives UI copy, future batch-approval policy)",
+    )
+```
+
+Note: the Pydantic model is schema-only today — the live WebSocket pipeline yields a raw dict (see Task 6). Keeping the model in sync prevents silent drift.
+
+- [ ] **Step 5: Run tests — should pass**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-git add src/models/agent.py tests/unit/test_hitl_models.py
-git commit -m "feat: add ToolCategory enum for HitL category-based approval"
+uv run pytest tests/unit/test_hitl_models.py -v
+```
+
+Expected: all tests in `TestToolCategoryEnum` and `TestHitLRequestMessageCategory` pass. Any older test in the same file that constructs `HitLRequestMessage` without `category=...` will now fail — fix those at the call sites by adding `category=ToolCategory.DANGEROUS` (sensible default for legacy fixtures; this is a test file only).
+
+- [ ] **Step 6: Run the full model test file and lint**
+
+```bash
+uv run pytest tests/unit/test_hitl_models.py -v
+uv run ruff check src/models/websocket.py tests/unit/test_hitl_models.py
+```
+
+Expected: all green.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/models/websocket.py tests/unit/test_hitl_models.py
+git commit -m "feat: add ToolCategory enum and category field on HitLRequestMessage"
 ```
 
 ---
 
-### Task 2: Add Config Model Fields for HitL Categories
+### Task 2: Extend config models with HitL fields + `extra="forbid"`
 
 **Files:**
 - Modify: `src/configs/agent/openai_chat_agent.py`
-- Test: `tests/config/test_agent_config.py` (existing, extend — or create if missing)
+- Test: `tests/unit/test_agent_config.py` (create if it does not exist; if a file with a different name already covers this config, add tests there instead — check `tests/config/` and `tests/agents/`)
 
-- [ ] **Step 1: Write the failing test**
+Add per-tool `hitl_overrides` to `FilesystemToolConfig` / `ShellToolConfig` / `WebSearchToolConfig`, add `mcp_default_hitl_category` / `mcp_hitl_overrides` to `OpenAIChatAgentConfig`, and add `ConfigDict(extra="forbid")` to all four so stale YAML keys fail at startup (spec §2).
 
-Create or extend `tests/config/test_agent_config.py`:
+- [ ] **Step 1: Locate the right test file**
+
+```bash
+grep -rn "OpenAIChatAgentConfig\|FilesystemToolConfig" tests/ | head
+```
+
+If no test file exercises these models directly, create `tests/unit/test_agent_config.py`. Otherwise append the new tests to the existing file.
+
+- [ ] **Step 2: Write the failing tests**
+
+In the target test file:
 
 ```python
 import pytest
 from pydantic import ValidationError
 
 from src.configs.agent.openai_chat_agent import (
-    BuiltinToolConfig,
     FilesystemToolConfig,
-    HitLConfig,
     ShellToolConfig,
     WebSearchToolConfig,
+    OpenAIChatAgentConfig,
 )
-from src.models.agent import ToolCategory
+from src.models.websocket import ToolCategory
 
 
-class TestHitLConfigFields:
-    """Test HitL category fields on tool config models."""
-
-    def test_filesystem_default_hitl_category(self):
+class TestToolConfigHitLFields:
+    def test_filesystem_defaults_to_empty_overrides(self):
         cfg = FilesystemToolConfig()
-        assert cfg.default_hitl_category == ToolCategory.READ_ONLY
+        assert cfg.hitl_overrides == {}
 
-    def test_filesystem_default_hitl_overrides(self):
-        cfg = FilesystemToolConfig()
+    def test_filesystem_accepts_override(self):
+        cfg = FilesystemToolConfig(
+            hitl_overrides={"write_file": ToolCategory.STATE_MUTATING}
+        )
         assert cfg.hitl_overrides == {"write_file": ToolCategory.STATE_MUTATING}
 
-    def test_shell_default_hitl_category(self):
-        cfg = ShellToolConfig(enabled=True, allowed_commands=["echo"])
-        assert cfg.default_hitl_category == ToolCategory.DANGEROUS
-
-    def test_web_search_default_hitl_category(self):
-        cfg = WebSearchToolConfig()
-        assert cfg.default_hitl_category == ToolCategory.READ_ONLY
-
-    def test_hitl_config_defaults(self):
-        cfg = HitLConfig()
-        assert cfg.mcp_default_category == ToolCategory.DANGEROUS
-        assert cfg.mcp_overrides == {}
-
-    def test_hitl_config_from_yaml_dict(self):
-        """Simulate YAML loading with string values — Pydantic coerces to enum."""
-        cfg = HitLConfig(
-            mcp_default_category="read_only",
-            mcp_overrides={"safe_mcp_tool": "read_only"},
-        )
-        assert cfg.mcp_default_category == ToolCategory.READ_ONLY
-        assert cfg.mcp_overrides["safe_mcp_tool"] == ToolCategory.READ_ONLY
-
-    def test_hitl_config_rejects_invalid_category(self):
+    def test_filesystem_rejects_unknown_key(self):
         with pytest.raises(ValidationError):
-            HitLConfig(mcp_default_category="invalid_category")
+            FilesystemToolConfig(default_hitl_category="read_only")  # type: ignore[call-arg]
 
-    def test_tool_config_hitl_overrides_reject_invalid(self):
+    def test_shell_rejects_bad_category_value(self):
         with pytest.raises(ValidationError):
-            FilesystemToolConfig(hitl_overrides={"read_file": "not_a_category"})
+            ShellToolConfig(hitl_overrides={"terminal": "not_a_category"})  # type: ignore[arg-type]
+
+    def test_web_search_defaults_empty(self):
+        assert WebSearchToolConfig().hitl_overrides == {}
+
+
+class TestAgentConfigMCPHitL:
+    def test_mcp_default_is_dangerous(self):
+        cfg = OpenAIChatAgentConfig()
+        assert cfg.mcp_default_hitl_category == ToolCategory.DANGEROUS
+        assert cfg.mcp_hitl_overrides == {}
+
+    def test_mcp_overrides_validated(self):
+        with pytest.raises(ValidationError):
+            OpenAIChatAgentConfig(mcp_hitl_overrides={"foo": "readonly"})  # type: ignore[arg-type]
+
+    def test_agent_config_rejects_unknown_key(self):
+        with pytest.raises(ValidationError):
+            OpenAIChatAgentConfig(nonexistent_field=True)  # type: ignore[call-arg]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 3: Run tests to verify failure**
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/config/test_agent_config.py::TestHitLConfigFields -v`
-Expected: FAIL with `ImportError` (no `HitLConfig` or `default_hitl_category` attributes)
+```bash
+uv run pytest tests/unit/test_agent_config.py -v
+```
 
-- [ ] **Step 3: Write minimal implementation**
+Expected: tests fail because the fields and `extra="forbid"` do not exist yet.
 
-Edit `src/configs/agent/openai_chat_agent.py`:
+- [ ] **Step 4: Add `ConfigDict(extra="forbid")` + `hitl_overrides` to the three tool configs**
+
+Edit `src/configs/agent/openai_chat_agent.py`. Update imports at the top:
 
 ```python
-"""OpenAI Chat Agent configuration."""
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-import os
+from src.models.websocket import ToolCategory
+```
 
-from pydantic import BaseModel, Field, model_validator
+Update the three tool configs (keep existing fields; add `model_config` and `hitl_overrides`):
 
-from src.models.agent import ToolCategory
-
-
+```python
 class ShellToolConfig(BaseModel):
-    """Configuration for the restricted shell tool."""
+    model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
     allowed_commands: list[str] = Field(default_factory=list)
-    default_hitl_category: ToolCategory = ToolCategory.DANGEROUS
     hitl_overrides: dict[str, ToolCategory] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -191,268 +340,237 @@ class ShellToolConfig(BaseModel):
 
 
 class FilesystemToolConfig(BaseModel):
-    """Configuration for the filesystem tool."""
+    model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
     root_dir: str = "/tmp/agent-workspace"
-    default_hitl_category: ToolCategory = ToolCategory.READ_ONLY
-    hitl_overrides: dict[str, ToolCategory] = Field(
-        default_factory=lambda: {"write_file": ToolCategory.STATE_MUTATING}
-    )
-
-
-class WebSearchToolConfig(BaseModel):
-    """Configuration for the web search tool."""
-
-    enabled: bool = False
-    default_hitl_category: ToolCategory = ToolCategory.READ_ONLY
     hitl_overrides: dict[str, ToolCategory] = Field(default_factory=dict)
 
 
-class BuiltinToolConfig(BaseModel):
-    """Configuration for all builtin tools."""
+class WebSearchToolConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-    filesystem: FilesystemToolConfig = Field(default_factory=FilesystemToolConfig)
-    shell: ShellToolConfig = Field(default_factory=ShellToolConfig)
-    web_search: WebSearchToolConfig = Field(default_factory=WebSearchToolConfig)
+    enabled: bool = False
+    hitl_overrides: dict[str, ToolCategory] = Field(default_factory=dict)
+```
 
+- [ ] **Step 5: Add MCP HitL fields + `extra="forbid"` to `OpenAIChatAgentConfig`**
 
-class HitLConfig(BaseModel):
-    """HitL category configuration for MCP tools.
+Locate `class OpenAIChatAgentConfig(BaseModel):` (around line 50) and add `model_config` at the top of the class plus the two new fields at the bottom (next to the existing `tool_config`):
 
-    MCP tools are dynamically loaded from external servers.
-    Default to dangerous since their behavior is unknown at config time.
-    Only override tools that have been verified as safe.
-    """
-
-    mcp_default_category: ToolCategory = ToolCategory.DANGEROUS
-    mcp_overrides: dict[str, ToolCategory] = Field(default_factory=dict)
-
-
-class ToolConfig(BaseModel):
-    """Top-level tool registry configuration."""
-
-    builtin: BuiltinToolConfig = Field(default_factory=BuiltinToolConfig)
-
-
+```python
 class OpenAIChatAgentConfig(BaseModel):
     """Configuration for OpenAI Chat Agent."""
 
-    openai_api_key: str = Field(
-        default_factory=lambda: os.getenv("LLM_API_KEY"),
-        description="API key for OpenAI API",
+    model_config = ConfigDict(extra="forbid")
+
+    # ... existing fields unchanged (openai_api_key, model_name, top_p, temperature,
+    #     mcp_config, support_image, tool_config, ...) ...
+
+    mcp_default_hitl_category: ToolCategory = Field(
+        default=ToolCategory.DANGEROUS,
+        description="HitL category applied to every discovered MCP tool unless overridden",
     )
-    openai_api_base: str = Field(
-        description="Base URL for OpenAI API", default="http://localhost:55120/v1"
-    )
-    model_name: str = Field(
-        description="Name of the OpenAI LLM model",
-        default="chat_model",
-    )
-    top_p: float = Field(0.9, description="Top-p sampling value (for diversity)")
-    temperature: float = Field(
-        0.7, description="Sampling temperature (controls creativity)"
-    )
-    mcp_config: dict | None = Field(
-        default=None,
-        description="MCP client configuration for OpenAI Chat Agent",
-    )
-    support_image: bool = Field(
-        default=False,
-        description="Whether the agent supports image inputs in messages",
-    )
-    tool_config: ToolConfig | None = Field(
-        default=None,
-        description="Tool registry configuration for builtin tools",
-    )
-    hitl_config: HitLConfig = Field(
-        default_factory=HitLConfig,
-        description="HitL category configuration for MCP tools",
+    mcp_hitl_overrides: dict[str, ToolCategory] = Field(
+        default_factory=dict,
+        description="Per-MCP-tool category overrides (verified-safe tools get downgraded)",
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 6: Verify every environment YAML still loads**
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/config/test_agent_config.py::TestHitLConfigFields -v`
-Expected: PASS (8 tests)
-
-- [ ] **Step 5: Run existing config tests to check no regressions**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/config/ -v`
-Expected: All existing tests PASS
-
-- [ ] **Step 6: Commit**
+Check all three environment files. Alien keys in `services.docker.yml` or `services.e2e.yml` must fail now (local) rather than at deploy time:
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-git add src/configs/agent/openai_chat_agent.py tests/config/test_agent_config.py
-git commit -m "feat: add HitL category fields to agent config models"
+uv run python - <<'PY'
+import sys, yaml
+from src.configs.agent.openai_chat_agent import OpenAIChatAgentConfig, ToolConfig
+
+files = [
+    "yaml_files/services.yml",
+    "yaml_files/services.docker.yml",
+    "yaml_files/services.e2e.yml",
+]
+failed = []
+for path in files:
+    try:
+        with open(path) as f:
+            data = yaml.safe_load(f) or {}
+        # OpenAIChatAgentConfig fields live under llm_config.configs (verified against services.yml)
+        llm_configs = (data.get("llm_config") or {}).get("configs") or {}
+        OpenAIChatAgentConfig(**llm_configs)
+        # tool_config is injected as a top-level YAML key via _inject_extra_config
+        tc = data.get("tool_config")
+        if tc:
+            ToolConfig.model_validate(tc)
+        print(f"  OK: {path}")
+    except Exception as e:
+        print(f"  FAIL: {path} — {e}", file=sys.stderr)
+        failed.append(path)
+sys.exit(1 if failed else 0)
+PY
+```
+
+Expected: three `OK:` lines and exit 0. If any file fails with `ValidationError` for unknown keys, stop and clean the alien key from that specific YAML. Only after all three pass proceed to Step 7. If the alien key is legitimately required by some other consumer and cannot be removed, fall back to the narrow validator approach described in spec §2 last paragraph instead of `extra="forbid"`.
+
+- [ ] **Step 7: Run tests**
+
+```bash
+uv run pytest tests/unit/test_agent_config.py -v
+```
+
+Expected: all new tests pass.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/configs/agent/openai_chat_agent.py tests/unit/test_agent_config.py
+git commit -m "feat: add hitl_overrides + extra=forbid to agent config models"
 ```
 
 ---
 
-### Task 3: Refactor HitLMiddleware to Use Category Map
+### Task 3: Refactor `HitLMiddleware` to use a category map
 
 **Files:**
 - Modify: `src/services/agent_service/middleware/hitl_middleware.py`
-- Modify: `tests/unit/test_hitl_middleware.py`
+- Test: `tests/unit/test_hitl_middleware.py` (rewrite)
 
-- [ ] **Step 1: Write the failing tests**
+Replace the boolean `is_dangerous` with `get_category` + `requires_approval`. Accept a pre-built `category_map` in the constructor (spec §3). The existing test file will be rewritten because the old `is_dangerous` API goes away.
 
-Replace `tests/unit/test_hitl_middleware.py` entirely:
+- [ ] **Step 1: Rewrite `tests/unit/test_hitl_middleware.py`**
+
+Replace the entire file with the new API-driven tests:
 
 ```python
-"""Unit tests for HitLMiddleware with category-based approval."""
+"""Unit tests for HitLMiddleware (Phase 2 — category-based)."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.models.agent import ToolCategory
+from src.models.websocket import ToolCategory
 from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
 
 
-class TestHitLMiddleware:
-    """Test HitL middleware category classification and interrupt behavior."""
-
-    def _make_middleware(
-        self, category_map: dict[str, ToolCategory] | None = None
-    ) -> HitLMiddleware:
-        """Create middleware with given category map."""
+class TestHitLMiddlewareCategory:
+    def _mw(self, category_map: dict[str, ToolCategory] | None = None) -> HitLMiddleware:
         return HitLMiddleware(category_map=category_map or {})
 
-    # -- get_category tests --
-
-    def test_read_only_tool_category(self):
-        mw = self._make_middleware({"read_file": ToolCategory.READ_ONLY})
+    def test_get_category_returns_mapped(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
         assert mw.get_category("read_file") == ToolCategory.READ_ONLY
 
-    def test_state_mutating_tool_category(self):
-        mw = self._make_middleware({"write_file": ToolCategory.STATE_MUTATING})
-        assert mw.get_category("write_file") == ToolCategory.STATE_MUTATING
+    def test_get_category_unknown_is_dangerous(self):
+        # fail-closed default
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
+        assert mw.get_category("ghost_tool") == ToolCategory.DANGEROUS
 
-    def test_external_tool_category(self):
-        mw = self._make_middleware({"delegate_task": ToolCategory.EXTERNAL})
-        assert mw.get_category("delegate_task") == ToolCategory.EXTERNAL
+    def test_requires_approval_bypasses_read_only(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
+        assert mw.requires_approval("read_file") is False
 
-    def test_dangerous_tool_category(self):
-        mw = self._make_middleware({"terminal": ToolCategory.DANGEROUS})
-        assert mw.get_category("terminal") == ToolCategory.DANGEROUS
+    @pytest.mark.parametrize(
+        "cat", [ToolCategory.STATE_MUTATING, ToolCategory.EXTERNAL, ToolCategory.DANGEROUS]
+    )
+    def test_requires_approval_true_for_non_bypass(self, cat: ToolCategory):
+        mw = self._mw({"t": cat})
+        assert mw.requires_approval("t") is True
 
-    def test_unknown_tool_defaults_to_dangerous(self):
-        """Fail-closed: tools not in the map default to DANGEROUS."""
-        mw = self._make_middleware({})
-        assert mw.get_category("unknown_tool") == ToolCategory.DANGEROUS
 
-    # -- requires_approval tests --
-
-    def test_read_only_does_not_require_approval(self):
-        mw = self._make_middleware({"read_file": ToolCategory.READ_ONLY})
-        assert not mw.requires_approval("read_file")
-
-    def test_state_mutating_requires_approval(self):
-        mw = self._make_middleware({"write_file": ToolCategory.STATE_MUTATING})
-        assert mw.requires_approval("write_file")
-
-    def test_external_requires_approval(self):
-        mw = self._make_middleware({"delegate_task": ToolCategory.EXTERNAL})
-        assert mw.requires_approval("delegate_task")
-
-    def test_dangerous_requires_approval(self):
-        mw = self._make_middleware({"terminal": ToolCategory.DANGEROUS})
-        assert mw.requires_approval("terminal")
-
-    def test_unknown_tool_requires_approval(self):
-        mw = self._make_middleware({})
-        assert mw.requires_approval("unknown_tool")
-
-    # -- awrap_tool_call tests --
+class TestHitLMiddlewareInterrupt:
+    def _mw(self, category_map: dict[str, ToolCategory]) -> HitLMiddleware:
+        return HitLMiddleware(category_map=category_map)
 
     @pytest.mark.asyncio
-    async def test_read_only_tool_calls_handler_directly(self):
-        """read_only tools bypass interrupt and call handler directly."""
-        mw = self._make_middleware({"search_memory": ToolCategory.READ_ONLY})
+    async def test_read_only_tool_calls_handler_without_interrupt(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})
         request = MagicMock()
-        request.tool_call = {"name": "search_memory", "args": {"query": "test"}}
-        handler = AsyncMock(return_value="search result")
+        request.tool_call = {"name": "read_file", "args": {"path": "/tmp/x"}}
+        handler = AsyncMock(return_value="contents")
 
         result = await mw.awrap_tool_call(request, handler)
 
         handler.assert_awaited_once_with(request)
-        assert result == "search result"
+        assert result == "contents"
 
     @pytest.mark.asyncio
-    async def test_dangerous_tool_triggers_interrupt_with_category(self):
-        """Dangerous tools call interrupt() with category in payload."""
-        mw = self._make_middleware({"mcp_tool": ToolCategory.DANGEROUS})
+    @pytest.mark.parametrize(
+        "category",
+        [ToolCategory.STATE_MUTATING, ToolCategory.EXTERNAL, ToolCategory.DANGEROUS],
+    )
+    async def test_non_bypass_category_interrupts_with_category_payload(
+        self, category: ToolCategory
+    ):
+        mw = self._mw({"write_file": category})
         request = MagicMock()
-        request.tool_call = {"name": "mcp_tool", "args": {"query": "test"}}
-        handler = AsyncMock(return_value="tool result")
+        request.tool_call = {"name": "write_file", "args": {"path": "/tmp/x"}}
+        handler = AsyncMock(return_value="ok")
 
         with patch(
             "src.services.agent_service.middleware.hitl_middleware.interrupt",
-            return_value={"approved": True, "request_id": "test-123"},
+            return_value={"approved": True, "request_id": "r-1"},
         ) as mock_interrupt:
             result = await mw.awrap_tool_call(request, handler)
 
-            mock_interrupt.assert_called_once()
-            call_args = mock_interrupt.call_args[0][0]
-            assert call_args["tool_name"] == "mcp_tool"
-            assert call_args["tool_args"] == {"query": "test"}
-            assert call_args["category"] == "dangerous"
-            assert "request_id" in call_args
+            call_payload = mock_interrupt.call_args[0][0]
+            assert call_payload["tool_name"] == "write_file"
+            assert call_payload["tool_args"] == {"path": "/tmp/x"}
+            assert call_payload["category"] == category.value  # str wire format
+            assert "request_id" in call_payload
 
         handler.assert_awaited_once_with(request)
-        assert result == "tool result"
+        assert result == "ok"
 
     @pytest.mark.asyncio
-    async def test_state_mutating_tool_triggers_interrupt(self):
-        """state_mutating tools also trigger interrupt."""
-        mw = self._make_middleware({"write_file": ToolCategory.STATE_MUTATING})
+    async def test_unknown_tool_treated_as_dangerous(self):
+        mw = self._mw({"read_file": ToolCategory.READ_ONLY})  # ghost_tool absent
         request = MagicMock()
-        request.tool_call = {"name": "write_file", "args": {"path": "/tmp/test"}}
-        handler = AsyncMock(return_value="written")
-
-        with patch(
-            "src.services.agent_service.middleware.hitl_middleware.interrupt",
-            return_value={"approved": True, "request_id": "test-456"},
-        ) as mock_interrupt:
-            result = await mw.awrap_tool_call(request, handler)
-
-            call_args = mock_interrupt.call_args[0][0]
-            assert call_args["category"] == "state_mutating"
-
-        handler.assert_awaited_once_with(request)
-
-    @pytest.mark.asyncio
-    async def test_deny_returns_error_string(self):
-        """Denied tools return error string without calling handler."""
-        mw = self._make_middleware({"mcp_tool": ToolCategory.DANGEROUS})
-        request = MagicMock()
-        request.tool_call = {"name": "mcp_tool", "args": {}}
+        request.tool_call = {"name": "ghost_tool", "args": {}}
         handler = AsyncMock()
 
         with patch(
             "src.services.agent_service.middleware.hitl_middleware.interrupt",
-            return_value={"approved": False, "request_id": "test-789"},
+            return_value={"approved": False, "request_id": "r-2"},
+        ) as mock_interrupt:
+            result = await mw.awrap_tool_call(request, handler)
+
+            assert mock_interrupt.call_args[0][0]["category"] == ToolCategory.DANGEROUS.value
+
+        handler.assert_not_awaited()
+        assert "ghost_tool" in result.lower() or "거부" in result
+
+    @pytest.mark.asyncio
+    async def test_denied_returns_error_string_without_handler(self):
+        mw = self._mw({"write_file": ToolCategory.STATE_MUTATING})
+        request = MagicMock()
+        request.tool_call = {"name": "write_file", "args": {}}
+        handler = AsyncMock()
+
+        with patch(
+            "src.services.agent_service.middleware.hitl_middleware.interrupt",
+            return_value={"approved": False, "request_id": "r-3"},
         ):
             result = await mw.awrap_tool_call(request, handler)
 
         handler.assert_not_awaited()
-        assert "mcp_tool" in result
+        assert isinstance(result, str)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_middleware.py -v`
-Expected: FAIL — `TypeError: __init__() got an unexpected keyword argument 'category_map'`
+```bash
+uv run pytest tests/unit/test_hitl_middleware.py -v
+```
 
-- [ ] **Step 3: Write implementation**
+Expected: failures — old `HitLMiddleware(mcp_tool_names=...)` signature does not accept `category_map`.
 
-Replace `src/services/agent_service/middleware/hitl_middleware.py`:
+- [ ] **Step 3: Rewrite `src/services/agent_service/middleware/hitl_middleware.py`**
+
+Replace the whole file with:
 
 ```python
-"""HitLMiddleware — Human-in-the-Loop approval gate with category-based policy."""
+"""HitLMiddleware — Human-in-the-Loop approval gate driven by a category map."""
 
 from uuid import uuid4
 
@@ -460,11 +578,12 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langgraph.types import interrupt
 from loguru import logger
 
-from src.models.agent import ToolCategory
+from src.models.websocket import ToolCategory
 
-# -- HitL tool approval category defaults --
-# Every builtin tool is explicitly mapped here. When adding a new tool,
-# add its entry; if omitted, the fail-closed default (DANGEROUS) applies.
+# Single source of truth for built-in tool categories.
+# When adding a new built-in tool, add an entry here. A missing entry falls back
+# to `ToolCategory.DANGEROUS` at lookup time (fail-closed). The structural test
+# `tests/structural/test_default_categories_coverage.py` enforces completeness.
 _DEFAULT_CATEGORIES: dict[str, ToolCategory] = {
     # Filesystem tools (group: filesystem)
     "read_file": ToolCategory.READ_ONLY,
@@ -472,8 +591,7 @@ _DEFAULT_CATEGORIES: dict[str, ToolCategory] = {
     "write_file": ToolCategory.STATE_MUTATING,
     # Shell tools (group: shell)
     "terminal": ToolCategory.DANGEROUS,
-    # Web search tools (group: web_search)
-    # Note: YAML group name is "web_search", but actual tool name is "duckduckgo_search"
+    # Web search (group: web_search — actual tool name is "duckduckgo_search")
     "duckduckgo_search": ToolCategory.READ_ONLY,
     # Memory tools
     "add_memory": ToolCategory.STATE_MUTATING,
@@ -490,67 +608,38 @@ _DEFAULT_CATEGORIES: dict[str, ToolCategory] = {
 }
 
 
-def build_category_map(
-    mcp_tool_names: set[str],
-    hitl_overrides: dict[str, ToolCategory] | None = None,
-    mcp_default_category: ToolCategory = ToolCategory.DANGEROUS,
-    mcp_overrides: dict[str, ToolCategory] | None = None,
-) -> dict[str, ToolCategory]:
-    """Build the complete tool → category mapping.
-
-    Merge order (later wins):
-      1. _DEFAULT_CATEGORIES (all builtin tools)
-      2. hitl_overrides (from YAML builtin tool configs)
-      3. MCP tools → all set to mcp_default_category
-      4. mcp_overrides (from YAML hitl_config)
-    """
-    category_map: dict[str, ToolCategory] = dict(_DEFAULT_CATEGORIES)
-
-    if hitl_overrides:
-        category_map.update(hitl_overrides)
-
-    for name in mcp_tool_names:
-        category_map[name] = mcp_default_category
-
-    if mcp_overrides:
-        category_map.update(mcp_overrides)
-
-    return category_map
-
-
 class HitLMiddleware(AgentMiddleware):
-    """Intercepts tool calls and requests user approval based on category.
+    """Intercepts non-bypass tool calls and requests user approval via interrupt().
 
-    Categories:
-      - READ_ONLY:       bypass (auto-execute)
-      - STATE_MUTATING:  requires user approval
-      - EXTERNAL:        requires user approval
-      - DANGEROUS:       requires user approval (also the default for unknown tools)
+    Bypass categories execute without approval. All other categories interrupt
+    with the category forwarded in the payload so the client can differentiate
+    UX (warning color, copy, future batch-approval policy).
     """
 
     _BYPASS_CATEGORIES: frozenset[ToolCategory] = frozenset({ToolCategory.READ_ONLY})
 
     def __init__(self, category_map: dict[str, ToolCategory]) -> None:
-        self._category_map = category_map
+        self._category_map = dict(category_map)
 
     def get_category(self, tool_name: str) -> ToolCategory:
-        """Get the HitL category for a tool. Unknown tools default to DANGEROUS."""
+        """Look up the category for a tool. Unknown tools are fail-closed `dangerous`."""
         return self._category_map.get(tool_name, ToolCategory.DANGEROUS)
 
     def requires_approval(self, tool_name: str) -> bool:
-        """Check if a tool requires user approval."""
         return self.get_category(tool_name) not in self._BYPASS_CATEGORIES
 
     async def awrap_tool_call(self, request, handler):
-        """Wrap tool call with interrupt() for non-bypass categories."""
         tool_name: str = request.tool_call["name"]
+        category = self.get_category(tool_name)
 
-        if not self.requires_approval(tool_name):
+        if category in self._BYPASS_CATEGORIES:
+            logger.info(
+                f"HitL gate: '{tool_name}' bypass (category={category.value})"
+            )
             return await handler(request)
 
         args = request.tool_call.get("args", {})
         request_id = str(uuid4())
-        category = self.get_category(tool_name)
 
         logger.info(
             f"HitL gate: requesting approval for '{tool_name}' "
@@ -562,777 +651,822 @@ class HitLMiddleware(AgentMiddleware):
                 "tool_name": tool_name,
                 "tool_args": args,
                 "request_id": request_id,
-                "category": category.value,
+                "category": category.value,  # wire format: string, not enum
             }
         )
 
         if resume_value.get("approved"):
-            logger.info(f"HitL gate: '{tool_name}' approved (request_id={request_id})")
+            logger.info(
+                f"HitL gate: '{tool_name}' approved "
+                f"(category={category.value}, request_id={request_id})"
+            )
             return await handler(request)
 
-        logger.info(f"HitL gate: '{tool_name}' denied (request_id={request_id})")
+        logger.info(
+            f"HitL gate: '{tool_name}' denied "
+            f"(category={category.value}, request_id={request_id})"
+        )
         return f"사용자가 '{tool_name}' 도구 실행을 거부했습니다. 다른 방법을 시도해 주세요."
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_middleware.py -v`
-Expected: PASS (16 tests)
+```bash
+uv run pytest tests/unit/test_hitl_middleware.py -v
+```
+
+Expected: all new tests green. If `import` errors elsewhere (e.g., `openai_chat_agent.py` still passes `mcp_tool_names=...`), leave them — Task 4 fixes the call site.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
 git add src/services/agent_service/middleware/hitl_middleware.py tests/unit/test_hitl_middleware.py
-git commit -m "feat: refactor HitLMiddleware to use category-based approval"
+git commit -m "refactor: HitLMiddleware uses category_map with fail-closed default"
 ```
 
 ---
 
-### Task 4: Add Category Map Assembly Test
+### Task 4: Wire `category_map` into `OpenAIChatAgent.initialize_async()`
 
 **Files:**
-- Create: `tests/unit/test_category_map_assembly.py`
+- Modify: `src/services/agent_service/openai_chat_agent.py`
+- Test: `tests/unit/test_category_map_assembly.py` (new)
 
-- [ ] **Step 1: Write the tests**
+Validate the injected `tool_config` dict → `ToolConfig` in `__init__`, build `category_map` via a module-level helper, and hand it to `HitLMiddleware` (spec §2, §4). This task also fixes the call site that Task 3 left broken.
 
-```python
-"""Unit tests for build_category_map assembly logic."""
+- [ ] **Step 1: Write the failing unit test for the helper**
 
-from src.models.agent import ToolCategory
-from src.services.agent_service.middleware.hitl_middleware import (
-    _DEFAULT_CATEGORIES,
-    build_category_map,
-)
-
-
-class TestBuildCategoryMap:
-    """Test the category map merge-layer logic."""
-
-    def test_defaults_included(self):
-        """All _DEFAULT_CATEGORIES entries are present with no overrides."""
-        result = build_category_map(mcp_tool_names=set())
-        for name, cat in _DEFAULT_CATEGORIES.items():
-            assert result[name] == cat
-
-    def test_hitl_overrides_win_over_defaults(self):
-        """YAML hitl_overrides take precedence over _DEFAULT_CATEGORIES."""
-        result = build_category_map(
-            mcp_tool_names=set(),
-            hitl_overrides={"read_file": ToolCategory.STATE_MUTATING},
-        )
-        assert result["read_file"] == ToolCategory.STATE_MUTATING
-
-    def test_mcp_tools_get_default_category(self):
-        """MCP tools not in overrides get mcp_default_category."""
-        result = build_category_map(
-            mcp_tool_names={"mcp_search", "mcp_write"},
-        )
-        assert result["mcp_search"] == ToolCategory.DANGEROUS
-        assert result["mcp_write"] == ToolCategory.DANGEROUS
-
-    def test_mcp_tools_with_custom_default(self):
-        """MCP tools respect a non-DANGEROUS default category."""
-        result = build_category_map(
-            mcp_tool_names={"mcp_read"},
-            mcp_default_category=ToolCategory.READ_ONLY,
-        )
-        assert result["mcp_read"] == ToolCategory.READ_ONLY
-
-    def test_mcp_overrides_win_over_mcp_default(self):
-        """Per-tool MCP overrides take precedence over mcp_default_category."""
-        result = build_category_map(
-            mcp_tool_names={"mcp_search", "mcp_safe"},
-            mcp_default_category=ToolCategory.DANGEROUS,
-            mcp_overrides={"mcp_safe": ToolCategory.READ_ONLY},
-        )
-        assert result["mcp_search"] == ToolCategory.DANGEROUS
-        assert result["mcp_safe"] == ToolCategory.READ_ONLY
-
-    def test_full_merge_order(self):
-        """Full assembly: defaults → hitl_overrides → MCP defaults → MCP overrides."""
-        result = build_category_map(
-            mcp_tool_names={"mcp_a", "mcp_b"},
-            hitl_overrides={"terminal": ToolCategory.STATE_MUTATING},
-            mcp_default_category=ToolCategory.DANGEROUS,
-            mcp_overrides={"mcp_b": ToolCategory.EXTERNAL},
-        )
-        # terminal overridden from DANGEROUS to STATE_MUTATING
-        assert result["terminal"] == ToolCategory.STATE_MUTATING
-        # mcp_a gets default DANGEROUS
-        assert result["mcp_a"] == ToolCategory.DANGEROUS
-        # mcp_b overridden to EXTERNAL
-        assert result["mcp_b"] == ToolCategory.EXTERNAL
-        # read_file untouched from defaults
-        assert result["read_file"] == ToolCategory.READ_ONLY
-
-    def test_empty_inputs(self):
-        """With no MCP tools and no overrides, result equals _DEFAULT_CATEGORIES."""
-        result = build_category_map(mcp_tool_names=set())
-        assert result == dict(_DEFAULT_CATEGORIES)
-```
-
-- [ ] **Step 2: Run tests (should pass immediately since implementation exists)**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_category_map_assembly.py -v`
-Expected: PASS (7 tests)
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-git add tests/unit/test_category_map_assembly.py
-git commit -m "test: add category map assembly tests for HitL Phase 2"
-```
-
----
-
-### Task 5: Wire Category Map in Agent Initialization
-
-**Files:**
-- Modify: `src/services/agent_service/openai_chat_agent.py` (constructor + `initialize_async`)
-- Modify: `src/services/service_manager.py` (`_inject_extra_config`)
-- Create: `tests/unit/test_hitl_agent_init.py`
-
-- [ ] **Step 1: Write the failing test**
-
-Create `tests/unit/test_hitl_agent_init.py`:
+Create `tests/unit/test_category_map_assembly.py`:
 
 ```python
-"""Test that initialize_async builds category_map and passes it to HitLMiddleware."""
-
-from unittest.mock import AsyncMock, MagicMock, patch
+"""Unit tests for _build_hitl_category_map."""
 
 import pytest
 
-from src.models.agent import ToolCategory
+from src.configs.agent.openai_chat_agent import (
+    BuiltinToolConfig,
+    FilesystemToolConfig,
+    ToolConfig,
+    WebSearchToolConfig,
+)
+from src.models.websocket import ToolCategory
+from src.services.agent_service.middleware.hitl_middleware import _DEFAULT_CATEGORIES
+from src.services.agent_service.openai_chat_agent import _build_hitl_category_map
 
 
-class TestAgentHitLInit:
-    """Test agent initialization wires HitL category map correctly."""
-
-    @pytest.mark.asyncio
-    async def test_initialize_builds_category_map(self):
-        """HitLMiddleware receives a category_map dict, not raw mcp_tool_names."""
-        with (
-            patch(
-                "src.services.agent_service.openai_chat_agent.MultiServerMCPClient"
-            ) as MockMCPClient,
-            patch(
-                "src.services.agent_service.openai_chat_agent.create_agent"
-            ) as mock_create_agent,
-            patch(
-                "src.services.agent_service.openai_chat_agent._load_personas",
-                return_value={"yuri": "persona text"},
-            ),
-            patch(
-                "src.services.agent_service.openai_chat_agent.get_mongo_client",
-                return_value=None,
-            ),
-            patch(
-                "src.services.agent_service.openai_chat_agent.get_user_profile_service",
-                return_value=None,
-            ),
-        ):
-            mock_mcp_tool = MagicMock()
-            mock_mcp_tool.name = "mcp_test_tool"
-            mock_client = AsyncMock()
-            mock_client.get_tools = AsyncMock(return_value=[mock_mcp_tool])
-            MockMCPClient.return_value = mock_client
-
-            from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
-
-            service = OpenAIChatAgent.__new__(OpenAIChatAgent)
-            service.mcp_config = {"test": {}}
-            service._mcp_tools = []
-            service.tool_config = None
-            service.hitl_config = None  # None → uses defaults only
-            service.model_name = "test"
-            service.llm = MagicMock()
-
-            await service.initialize_async()
-
-            # Verify create_agent was called
-            mock_create_agent.assert_called_once()
-            middleware_list = mock_create_agent.call_args.kwargs["middleware"]
-
-            # Find HitLMiddleware in the middleware list
-            from src.services.agent_service.middleware.hitl_middleware import (
-                HitLMiddleware,
-            )
-
-            hitl_mw = None
-            for mw in middleware_list:
-                if isinstance(mw, HitLMiddleware):
-                    hitl_mw = mw
-                    break
-
-            assert hitl_mw is not None, "HitLMiddleware not found in middleware list"
-            # MCP tool should be in the map as DANGEROUS
-            assert hitl_mw.get_category("mcp_test_tool") == ToolCategory.DANGEROUS
-            # Builtin read_file should be READ_ONLY (from _DEFAULT_CATEGORIES)
-            assert hitl_mw.get_category("read_file") == ToolCategory.READ_ONLY
-
-    @pytest.mark.asyncio
-    async def test_initialize_with_hitl_config_overrides(self):
-        """hitl_config from YAML should override MCP default category."""
-        with (
-            patch(
-                "src.services.agent_service.openai_chat_agent.MultiServerMCPClient"
-            ) as MockMCPClient,
-            patch(
-                "src.services.agent_service.openai_chat_agent.create_agent"
-            ) as mock_create_agent,
-            patch(
-                "src.services.agent_service.openai_chat_agent._load_personas",
-                return_value={"yuri": "persona text"},
-            ),
-            patch(
-                "src.services.agent_service.openai_chat_agent.get_mongo_client",
-                return_value=None,
-            ),
-            patch(
-                "src.services.agent_service.openai_chat_agent.get_user_profile_service",
-                return_value=None,
-            ),
-        ):
-            mock_mcp_tool = MagicMock()
-            mock_mcp_tool.name = "mcp_safe_tool"
-            mock_client = AsyncMock()
-            mock_client.get_tools = AsyncMock(return_value=[mock_mcp_tool])
-            MockMCPClient.return_value = mock_client
-
-            from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
-
-            service = OpenAIChatAgent.__new__(OpenAIChatAgent)
-            service.mcp_config = {"test": {}}
-            service._mcp_tools = []
-            service.tool_config = None
-            service.hitl_config = {
-                "mcp_default_category": "dangerous",
-                "mcp_overrides": {"mcp_safe_tool": "read_only"},
-            }
-            service.model_name = "test"
-            service.llm = MagicMock()
-
-            await service.initialize_async()
-
-            middleware_list = mock_create_agent.call_args.kwargs["middleware"]
-
-            from src.services.agent_service.middleware.hitl_middleware import (
-                HitLMiddleware,
-            )
-
-            hitl_mw = next(mw for mw in middleware_list if isinstance(mw, HitLMiddleware))
-            # mcp_safe_tool overridden to READ_ONLY
-            assert hitl_mw.get_category("mcp_safe_tool") == ToolCategory.READ_ONLY
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_agent_init.py -v`
-Expected: FAIL — `TypeError` (old `HitLMiddleware(mcp_tool_names=...)` call in `initialize_async`)
-
-- [ ] **Step 3a: Update OpenAIChatAgent.__init__ to accept hitl_config**
-
-In `src/services/agent_service/openai_chat_agent.py`, update the constructor (lines 56-75):
-
-Old:
-```python
-    def __init__(
-        self,
-        temperature: float,
-        top_p: float,
-        openai_api_key: str | None = None,
-        openai_api_base: str | None = None,
-        model_name: str | None = None,
-        tool_config: dict | None = None,
-        **kwargs,
-    ):
-        self.temperature = temperature
-        self.top_p = top_p
-        self.openai_api_key = openai_api_key
-        self.openai_api_base = openai_api_base
-        self.model_name = model_name
-        self.tool_config = tool_config
-        self.agent = None
-        self._mcp_tools: list = []
-        self._personas: dict[str, str] = {}
-        super().__init__(**kwargs)
-        logger.info(f"Agent initialized: model={self.model_name}")
-```
-
-New:
-```python
-    def __init__(
-        self,
-        temperature: float,
-        top_p: float,
-        openai_api_key: str | None = None,
-        openai_api_base: str | None = None,
-        model_name: str | None = None,
-        tool_config: dict | None = None,
-        hitl_config: dict | None = None,
-        **kwargs,
-    ):
-        self.temperature = temperature
-        self.top_p = top_p
-        self.openai_api_key = openai_api_key
-        self.openai_api_base = openai_api_base
-        self.model_name = model_name
-        self.tool_config = tool_config
-        self.hitl_config = hitl_config
-        self.agent = None
-        self._mcp_tools: list = []
-        self._personas: dict[str, str] = {}
-        super().__init__(**kwargs)
-        logger.info(f"Agent initialized: model={self.model_name}")
-```
-
-- [ ] **Step 3b: Update _inject_extra_config in service_manager.py**
-
-In `src/services/service_manager.py`, find `_inject_extra_config` (line 386-388) and add `hitl_config`:
-
-Old:
-```python
-    def _inject_extra_config(config: dict, service_configs: dict) -> None:
-        service_configs["mcp_config"] = config.get("mcp_config")
-        service_configs["tool_config"] = config.get("tool_config")
-```
-
-New:
-```python
-    def _inject_extra_config(config: dict, service_configs: dict) -> None:
-        service_configs["mcp_config"] = config.get("mcp_config")
-        service_configs["tool_config"] = config.get("tool_config")
-        service_configs["hitl_config"] = config.get("hitl_config")
-```
-
-- [ ] **Step 3c: Update initialize_async() to build category_map**
-
-In `src/services/agent_service/openai_chat_agent.py`, add import at top:
-```python
-from src.models.agent import ToolCategory
-```
-
-Replace lines 163-164:
-
-Old:
-```python
-        mcp_tool_names = {t.name for t in self._mcp_tools}
-        hitl_gate = HitLMiddleware(mcp_tool_names=mcp_tool_names)
-```
-
-New:
-```python
-        from src.services.agent_service.middleware.hitl_middleware import (
-            build_category_map,
+class TestBuildHitLCategoryMap:
+    def test_defaults_only_when_no_overrides(self):
+        tool_config = ToolConfig()
+        category_map = _build_hitl_category_map(
+            tool_config=tool_config,
+            mcp_tool_names=set(),
+            mcp_default=ToolCategory.DANGEROUS,
+            mcp_overrides={},
         )
+        # every built-in entry is preserved
+        for name, cat in _DEFAULT_CATEGORIES.items():
+            assert category_map[name] == cat
 
-        # Build HitL category map from defaults + YAML overrides + MCP tools
-        mcp_tool_names = {t.name for t in self._mcp_tools}
-
-        # Collect YAML hitl_overrides from builtin tool configs
-        hitl_overrides: dict[str, ToolCategory] = {}
-        if self.tool_config:
-            builtin = self.tool_config.get("builtin", {})
-            for _group_name, group_cfg in builtin.items():
-                if isinstance(group_cfg, dict) and "hitl_overrides" in group_cfg:
-                    for tool_name, cat_str in group_cfg["hitl_overrides"].items():
-                        hitl_overrides[tool_name] = ToolCategory(cat_str)
-
-        # MCP HitL config (hitl_config may be None if not in YAML)
-        mcp_default_category = ToolCategory.DANGEROUS
-        mcp_overrides: dict[str, ToolCategory] = {}
-        if self.hitl_config:
-            mcp_default_category = ToolCategory(
-                self.hitl_config.get("mcp_default_category", "dangerous")
+    def test_builtin_override_wins_over_default(self):
+        tool_config = ToolConfig(
+            builtin=BuiltinToolConfig(
+                web_search=WebSearchToolConfig(
+                    hitl_overrides={"duckduckgo_search": ToolCategory.STATE_MUTATING}
+                )
             )
-            for tool_name, cat_str in self.hitl_config.get("mcp_overrides", {}).items():
-                mcp_overrides[tool_name] = ToolCategory(cat_str)
+        )
+        category_map = _build_hitl_category_map(
+            tool_config=tool_config,
+            mcp_tool_names=set(),
+            mcp_default=ToolCategory.DANGEROUS,
+            mcp_overrides={},
+        )
+        assert category_map["duckduckgo_search"] == ToolCategory.STATE_MUTATING
 
-        category_map = build_category_map(
+    def test_mcp_tool_gets_default(self):
+        category_map = _build_hitl_category_map(
+            tool_config=ToolConfig(),
+            mcp_tool_names={"github_search"},
+            mcp_default=ToolCategory.DANGEROUS,
+            mcp_overrides={},
+        )
+        assert category_map["github_search"] == ToolCategory.DANGEROUS
+
+    def test_mcp_override_downgrades_dangerous(self):
+        category_map = _build_hitl_category_map(
+            tool_config=ToolConfig(),
+            mcp_tool_names={"github_search"},
+            mcp_default=ToolCategory.DANGEROUS,
+            mcp_overrides={"github_search": ToolCategory.READ_ONLY},
+        )
+        assert category_map["github_search"] == ToolCategory.READ_ONLY
+
+    def test_mcp_override_for_unknown_tool_still_applied(self):
+        # operator pre-declared an override for a tool that is not yet loaded
+        category_map = _build_hitl_category_map(
+            tool_config=ToolConfig(),
+            mcp_tool_names=set(),
+            mcp_default=ToolCategory.DANGEROUS,
+            mcp_overrides={"future_mcp_tool": ToolCategory.READ_ONLY},
+        )
+        assert category_map["future_mcp_tool"] == ToolCategory.READ_ONLY
+
+    def test_unknown_builtin_override_key_still_recorded(self):
+        # operator can intentionally add an entry for a custom tool they
+        # introduced in the same PR; the helper must not silently drop it
+        tool_config = ToolConfig(
+            builtin=BuiltinToolConfig(
+                filesystem=FilesystemToolConfig(
+                    hitl_overrides={"my_new_tool": ToolCategory.STATE_MUTATING}
+                )
+            )
+        )
+        category_map = _build_hitl_category_map(
+            tool_config=tool_config,
+            mcp_tool_names=set(),
+            mcp_default=ToolCategory.DANGEROUS,
+            mcp_overrides={},
+        )
+        assert category_map["my_new_tool"] == ToolCategory.STATE_MUTATING
+```
+
+- [ ] **Step 2: Run to confirm failure**
+
+```bash
+uv run pytest tests/unit/test_category_map_assembly.py -v
+```
+
+Expected: `ImportError: cannot import name '_build_hitl_category_map'`.
+
+- [ ] **Step 3: Add the `_build_hitl_category_map` helper**
+
+At the top of `src/services/agent_service/openai_chat_agent.py` (module level, above the class definition), add:
+
+```python
+from src.configs.agent.openai_chat_agent import ToolConfig
+from src.models.websocket import ToolCategory
+from src.services.agent_service.middleware.hitl_middleware import _DEFAULT_CATEGORIES
+
+
+def _build_hitl_category_map(
+    *,
+    tool_config: ToolConfig,
+    mcp_tool_names: set[str],
+    mcp_default: ToolCategory,
+    mcp_overrides: dict[str, ToolCategory],
+) -> dict[str, ToolCategory]:
+    """Assemble the final tool→category map (see spec §4).
+
+    Order (later wins):
+      1. _DEFAULT_CATEGORIES (built-in code catalog)
+      2. tool_config.builtin.<group>.hitl_overrides (YAML built-in overrides)
+      3. every discovered MCP tool → mcp_default
+      4. mcp_overrides (YAML MCP per-tool overrides)
+    """
+    category_map: dict[str, ToolCategory] = dict(_DEFAULT_CATEGORIES)
+
+    builtin = tool_config.builtin
+    for group in (builtin.filesystem, builtin.shell, builtin.web_search):
+        category_map.update(group.hitl_overrides)
+
+    for name in mcp_tool_names:
+        category_map[name] = mcp_default
+    category_map.update(mcp_overrides)
+
+    return category_map
+```
+
+- [ ] **Step 4: Validate `tool_config` in `OpenAIChatAgent.__init__` and remove dict alias**
+
+In the same file, update `__init__` (around line 56). Change the signature, add validation, and remove the raw `self.tool_config = tool_config` dict line (there is no more dict form after this task):
+
+```python
+    def __init__(
+        self,
+        temperature: float,
+        top_p: float,
+        openai_api_key: str | None = None,
+        openai_api_base: str | None = None,
+        model_name: str | None = None,
+        tool_config: ToolConfig | dict | None = None,
+        mcp_default_hitl_category: ToolCategory | str = ToolCategory.DANGEROUS,
+        mcp_hitl_overrides: dict[str, ToolCategory] | None = None,
+        **kwargs,
+    ):
+        self.temperature = temperature
+        self.top_p = top_p
+        self.openai_api_key = openai_api_key
+        self.openai_api_base = openai_api_base
+        self.model_name = model_name
+
+        if tool_config is None:
+            self._tool_config = ToolConfig()
+        elif isinstance(tool_config, dict):
+            self._tool_config = ToolConfig.model_validate(tool_config)  # raises on typo
+        else:
+            self._tool_config = tool_config
+
+        # AgentFactory passes enum values as strings after model_dump() — coerce back
+        self._mcp_default_hitl_category = ToolCategory(mcp_default_hitl_category)
+        self._mcp_hitl_overrides = {
+            k: ToolCategory(v) for k, v in (mcp_hitl_overrides or {}).items()
+        }
+
+        self.agent = None
+        self._mcp_tools: list = []
+        self._personas: dict[str, str] = {}
+        super().__init__(**kwargs)
+        logger.info(f"Agent initialized: model={self.model_name}")
+```
+
+Why the `ToolCategory(...)` coercion: `AgentFactory.get_agent_service` does `OpenAIChatAgentConfig(**kwargs).model_dump()` and then spreads, which serializes enums to their `.value` strings. Re-hydrate them here so downstream code uses real enums.
+
+- [ ] **Step 4b: Update the one remaining dict reader (line 153)**
+
+The existing `initialize_async` reads `(self.tool_config or {}).get("builtin", {})` to configure `ToolGateMiddleware`. Since `self.tool_config` no longer exists, switch to the validated model:
+
+```python
+        builtin = self._tool_config.builtin
+        tool_gate = ToolGateMiddleware(
+            allowed_commands=builtin.shell.allowed_commands or None,
+            allowed_dirs=[builtin.filesystem.root_dir] if builtin.filesystem.root_dir else None,
+        )
+```
+
+This both removes the dict alias and replaces string-key `.get(...)` lookups with typed attribute access. Grep-verify no other readers remain:
+
+```bash
+grep -n "self.tool_config" src/services/agent_service/openai_chat_agent.py
+```
+
+Expected: no hits.
+
+- [ ] **Step 5: Update `initialize_async` to build and pass `category_map`**
+
+Find the `hitl_gate = HitLMiddleware(mcp_tool_names=mcp_tool_names)` line (around line 164). Replace it with:
+
+```python
+        mcp_tool_names = {t.name for t in self._mcp_tools}
+        category_map = _build_hitl_category_map(
+            tool_config=self._tool_config,
             mcp_tool_names=mcp_tool_names,
-            hitl_overrides=hitl_overrides if hitl_overrides else None,
-            mcp_default_category=mcp_default_category,
-            mcp_overrides=mcp_overrides if mcp_overrides else None,
+            mcp_default=self._mcp_default_hitl_category,
+            mcp_overrides=self._mcp_hitl_overrides,
         )
         hitl_gate = HitLMiddleware(category_map=category_map)
+        logger.info(
+            f"HitL category map assembled: "
+            f"{len(category_map)} tools "
+            f"({sum(1 for c in category_map.values() if c == ToolCategory.READ_ONLY)} bypass)"
+        )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 6: Verify factory auto-threading — no code change required**
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_agent_init.py -v`
-Expected: PASS (2 tests)
+The existing factory already threads every `OpenAIChatAgentConfig` field through. Confirm by reading:
 
-- [ ] **Step 5: Run all existing unit tests to check regressions**
+- `src/services/agent_service/agent_factory.py:30` — `return OpenAIChatAgent(**agent_config.model_dump())`
+- `src/services/service_manager.py:386-388` — `_inject_extra_config` adds `tool_config` / `mcp_config` to `service_configs` before factory call, and `_initialize_service` at line 129 spreads `llm_config.configs` into `service_configs`.
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/ -v`
-Expected: All PASS
+Because `mcp_default_hitl_category` and `mcp_hitl_overrides` are regular fields on `OpenAIChatAgentConfig` (added in Task 2), they flow:
 
-- [ ] **Step 6: Commit**
+```
+yaml_files/services.yml
+  llm_config.configs.mcp_default_hitl_category  ┐
+  llm_config.configs.mcp_hitl_overrides         ├─→ service_configs (dict)
+  tool_config                                   │     ↓ (factory)
+                                                │  OpenAIChatAgentConfig(**kwargs)  ← validates, raises on typo
+                                                │     ↓ .model_dump() (serializes enums to .value strings)
+                                                └─→ OpenAIChatAgent(**dumped)       ← Step 4 re-hydrates enums
+```
+
+Run the verification:
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-git add src/services/agent_service/openai_chat_agent.py src/services/service_manager.py tests/unit/test_hitl_agent_init.py
-git commit -m "feat: wire category map into agent initialization"
+grep -n "model_dump\|OpenAIChatAgent(" src/services/agent_service/agent_factory.py
+grep -n "service_configs\[" src/services/service_manager.py
+```
+
+Expected: the two `grep` outputs match the paths above. If the factory ever stops using `**agent_config.model_dump()` (e.g., switches to explicit kwargs), this plan becomes invalid — stop and update the factory first.
+
+**Sample YAML snippet for operators** (document this in the PR description too):
+
+```yaml
+llm_config:
+  type: "openai_chat_agent"
+  configs:
+    openai_api_base: "..."
+    model_name: "chat_model"
+    # NEW in Phase 2 (optional — defaults to dangerous / {})
+    mcp_default_hitl_category: dangerous
+    mcp_hitl_overrides: {}
+```
+
+- [ ] **Step 7: Run unit tests**
+
+```bash
+uv run pytest tests/unit/test_category_map_assembly.py tests/unit/test_hitl_middleware.py tests/unit/test_agent_config.py tests/unit/test_hitl_models.py -v
+```
+
+Expected: all green.
+
+- [ ] **Step 8: Quick smoke — load the agent config from YAML**
+
+```bash
+uv run python -c "
+from src.services.agent_service.openai_chat_agent import _build_hitl_category_map
+from src.configs.agent.openai_chat_agent import ToolConfig
+from src.models.websocket import ToolCategory
+m = _build_hitl_category_map(
+    tool_config=ToolConfig(),
+    mcp_tool_names={'foo'},
+    mcp_default=ToolCategory.DANGEROUS,
+    mcp_overrides={'foo': ToolCategory.READ_ONLY},
+)
+assert m['read_file'] == ToolCategory.READ_ONLY
+assert m['foo'] == ToolCategory.READ_ONLY
+print('OK')
+"
+```
+
+Expected: `OK`.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/services/agent_service/openai_chat_agent.py tests/unit/test_category_map_assembly.py
+git commit -m "feat: assemble HitL category_map in OpenAIChatAgent.initialize_async"
 ```
 
 ---
 
-### Task 6: Forward Category in _consume_astream
+### Task 5: Forward `category` in `_consume_astream()`
 
 **Files:**
-- Modify: `src/services/agent_service/openai_chat_agent.py` (lines 395-401)
-- Modify: `tests/unit/test_hitl_agent_stream.py`
+- Modify: `src/services/agent_service/openai_chat_agent.py` (`_consume_astream` only)
+- Test: `tests/unit/test_hitl_agent_stream.py`
 
-- [ ] **Step 1: Update existing mock interrupt data to include `category`**
+The stream consumer currently strips the interrupt payload. Add the `category` field with a fail-closed fallback (spec §6).
 
-The existing test helpers `_fake_astream_with_interrupt` (line 24) and `_fake_astream_resume_with_second_interrupt` (line 68) do NOT include `"category"` in their mock interrupt values. After adding `interrupt_value["category"]` to `_consume_astream`, these will raise `KeyError`. Update both:
+- [ ] **Step 1: Add/extend the failing test**
 
-In `_fake_astream_with_interrupt` (line 24-39), add `"category": "dangerous"` to the value dict:
-```python
-async def _fake_astream_with_interrupt(*args, **kwargs):
-    """Simulate astream that hits an interrupt."""
-    yield (
-        "updates",
-        {
-            "__interrupt__": [
-                MagicMock(
-                    value={
-                        "tool_name": "mcp_search",
-                        "tool_args": {"query": "test"},
-                        "request_id": "req-123",
-                        "category": "dangerous",
-                    }
-                )
-            ]
-        },
-    )
-```
-
-In `_fake_astream_resume_with_second_interrupt` (line 68-89), add `"category": "dangerous"` to the value dict:
-```python
-async def _fake_astream_resume_with_second_interrupt(*args, **kwargs):
-    """Simulate resumed astream that hits another interrupt."""
-    yield (
-        "updates",
-        {
-            "tools": {"messages": [MagicMock(content="First tool done")]},
-        },
-    )
-    yield (
-        "updates",
-        {
-            "__interrupt__": [
-                MagicMock(
-                    value={
-                        "tool_name": "mcp_write",
-                        "tool_args": {"data": "important"},
-                        "request_id": "req-456",
-                        "category": "dangerous",
-                    }
-                )
-            ]
-        },
-    )
-```
-
-- [ ] **Step 2: Write the new category test**
-
-Add to `tests/unit/test_hitl_agent_stream.py`:
+Open `tests/unit/test_hitl_agent_stream.py`. Add:
 
 ```python
-class TestHitLRequestCategory:
-    """Test that hitl_request events include category field."""
+from src.models.websocket import ToolCategory
+
+
+class TestConsumeAstreamCategory:
+    @pytest.mark.asyncio
+    async def test_hitl_request_event_includes_category(self):
+        # Compose a fake astream iterator that yields an interrupt update
+        fake_interrupt = MagicMock()
+        fake_interrupt.value = {
+            "request_id": "r-1",
+            "tool_name": "write_file",
+            "tool_args": {"path": "/tmp/x"},
+            "category": ToolCategory.STATE_MUTATING.value,
+        }
+
+        async def fake_astream():
+            yield ("updates", {"__interrupt__": [fake_interrupt]})
+
+        from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
+
+        agent = OpenAIChatAgent(temperature=0.1, top_p=0.9)
+        events = [e async for e in agent._consume_astream(fake_astream(), "sess-1")]
+
+        assert events, "no events yielded"
+        evt = events[0]
+        assert evt["type"] == "hitl_request"
+        assert evt["category"] == ToolCategory.STATE_MUTATING.value
+        assert evt["session_id"] == "sess-1"
 
     @pytest.mark.asyncio
-    async def test_hitl_request_includes_category(self):
-        """_consume_astream should include category from interrupt payload."""
-        agent = _make_agent()
-        agent.agent.astream = _fake_astream_with_interrupt
+    async def test_hitl_request_event_falls_back_to_dangerous(self):
+        # older checkpoint / other middleware omits category -> must fail-closed
+        fake_interrupt = MagicMock()
+        fake_interrupt.value = {
+            "request_id": "r-2",
+            "tool_name": "legacy_tool",
+            "tool_args": {},
+        }
 
-        events = []
-        async for event in agent._consume_astream(
-            agent.agent.astream(), "session-1"
-        ):
-            events.append(event)
+        async def fake_astream():
+            yield ("updates", {"__interrupt__": [fake_interrupt]})
 
-        assert len(events) == 1
-        assert events[0]["type"] == "hitl_request"
-        assert events[0]["category"] == "dangerous"
-        assert events[0]["tool_name"] == "mcp_search"
-        assert events[0]["session_id"] == "session-1"
+        from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
+
+        agent = OpenAIChatAgent(temperature=0.1, top_p=0.9)
+        events = [e async for e in agent._consume_astream(fake_astream(), "sess-2")]
+
+        assert events[0]["category"] == ToolCategory.DANGEROUS.value
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+Reuse the existing `import pytest`, `from unittest.mock import MagicMock` at the top of the file. If the file does not yet exist, create it with those imports.
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_agent_stream.py -v`
-Expected: FAIL — `KeyError: 'category'` in `_consume_astream`
-
-- [ ] **Step 4: Update _consume_astream**
-
-In `src/services/agent_service/openai_chat_agent.py`, replace lines 395-401:
-
-Old:
-```python
-                        yield {
-                            "type": "hitl_request",
-                            "request_id": interrupt_value["request_id"],
-                            "tool_name": interrupt_value["tool_name"],
-                            "tool_args": interrupt_value["tool_args"],
-                            "session_id": session_id,
-                        }
-```
-
-New:
-```python
-                        yield {
-                            "type": "hitl_request",
-                            "request_id": interrupt_value["request_id"],
-                            "tool_name": interrupt_value["tool_name"],
-                            "tool_args": interrupt_value["tool_args"],
-                            "session_id": session_id,
-                            "category": interrupt_value["category"],
-                        }
-```
-
-- [ ] **Step 5: Run all hitl stream tests to verify they pass**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_agent_stream.py -v`
-Expected: All PASS (existing tests pass because mocks now include `category`, new test passes because `_consume_astream` forwards it)
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 2: Run to verify failure**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-git add src/services/agent_service/openai_chat_agent.py tests/unit/test_hitl_agent_stream.py
-git commit -m "feat: forward category field in hitl_request events"
+uv run pytest tests/unit/test_hitl_agent_stream.py::TestConsumeAstreamCategory -v
 ```
 
----
+Expected: `KeyError: 'category'` or the assertion fails — the current code does not forward the field.
 
-### Task 7: Update HitLRequestMessage Model
+- [ ] **Step 3: Update `_consume_astream`**
 
-**Files:**
-- Modify: `src/models/websocket.py` (lines 220-228)
-- Modify: `tests/unit/test_hitl_models.py`
-
-- [ ] **Step 1: Write the failing test**
-
-Add to `tests/unit/test_hitl_models.py`:
+Find the `__interrupt__` branch in `_consume_astream` (around line 393). Update the yielded dict:
 
 ```python
-class TestHitLRequestMessageCategory:
-    """Test HitLRequestMessage includes category field."""
-
-    def test_hitl_request_has_category_field(self):
-        msg = HitLRequestMessage(
-            request_id="req-1",
-            tool_name="mcp_tool",
-            tool_args={"key": "val"},
-            session_id="sess-1",
-            category="dangerous",
-        )
-        assert msg.category == "dangerous"
-
-    def test_hitl_request_serialization_includes_category(self):
-        msg = HitLRequestMessage(
-            request_id="req-1",
-            tool_name="mcp_tool",
-            tool_args={},
-            session_id="sess-1",
-            category="state_mutating",
-        )
-        data = msg.model_dump()
-        assert data["category"] == "state_mutating"
-
-    def test_hitl_request_rejects_invalid_category(self):
-        """Invalid category string should be rejected by validation."""
-        with pytest.raises(ValidationError):
-            HitLRequestMessage(
-                request_id="req-1",
-                tool_name="tool",
-                tool_args={},
-                session_id="sess-1",
-                category="invalid",
-            )
+                    if data.get("__interrupt__"):
+                        interrupt_value = data["__interrupt__"][0].value
+                        yield {
+                            "type": "hitl_request",
+                            "request_id": interrupt_value["request_id"],
+                            "tool_name": interrupt_value["tool_name"],
+                            "tool_args": interrupt_value["tool_args"],
+                            "session_id": session_id,
+                            # fail-closed: handles interrupts from older checkpoints
+                            # or any middleware that did not set `category`
+                            "category": interrupt_value.get(
+                                "category", ToolCategory.DANGEROUS.value
+                            ),
+                        }
+                        return
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+Ensure `ToolCategory` is imported at the top of the file (the Task 4 edit may already have it — if not, add `from src.models.websocket import ToolCategory`).
 
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_models.py::TestHitLRequestMessageCategory -v`
-Expected: FAIL — `TypeError: unexpected keyword argument 'category'`
+- [ ] **Step 4: Run tests**
 
-- [ ] **Step 3: Update HitLRequestMessage**
-
-In `src/models/websocket.py`, add import and modify `HitLRequestMessage`:
-
-```python
-from src.models.agent import ToolCategory
-
-class HitLRequestMessage(BaseMessage):
-    """Server message requesting user approval for a tool call."""
-
-    type: MessageType = MessageType.HITL_REQUEST
-    request_id: str = Field(..., description="Unique ID linking request/response")
-    tool_name: str = Field(..., description="Name of the tool requiring approval")
-    tool_args: dict[str, Any] = Field(..., description="Tool call arguments")
-    session_id: str = Field(..., description="Session ID for graph resume")
-    category: ToolCategory = Field(
-        ..., description="Tool category: read_only, state_mutating, external, dangerous"
-    )
+```bash
+uv run pytest tests/unit/test_hitl_agent_stream.py -v
 ```
 
-- [ ] **Step 4: Update existing HitLRequestMessage tests**
-
-Since `category` is now a required field, all existing `HitLRequestMessage(...)` constructions in `tests/unit/test_hitl_models.py` will fail. Add `category="dangerous"` to every existing `HitLRequestMessage(...)` call in the file. For example, existing tests like `test_hitl_request_message_type` and `test_hitl_request_serialization` need the field added.
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && uv run pytest tests/unit/test_hitl_models.py -v`
-Expected: All PASS
+Expected: all green.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-git add src/models/websocket.py tests/unit/test_hitl_models.py
-git commit -m "feat: add category field to HitLRequestMessage"
+git add src/services/agent_service/openai_chat_agent.py tests/unit/test_hitl_agent_stream.py
+git commit -m "feat: forward HitL category in hitl_request stream event"
 ```
 
 ---
 
-### Task 8: Update YAML Config Files
+### Task 6: Add structural coverage test for `_DEFAULT_CATEGORIES`
 
 **Files:**
-- Modify: `yaml_files/services.yml`
-- Modify: `yaml_files/services.e2e.yml`
-- Modify: `yaml_files/services.docker.yml` (if exists)
+- Create: `tests/structural/test_default_categories_coverage.py`
 
-- [ ] **Step 1: Add HitL comments and hitl_config section**
+Locks the invariant: every tool the agent can actually load is present in `_DEFAULT_CATEGORIES`. Prevents LangChain version drift and forgotten registrations (spec Test Strategy).
 
-Add to the `agent` section of each YAML file (after the existing `tool_config` block):
-
-```yaml
-    # -- HitL (Human-in-the-Loop) tool approval policy --
-    # Category behavior:
-    #   read_only       -> auto-execute without approval
-    #   state_mutating  -> requires approval (file writes, memory changes)
-    #   external        -> requires approval (external system calls)
-    #   dangerous       -> requires approval (shell execution, unclassified tools)
-    #
-    # Builtin tool categories are defined in _DEFAULT_CATEGORIES (hitl_middleware.py).
-    # YAML hitl_overrides can override individual tool categories per group.
-    # Tools not in any mapping default to dangerous (fail-closed).
-    hitl_config:
-      mcp_default_category: dangerous
-      mcp_overrides: {}
-```
-
-- [ ] **Step 2: Verify YAML is valid**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && python -c "import yaml; yaml.safe_load(open('yaml_files/services.yml')); print('OK')" && python -c "import yaml; yaml.safe_load(open('yaml_files/services.e2e.yml')); print('OK')"`
-Expected: Both print "OK"
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 1: Enumerate every built-in tool source**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-git add yaml_files/
-git commit -m "feat: add hitl_config section to YAML service configs"
+grep -rn "name: str = " src/services/agent_service/tools/ | head
+grep -rn "from langchain_community.tools" src/services/agent_service/tools/ | head
+```
+
+Note each source — `ToolRegistry.get_enabled_tools()` covers the YAML-gated ones (filesystem, shell, web_search); `DelegateTaskTool`, `UpdateUserProfileTool`, memory tools (`add_memory`, `update_memory`, `delete_memory`, `search_memory`), knowledge tools (`search_knowledge`, `read_note`) are registered elsewhere.
+
+- [ ] **Step 2: Write the structural test**
+
+Create `tests/structural/test_default_categories_coverage.py`:
+
+```python
+"""Structural test: _DEFAULT_CATEGORIES must cover every built-in tool the agent loads."""
+
+import pytest
+
+from src.configs.agent.openai_chat_agent import (
+    BuiltinToolConfig,
+    FilesystemToolConfig,
+    ShellToolConfig,
+    ToolConfig,
+    WebSearchToolConfig,
+)
+from src.services.agent_service.middleware.hitl_middleware import _DEFAULT_CATEGORIES
+from src.services.agent_service.tools.registry import ToolRegistry
+
+
+def _collect_builtin_tool_names() -> set[str]:
+    """Instantiate every built-in tool source and return the set of .name values."""
+    names: set[str] = set()
+
+    # 1. YAML-gated tools via ToolRegistry (need enabled=True so they instantiate)
+    fully_enabled = ToolConfig(
+        builtin=BuiltinToolConfig(
+            filesystem=FilesystemToolConfig(enabled=True),
+            shell=ShellToolConfig(enabled=True, allowed_commands=["ls"]),
+            web_search=WebSearchToolConfig(enabled=True),
+        )
+    ).model_dump()
+    for tool in ToolRegistry(fully_enabled).get_enabled_tools():
+        names.add(tool.name)
+
+    # 2. Tools registered outside the registry (enumerate explicitly — if new
+    # ones are added, extend this list AND _DEFAULT_CATEGORIES).
+    from src.services.agent_service.tools.delegate import DelegateTaskTool
+
+    names.add(DelegateTaskTool().name)
+
+    # Memory / knowledge / profile tools are typically registered by tool-name
+    # constants in their modules. Pin them here so drift is caught.
+    for fixed in (
+        "add_memory",
+        "update_memory",
+        "delete_memory",
+        "search_memory",
+        "search_knowledge",
+        "read_note",
+        "update_user_profile",
+    ):
+        names.add(fixed)
+
+    return names
+
+
+def test_default_categories_covers_every_builtin_tool():
+    tool_names = _collect_builtin_tool_names()
+    missing = tool_names - set(_DEFAULT_CATEGORIES.keys())
+    assert not missing, (
+        f"_DEFAULT_CATEGORIES missing entries for: {sorted(missing)}. "
+        "Add them in src/services/agent_service/middleware/hitl_middleware.py. "
+        "See the operator guide in the Phase 2 spec."
+    )
+```
+
+If a tool class above does not actually exist in the codebase yet (e.g., knowledge tools), remove that line from the fixed list. The test's job is coverage, not aspiration — it must reflect reality.
+
+- [ ] **Step 3: Run the test**
+
+```bash
+uv run pytest tests/structural/test_default_categories_coverage.py -v
+```
+
+Expected: green. If it fails, either (a) a tool name is missing from `_DEFAULT_CATEGORIES` (add it) or (b) the enumeration picks up a tool that does not exist as a registered tool (remove it from the fixed list).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/structural/test_default_categories_coverage.py
+git commit -m "test: structural coverage for _DEFAULT_CATEGORIES"
 ```
 
 ---
 
-### Task 9: Run Full Unit Test Suite + Lint
-
-**Files:** None (verification only)
-
-- [ ] **Step 1: Run lint**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && make lint`
-Expected: PASS (fix any issues if they arise)
-
-- [ ] **Step 2: Run full unit test suite**
-
-Run: `cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2 && make test`
-Expected: All PASS
-
-- [ ] **Step 3: Fix any failures, commit fixes**
-
-If any test fails, fix and commit:
-```bash
-git add -A && git commit -m "fix: resolve test/lint issues from HitL Phase 2"
-```
-
----
-
-### Task 10: Update E2E Tests for Category Field
+### Task 7: Update E2E tests
 
 **Files:**
 - Modify: `tests/e2e/test_hitl_e2e.py`
 
-- [ ] **Step 1: Update schema validation test**
+Ensure live-flow `hitl_request` events include `category` and a `read_only` tool executes without prompting (spec Test Strategy).
 
-In `TestHitLApproveFlow.test_hitl_request_has_correct_schema`, add category assertion after the existing field checks (around line 330-334):
-
-```python
-            # Validate category field (Phase 2)
-            assert "category" in hitl_event, "hitl_request must include category field"
-            assert hitl_event["category"] in (
-                "read_only",
-                "state_mutating",
-                "external",
-                "dangerous",
-            ), f"Invalid category: {hitl_event['category']}"
-```
-
-- [ ] **Step 2: Commit**
+- [ ] **Step 1: Inspect existing E2E cases**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
+grep -n "hitl_request\|approved" tests/e2e/test_hitl_e2e.py | head -30
+```
+
+Find the section that awaits a `hitl_request` frame. Add a `category` assertion next to the existing `tool_name` / `request_id` checks.
+
+- [ ] **Step 2: Add the category assertion in every existing `hitl_request` receive path**
+
+For every block that looks like `assert msg["type"] == "hitl_request"`, add:
+
+```python
+assert msg["type"] == "hitl_request"
+assert msg["category"] in {"state_mutating", "external", "dangerous"}
+```
+
+(Since we expect approval-requiring tools in the existing flows, `read_only` should not appear here.)
+
+- [ ] **Step 3: Add a `read_only` bypass test — deterministic, not LLM-choice dependent**
+
+Skip the LLM-selection problem entirely by calling the middleware directly with a mocked interrupt. This verifies the contract ("read_only → no interrupt, handler runs") end-to-end through the real middleware instance, without needing the agent to choose a specific tool at runtime:
+
+```python
+@pytest.mark.asyncio
+@pytest.mark.e2e
+async def test_read_only_tool_bypasses_hitl_via_middleware():
+    """read_only category must not trigger interrupt() at the middleware layer."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from src.models.websocket import ToolCategory
+    from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
+
+    mw = HitLMiddleware(category_map={"search_memory": ToolCategory.READ_ONLY})
+    request = MagicMock()
+    request.tool_call = {"name": "search_memory", "args": {"query": "cat"}}
+    handler = AsyncMock(return_value="memory hit")
+
+    with patch(
+        "src.services.agent_service.middleware.hitl_middleware.interrupt"
+    ) as mock_interrupt:
+        result = await mw.awrap_tool_call(request, handler)
+
+    mock_interrupt.assert_not_called()
+    handler.assert_awaited_once_with(request)
+    assert result == "memory hit"
+```
+
+Note: this sits in `tests/e2e/test_hitl_e2e.py` because it's part of the HitL flow contract documentation, but it does not require live services. Keep the full-stack WebSocket E2E tests in the same file focused on the non-bypass path (which is already flow-driven and works reliably because the LLM is forced to call dangerous tools in those scenarios). Do not add a flaky LLM-driven bypass test — if category routing breaks inside middleware, the middleware-level assertion catches it, and the existing `test_hitl_middleware.py` unit test already covers this in isolation.
+
+- [ ] **Step 4: Run E2E suite**
+
+```bash
+bash scripts/e2e.sh
+```
+
+Expected: green. If environment services (MongoDB, vLLM, IrodoriTTS) aren't running locally, spin them up per the README before running.
+
+- [ ] **Step 5: Commit**
+
+```bash
 git add tests/e2e/test_hitl_e2e.py
-git commit -m "test: add category field validation to HitL E2E tests"
+git commit -m "test: assert category field in hitl_request E2E + read_only bypass"
 ```
 
 ---
 
-### Task 11: Run E2E Tests
+### Task 8: Update data flow documentation
 
-**Files:** None (verification only)
+**Files:**
+- Modify: `docs/data_flow/agent/HITL_GATE_FLOW.md`
+- Modify: `docs/data_flow/chat/ADD_CHAT_MESSAGE.md`
+- Modify: `docs/data_flow/chat/CONTEXT_INJECTION_FLOW.md`
 
-- [ ] **Step 1: Start the backend**
+The existing diagrams describe the Phase 1 binary classifier (`is_dangerous`, "MCP 도구 + delegate_task"). Phase 2 changes the shape of the flow — category-based routing, category in the interrupt payload, code-authoritative catalog, YAML overrides. Operators and reviewers read these flow docs before touching the middleware, so they must match shipped behavior.
+
+Respect `docs/CLAUDE.md` 200-line rule — the happy path stays in the main body; edge cases (Phase 1 fallback semantics, MCP enumeration failure) go into the Appendix.
+
+- [ ] **Step 1: Rewrite `docs/data_flow/agent/HITL_GATE_FLOW.md`**
+
+Make these concrete edits (do **not** rewrite the whole file — diff-style changes only):
+
+1. Bump `Updated:` to today's date.
+2. Replace the §2-1 "도구 분류" table with the 4-tier category table — copy from spec `## Tool Categories`. Add a one-line pointer: "카테고리 정의는 `_DEFAULT_CATEGORIES` (`hitl_middleware.py`)가 단일 진실 소스. YAML `hitl_overrides`로 per-tool override."
+3. Update §2-1's final sentence: `분류 로직: HitLMiddleware.is_dangerous(tool_name)` → `분류 로직: HitLMiddleware.get_category(tool_name) — _DEFAULT_CATEGORIES + YAML overrides + MCP default/overrides가 startup에 병합된 category_map을 사용. 미등록 툴은 fail-closed로 dangerous.`
+4. Update §2-2 interrupt payload line: `interrupt({tool_name, tool_args, request_id})` → `interrupt({tool_name, tool_args, request_id, category})`.
+5. Update §4 `hitl_request` 메시지 형식 JSON example to include `"category": "state_mutating"` as an example value; also correct `turn_id` → `session_id` if it is wrong there (verify against `HitLRequestMessage` in `src/models/websocket.py`).
+6. Add a new §2-5 subsection titled "바이패스 동작":
+
+   > `read_only` 카테고리는 middleware가 `interrupt()`를 호출하지 않고 `handler(request)`를 직접 await. 프론트 `hitl_request` 이벤트가 발생하지 않음. 로그: `HitL gate: '{tool}' bypass (category=read_only)`.
+
+7. Appendix §A 구현 파일 표 업데이트: middleware entry의 `is_dangerous` 문구 제거, 새 entry 추가:
+   - `src/services/agent_service/openai_chat_agent.py::_build_hitl_category_map` — category_map 조립 (spec §4)
+   - `src/configs/agent/openai_chat_agent.py::FilesystemToolConfig/ShellToolConfig/WebSearchToolConfig::hitl_overrides` — per-tool YAML override
+8. Appendix §D PatchNote에 줄 추가:
+
+   > `YYYY-MM-DD`: Phase 2 — 4-tier category 시스템 도입. `is_dangerous` → `get_category`, interrupt payload에 `category` 추가, `_DEFAULT_CATEGORIES` 단일 소스 + YAML `hitl_overrides`/`mcp_hitl_overrides`. Issue #42 / PR #(TBD).
+
+9. Verify the file is still under the 200-line main body (appendix can overflow) via `awk 'NR<=200' docs/data_flow/agent/HITL_GATE_FLOW.md | wc -l` — if the main body grows past 200, move older Phase 1 troubleshooting notes into Appendix.
+
+- [ ] **Step 2: Update `docs/data_flow/chat/ADD_CHAT_MESSAGE.md`**
+
+1. Line ~60 mermaid note: `MCP 도구 또는 delegate_task 호출 시<br/>HitLMiddleware가 interrupt() 발생` → `비-read_only 카테고리 툴 호출 시<br/>HitLMiddleware가 interrupt(category 포함) 발생`.
+2. Line ~61 mermaid frame: `BE-->>FE: hitl_request (tool_name, tool_args, request_id)` → `BE-->>FE: hitl_request (tool_name, tool_args, request_id, category)`.
+3. Line ~129-134 §HitL Gate section:
+   - **Trigger** 문구: "MCP 도구 또는 `delegate_task` 호출 시" → "non-`read_only` 카테고리 툴 호출 시"
+   - **Safe tools** 표현을 **Bypass tools (`read_only`)**로 교체, 예시를 실제 `_DEFAULT_CATEGORIES`의 read_only 엔트리(`read_file`, `list_directory`, `search_memory`, `search_knowledge`, `read_note`, `duckduckgo_search`)로 나열
+   - **Resume** 문구는 변경 없음
+4. 관련 문서 링크 목록(line ~141)에 spec 링크 추가:
+
+   > - [HitL Phase 2 Spec](../../superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md)
+
+- [ ] **Step 3: Update `docs/data_flow/chat/CONTEXT_INJECTION_FLOW.md`**
+
+1. Line ~70 HitLMiddleware 설명:
+
+   기존:
+   > **HitLMiddleware** (PR #36): ToolGate 다음 2번째 위치. MCP 도구 + `delegate_task` 호출 시 `interrupt()`로 FE 승인 게이트. Safe 도구(`search_memory`, `update_user_profile`)는 통과.
+
+   변경:
+   > **HitLMiddleware** (PR #36 → Phase 2 #42): ToolGate 다음 2번째 위치. `_DEFAULT_CATEGORIES` + YAML override로 빌드된 category_map 기준으로 `read_only` 바이패스, 그 외(`state_mutating`/`external`/`dangerous`)는 `interrupt()`로 FE 승인 게이트. Interrupt payload에 `category` 포함.
+
+- [ ] **Step 4: Run dead-link / markdown check**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-YAML_FILE=yaml_files/services.e2e.yml uv run uvicorn "src.main:get_app" --factory --port 7123 &
+bash scripts/check_docs.sh 2>&1 | tail -20
 ```
 
-Wait for server to be ready.
+Expected: no new errors. If pre-existing warnings exist, ignore those that are not in the three files just edited.
 
-- [ ] **Step 2: Run E2E tests**
+- [ ] **Step 5: Commit**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
-FASTAPI_URL=http://127.0.0.1:7123 uv run pytest -m e2e tests/e2e/test_hitl_e2e.py --tb=long -v
+git add docs/data_flow/agent/HITL_GATE_FLOW.md \
+        docs/data_flow/chat/ADD_CHAT_MESSAGE.md \
+        docs/data_flow/chat/CONTEXT_INJECTION_FLOW.md
+git commit -m "docs: update HitL data flow for Phase 2 category system"
 ```
 
-Expected: All PASS (some may skip due to non-deterministic LLM behavior — that's OK)
+---
 
-- [ ] **Step 3: Stop the backend and fix any failures**
+### Task 9: Final verification
+
+**Files:** none (verification only)
+
+- [ ] **Step 1: Run the full unit test suite**
 
 ```bash
-kill %1  # stop background uvicorn
+uv run pytest -m "not slow and not e2e" -q
 ```
 
-If failures: fix, commit, re-run.
+Expected: all green. Fix any remaining test that referenced the old `is_dangerous` API or constructed `HitLRequestMessage` without `category`.
 
-- [ ] **Step 4: Run full E2E suite**
+- [ ] **Step 2: Run lint and structural tests**
 
 ```bash
-cd /home/spow12/codes/2025_lower/DesktopMatePlus/backend/worktrees/hitl-phase2
+bash scripts/lint.sh
+```
+
+Expected: clean (ruff + black + structural).
+
+- [ ] **Step 3: Run the full E2E suite**
+
+```bash
 bash scripts/e2e.sh
 ```
 
-Expected: All PASS
+Expected: green. Per `CLAUDE.md` this gate is required before the PR can be opened.
+
+- [ ] **Step 4: YAML sweep (final)**
+
+```bash
+grep -rn "default_hitl_category:" yaml_files/ ; \
+grep -rn "builtin_tools:" yaml_files/
+```
+
+Expected: no hits (pre-flight should have caught them).
+
+- [ ] **Step 5: Manual smoke — start the dev server**
+
+```bash
+uv run uvicorn "src.main:get_app" --factory --port 5500
+```
+
+Look for the new log line on startup:
+
+```
+INFO  | HitL category map assembled: N tools (K bypass)
+```
+
+In a second shell, drive the WebSocket client example:
+
+```bash
+uv run python examples/ws_chat_client.py --prompt "/tmp/hitl-phase2에 test.txt 파일을 만들어줘" --session-id phase2-smoke
+```
+
+Expected console output from the client: a `hitl_request` frame with `"category": "state_mutating"` (because `write_file` is state-mutating). Approve it in the client UI or send `{"type":"hitl_response","request_id":"<from-prev-frame>","approved":true}` manually, and the flow continues. Stop the server with Ctrl-C once you have seen the category field. If `examples/ws_chat_client.py` does not exist, use `examples/websocket_stream_demo.py` or whatever the current example client is — `ls examples/` to confirm the filename.
+
+- [ ] **Step 6: Commit any doc updates if log output diverged from spec**
+
+```bash
+git status
+# only commit if there are deliberate changes; skip otherwise
+```
+
+- [ ] **Step 7: Open the PR**
+
+```bash
+git push -u origin feat/hitl-phase2-category-approval
+gh pr create --title "feat: HitL Phase 2 — category-based selective approval (#42)" \
+  --body "$(cat <<'EOF'
+## Summary
+- Replace `HitLMiddleware`'s binary classifier with a 4-tier category system (`read_only` / `state_mutating` / `external` / `dangerous`).
+- Code-authoritative built-in catalog (`_DEFAULT_CATEGORIES`); YAML exposes only `hitl_overrides`. MCP tools default to `mcp_default_hitl_category` (fail-closed) with opt-in `mcp_hitl_overrides`.
+- Interrupt payload now carries `category`; forwarded through `_consume_astream` with a fail-closed default for legacy checkpoints.
+
+## Test plan
+- [ ] `uv run pytest -m "not slow and not e2e"` — all green
+- [ ] `bash scripts/lint.sh` — clean
+- [ ] `bash scripts/e2e.sh` — all green, including new `read_only` bypass case
+- [ ] Manual: start dev server, verify startup log `HitL category map assembled: ...` and `hitl_request` frames include `category`
+
+Closes #42.
+EOF
+)"
+```
+
+---
+
+## Rollback Plan
+
+If any task fails irrecoverably:
+
+1. `git log --oneline feat/hitl-phase2-category-approval` — identify the last green commit.
+2. `git reset --hard <sha>` to drop the bad commits locally.
+3. Never `git push --force` without confirming with the user first.
+
+Because each task commits independently, rollbacks shrink to "drop last N commits" — never a bulk revert.
+
+## Execution Handoff
+
+Plan complete and saved to `docs/superpowers/plans/2026-04-17-hitl-phase2-category-approval.md`. Two execution options:
+
+1. **Subagent-Driven (recommended)** — dispatch a fresh subagent per task, review between tasks, fast iteration.
+2. **Inline Execution** — execute tasks in this session using executing-plans, batch execution with checkpoints.
+
+Which approach?
