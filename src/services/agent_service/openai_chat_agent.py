@@ -110,10 +110,10 @@ class OpenAIChatAgent(AgentService):
         elif isinstance(tool_config, dict):
             try:
                 self._tool_config = ToolConfig.model_validate(tool_config)
-            except ValidationError:
+            except ValidationError as e:
                 logger.error(
                     f"tool_config YAML failed validation: received keys="
-                    f"{sorted(tool_config.keys())}"
+                    f"{sorted(tool_config.keys())}; errors={e}"
                 )
                 raise
         else:

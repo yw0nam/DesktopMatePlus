@@ -75,7 +75,7 @@ class HitLMiddleware(AgentMiddleware):
         category = self.get_category(tool_name)
 
         if category in self._BYPASS_CATEGORIES:
-            logger.debug(f"HitL gate: '{tool_name}' bypass (category={category.value})")
+            logger.info(f"HitL gate: '{tool_name}' bypass (category={category.value})")
             return await handler(request)
 
         args = request.tool_call.get("args", {})
