@@ -114,4 +114,5 @@ class TestHitLMiddlewareInterrupt:
             result = await mw.awrap_tool_call(request, handler)
 
         handler.assert_not_awaited()
-        assert isinstance(result, str)
+        assert "write_file" in result
+        assert "거부" in result

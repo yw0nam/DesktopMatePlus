@@ -1,9 +1,12 @@
 """HitLMiddleware — Human-in-the-Loop approval gate driven by a category map."""
 
+from collections.abc import Awaitable, Callable
+from typing import Any
 from uuid import uuid4
 
-from langchain.agents.middleware.types import AgentMiddleware
-from langgraph.types import interrupt
+from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command, interrupt
 from loguru import logger
 
 from src.models.websocket import ToolCategory
@@ -54,14 +57,25 @@ class HitLMiddleware(AgentMiddleware):
         return self._category_map.get(tool_name, ToolCategory.DANGEROUS)
 
     def requires_approval(self, tool_name: str) -> bool:
+        """True when the tool's category is not in `_BYPASS_CATEGORIES`."""
         return self.get_category(tool_name) not in self._BYPASS_CATEGORIES
 
-    async def awrap_tool_call(self, request, handler):
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]],
+    ) -> ToolMessage | Command[Any] | str:
+        """Gate a tool call by category.
+
+        Bypass categories (READ_ONLY) run the handler directly. Non-bypass
+        categories interrupt and wait for user approval; denied calls return
+        a user-facing Korean denial string in place of tool output.
+        """
         tool_name: str = request.tool_call["name"]
         category = self.get_category(tool_name)
 
         if category in self._BYPASS_CATEGORIES:
-            logger.info(f"HitL gate: '{tool_name}' bypass (category={category.value})")
+            logger.debug(f"HitL gate: '{tool_name}' bypass (category={category.value})")
             return await handler(request)
 
         args = request.tool_call.get("args", {})
