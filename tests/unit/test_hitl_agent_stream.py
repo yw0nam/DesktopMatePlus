@@ -283,4 +283,6 @@ class TestConsumeAstreamCategory:
         agent = _make_agent()
         events = [e async for e in agent._consume_astream(fake_astream(), "sess-2")]
 
+        assert events, "no events yielded"
+        assert events[0]["type"] == "hitl_request"
         assert events[0]["category"] == ToolCategory.DANGEROUS.value

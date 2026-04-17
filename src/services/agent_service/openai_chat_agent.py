@@ -457,14 +457,14 @@ class OpenAIChatAgent(AgentService):
                 if stream_type == "updates":
                     if data.get("__interrupt__"):
                         interrupt_value = data["__interrupt__"][0].value
+                        # request_id/tool_name/tool_args are contract-required upstream; only `category` is optional for legacy compatibility.
                         yield {
                             "type": "hitl_request",
                             "request_id": interrupt_value["request_id"],
                             "tool_name": interrupt_value["tool_name"],
                             "tool_args": interrupt_value["tool_args"],
                             "session_id": session_id,
-                            # fail-closed: handles interrupts from older checkpoints
-                            # or any middleware that did not set `category`
+                            # fail-closed for older checkpoints / middleware that didn't set `category` (spec §6)
                             "category": interrupt_value.get(
                                 "category", ToolCategory.DANGEROUS.value
                             ),
