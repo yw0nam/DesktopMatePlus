@@ -14,9 +14,13 @@ Tests cover:
 
 import asyncio
 import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import websockets
+
+from src.models.websocket import ToolCategory
+from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
 
 TOKEN = "demo-token"
 AGENT_ID = "e2e-hitl-agent"
@@ -282,6 +286,11 @@ class TestHitLApproveFlow:
             assert "tool_name" in hitl_event, "hitl_request missing tool_name"
             assert "tool_args" in hitl_event, "hitl_request missing tool_args"
             assert "session_id" in hitl_event, "hitl_request missing session_id"
+            assert hitl_event["category"] in {
+                "state_mutating",
+                "external",
+                "dangerous",
+            }, f"hitl_request category must be non-bypass, got: {hitl_event.get('category')}"
 
             # Send approval
             await ws.send(
@@ -333,6 +342,11 @@ class TestHitLApproveFlow:
             assert isinstance(hitl_event["session_id"], str), "session_id must be str"
             assert len(hitl_event["request_id"]) > 0, "request_id must not be empty"
             assert len(hitl_event["tool_name"]) > 0, "tool_name must not be empty"
+            assert hitl_event["category"] in {
+                "state_mutating",
+                "external",
+                "dangerous",
+            }, f"hitl_request category must be non-bypass, got: {hitl_event.get('category')}"
         finally:
             await ws.close()
 
@@ -357,6 +371,11 @@ class TestHitLDenyFlow:
                 )
 
             hitl_event = next(e for e in events if e["type"] == "hitl_request")
+            assert hitl_event["category"] in {
+                "state_mutating",
+                "external",
+                "dangerous",
+            }, f"hitl_request category must be non-bypass, got: {hitl_event.get('category')}"
 
             # Send denial
             await ws.send(
@@ -422,6 +441,11 @@ class TestHitLMultiToolApproval:
                     break
 
                 hitl_count += 1
+                assert last_event["category"] in {
+                    "state_mutating",
+                    "external",
+                    "dangerous",
+                }, f"hitl_request category must be non-bypass, got: {last_event.get('category')}"
                 # Approve the tool call
                 await ws.send(
                     json.dumps(
@@ -455,3 +479,22 @@ class TestHitLMultiToolApproval:
             ), f"Expected at least 1 hitl_request, got {hitl_count}"
         finally:
             await ws.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.e2e
+async def test_read_only_tool_bypasses_hitl_via_middleware():
+    """read_only category must not trigger interrupt() at the middleware layer."""
+    mw = HitLMiddleware(category_map={"search_memory": ToolCategory.READ_ONLY})
+    request = MagicMock()
+    request.tool_call = {"name": "search_memory", "args": {"query": "cat"}}
+    handler = AsyncMock(return_value="memory hit")
+
+    with patch(
+        "src.services.agent_service.middleware.hitl_middleware.interrupt"
+    ) as mock_interrupt:
+        result = await mw.awrap_tool_call(request, handler)
+
+    mock_interrupt.assert_not_called()
+    handler.assert_awaited_once_with(request)
+    assert result == "memory hit"
