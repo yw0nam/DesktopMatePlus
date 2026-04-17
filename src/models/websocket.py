@@ -10,6 +10,18 @@ from pydantic import BaseModel, Field, field_validator
 _MAX_IMAGE_BASE64_BYTES = 6 * 1024 * 1024
 
 
+class ToolCategory(StrEnum):
+    """HitL classification that determines whether a tool call requires approval.
+
+    See docs/superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md.
+    """
+
+    READ_ONLY = "read_only"
+    STATE_MUTATING = "state_mutating"
+    EXTERNAL = "external"
+    DANGEROUS = "dangerous"
+
+
 class MessageType(StrEnum):
     """WebSocket message types."""
 
@@ -225,6 +237,10 @@ class HitLRequestMessage(BaseMessage):
     tool_name: str = Field(..., description="Name of the tool requiring approval")
     tool_args: dict[str, Any] = Field(..., description="Tool call arguments")
     session_id: str = Field(..., description="Session ID for graph resume")
+    category: ToolCategory = Field(
+        ...,
+        description="HitL category of the tool (drives UI copy, future batch-approval policy)",
+    )
 
 
 # TimelineKeyframe matches desktop-homunculus POST /vrm/{entity}/speech/timeline format.

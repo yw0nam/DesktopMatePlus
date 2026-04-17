@@ -1,11 +1,15 @@
 """Unit tests for HitL message models and turn status."""
 
+import pytest
+from pydantic import ValidationError
+
 from src.models.websocket import (
     ClientMessage,
     HitLRequestMessage,
     HitLResponseMessage,
     MessageType,
     ServerMessage,
+    ToolCategory,
 )
 from src.services.websocket_service.message_processor.models import TurnStatus
 
@@ -29,6 +33,7 @@ class TestHitLRequestMessage:
             tool_name="dangerous_tool",
             tool_args={"query": "hello"},
             session_id="session-456",
+            category=ToolCategory.DANGEROUS,
         )
         assert msg.type == MessageType.HITL_REQUEST
         assert msg.request_id == "req-123"
@@ -42,6 +47,7 @@ class TestHitLRequestMessage:
             tool_name="test_tool",
             tool_args={"key": "value"},
             session_id="sess-1",
+            category=ToolCategory.DANGEROUS,
         )
         data = msg.model_dump()
         assert data["type"] == "hitl_request"
@@ -54,10 +60,54 @@ class TestHitLRequestMessage:
             tool_name="t1",
             tool_args={},
             session_id="s1",
+            category=ToolCategory.DANGEROUS,
         )
         # Should be assignable to ServerMessage type
         server_msg: ServerMessage = msg
         assert isinstance(server_msg, HitLRequestMessage)
+
+
+class TestToolCategoryEnum:
+    def test_enum_values_are_strings(self):
+        assert ToolCategory.READ_ONLY.value == "read_only"
+        assert ToolCategory.STATE_MUTATING.value == "state_mutating"
+        assert ToolCategory.EXTERNAL.value == "external"
+        assert ToolCategory.DANGEROUS.value == "dangerous"
+
+    def test_enum_is_str_subclass(self):
+        assert isinstance(ToolCategory.READ_ONLY, str)
+
+
+class TestHitLRequestMessageCategory:
+    def test_category_field_required(self):
+        with pytest.raises(ValidationError):
+            HitLRequestMessage(
+                request_id="r1",
+                tool_name="write_file",
+                tool_args={},
+                session_id="s1",
+            )
+
+    def test_category_accepts_enum(self):
+        msg = HitLRequestMessage(
+            request_id="r1",
+            tool_name="write_file",
+            tool_args={},
+            session_id="s1",
+            category=ToolCategory.STATE_MUTATING,
+        )
+        assert msg.type == MessageType.HITL_REQUEST
+        assert msg.category == ToolCategory.STATE_MUTATING
+
+    def test_category_coerces_from_string(self):
+        msg = HitLRequestMessage(
+            request_id="r1",
+            tool_name="terminal",
+            tool_args={},
+            session_id="s1",
+            category="dangerous",
+        )
+        assert msg.category == ToolCategory.DANGEROUS
 
 
 class TestHitLResponseMessage:
