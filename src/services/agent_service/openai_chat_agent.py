@@ -60,6 +60,13 @@ def _build_hitl_category_map(
         category_map.update(group.hitl_overrides)
 
     for name in mcp_tool_names:
+        if name in _DEFAULT_CATEGORIES:
+            logger.warning(
+                f"MCP tool '{name}' shadows a built-in category "
+                f"({_DEFAULT_CATEGORIES[name].value} → {mcp_default.value}). "
+                f"If unintended, rename the MCP tool or add an explicit entry "
+                f"to mcp_hitl_overrides."
+            )
         category_map[name] = mcp_default
     category_map.update(mcp_overrides)
 
@@ -458,6 +465,14 @@ class OpenAIChatAgent(AgentService):
                     if data.get("__interrupt__"):
                         interrupt_value = data["__interrupt__"][0].value
                         # request_id/tool_name/tool_args are contract-required upstream; only `category` is optional for legacy compatibility.
+                        if "category" not in interrupt_value:
+                            # Either a stale pre-Phase-2 checkpoint or a middleware
+                            # bug — warn so the latter doesn't silently hide.
+                            logger.warning(
+                                "HitL interrupt missing 'category' — "
+                                "stale checkpoint or middleware bug; "
+                                "defaulting to dangerous (fail-closed)."
+                            )
                         yield {
                             "type": "hitl_request",
                             "request_id": interrupt_value["request_id"],

@@ -280,7 +280,7 @@ TMP_LOG_DIR="$REPO_ROOT/tmp"
 mkdir -p "$TMP_LOG_DIR"
 # Clean stale e2e logs from prior runs (kept until next run starts, per _cleanup policy)
 # Keeping the pattern broad covers both today's and older-date logs.
-find "$TMP_LOG_DIR" -maxdepth 1 -name "e2e_*.log" -type f -mmin +0 -delete 2>/dev/null || true
+find "$TMP_LOG_DIR" -maxdepth 1 -name "e2e_*.log" -type f -delete 2>/dev/null || true
 export E2E_LOG_FILE="$TMP_LOG_DIR/e2e_$(date +%Y-%m-%d)_${RAND_PORT}.log"
 echo "[e2e] Log file: $E2E_LOG_FILE (preserved on exit; cleaned at next run start)"
 
