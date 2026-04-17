@@ -1,6 +1,6 @@
 # ADD_CHAT_MESSAGE Data Flow
 
-Updated: 2026-03-15
+Updated: 2026-04-17
 
 ## Session Persistence Flow
 
@@ -57,8 +57,8 @@ sequenceDiagram
         end
 
         alt HitL Gate Trigger (위험 도구 호출 시)
-            Note right of BE: MCP 도구 또는 delegate_task 호출 시<br/>HitLMiddleware가 interrupt() 발생
-            BE-->>FE: hitl_request (tool_name, tool_args, request_id)
+            Note right of BE: 비-read_only 카테고리 툴 호출 시<br/>HitLMiddleware가 interrupt(category 포함) 발생
+            BE-->>FE: hitl_request (tool_name, tool_args, request_id, category)
             BE->>BE: TurnStatus → AWAITING_APPROVAL<br/>Producer exit (graph suspended at checkpoint)
             FE->>FE: 승인 UI 표시 (사용자에게 도구 실행 확인)
             FE->>BE: hitl_response (request_id, approved=true/false)
@@ -128,9 +128,8 @@ sequenceDiagram
 
 ### HitL Gate
 
-- **Trigger**: MCP 도구 또는 `delegate_task` 호출 시 `HitLMiddleware.awrap_tool_call()`이 `interrupt()` 발생
-- **Safe tools**: `search_memory`, `update_user_profile` 등 — HitL 없이 즉시 실행
-- **Dangerous tools**: 모든 MCP 도구 + `delegate_task` + static deny-list
+- **Trigger**: non-`read_only` 카테고리 툴 호출 시 `HitLMiddleware.awrap_tool_call()`이 `interrupt()` 발생 (payload에 `category` 포함)
+- **Bypass tools (`read_only`)**: `read_file`, `list_directory`, `search_memory`, `search_knowledge`, `read_note`, `duckduckgo_search` — HitL 없이 즉시 실행
 - **Resume**: FE에서 `hitl_response` 전송 → `agent_service.resume_after_approval()` → graph 재개
 - **Denial**: 거부 시 `"사용자가 '{tool_name}' 도구 실행을 거부했습니다."` 메시지 반환
 
@@ -139,3 +138,4 @@ sequenceDiagram
 - [Backend WebSocket API](../../websocket/WEBSOCKET_API_GUIDE.md)
 - [TTS Chunk Event](../../websocket/WebSocket_TtsChunk.md)
 - [HitL Gate Flow](../../data_flow/agent/HITL_GATE_FLOW.md)
+- [HitL Phase 2 Spec](../../superpowers/specs/2026-04-17-hitl-phase2-category-approval-design.md)

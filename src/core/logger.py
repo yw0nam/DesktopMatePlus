@@ -42,6 +42,7 @@ def setup_logging(
         "{name}:{line} | "
         "[{extra[request_id]!s}] - "
         "{message}"
+        "{exception}"
     )
 
     # Console output (colored, for development)
@@ -50,9 +51,16 @@ def setup_logging(
         format=console_format,
         level=level,
         colorize=True,
+        backtrace=True,
+        diagnose=True,
     )
 
     # File output (daily rotation)
+    # backtrace/diagnose enabled so `logger.opt(exception=True).xxx(...)` writes
+    # the full stack trace to disk — required for post-hoc investigation of
+    # e2e failures where stderr is captured by pytest and not preserved.
+    # Note: the stdlib `exc_info=True` kwarg is silently ignored by loguru;
+    # callers must use `.opt(exception=True)` or `.exception(...)` explicitly.
     logger.add(
         log_dir / "app_{time:YYYY-MM-DD}.log",
         format=file_format,
@@ -60,6 +68,8 @@ def setup_logging(
         rotation=rotation,
         retention=retention,
         encoding="utf-8",
+        backtrace=True,
+        diagnose=True,
     )
 
     # Configure default request_id for logs without context

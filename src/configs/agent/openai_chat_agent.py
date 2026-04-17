@@ -2,14 +2,19 @@
 
 import os
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from src.models.websocket import ToolCategory
 
 
 class ShellToolConfig(BaseModel):
     """Configuration for the restricted shell tool."""
 
+    model_config = ConfigDict(extra="forbid")
+
     enabled: bool = False
     allowed_commands: list[str] = Field(default_factory=list)
+    hitl_overrides: dict[str, ToolCategory] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_commands_if_enabled(self) -> "ShellToolConfig":
@@ -23,18 +28,30 @@ class ShellToolConfig(BaseModel):
 class FilesystemToolConfig(BaseModel):
     """Configuration for the filesystem tool."""
 
+    model_config = ConfigDict(extra="forbid")
+
     enabled: bool = False
     root_dir: str = "/tmp/agent-workspace"
+    hitl_overrides: dict[str, ToolCategory] = Field(default_factory=dict)
 
 
 class WebSearchToolConfig(BaseModel):
     """Configuration for the web search tool."""
 
+    model_config = ConfigDict(extra="forbid")
+
     enabled: bool = False
+    hitl_overrides: dict[str, ToolCategory] = Field(default_factory=dict)
 
 
 class BuiltinToolConfig(BaseModel):
-    """Configuration for all builtin tools."""
+    """Configuration for all builtin tools.
+
+    Note: extra="forbid" is intentionally omitted at this wrapper level —
+    the three leaf configs (filesystem/shell/web_search) enforce unknown-key
+    rejection. Adding it here would break if a new tool group is added to
+    YAML before the code model knows about it.
+    """
 
     filesystem: FilesystemToolConfig = Field(default_factory=FilesystemToolConfig)
     shell: ShellToolConfig = Field(default_factory=ShellToolConfig)
@@ -49,6 +66,8 @@ class ToolConfig(BaseModel):
 
 class OpenAIChatAgentConfig(BaseModel):
     """Configuration for OpenAI Chat Agent."""
+
+    model_config = ConfigDict(extra="forbid")
 
     openai_api_key: str = Field(
         default_factory=lambda: os.getenv("LLM_API_KEY"),
@@ -76,4 +95,12 @@ class OpenAIChatAgentConfig(BaseModel):
     tool_config: ToolConfig | None = Field(
         default=None,
         description="Tool registry configuration for builtin tools (filesystem, shell, web_search)",
+    )
+    mcp_default_hitl_category: ToolCategory = Field(
+        default=ToolCategory.DANGEROUS,
+        description="HitL category applied to every discovered MCP tool unless overridden",
+    )
+    mcp_hitl_overrides: dict[str, ToolCategory] = Field(
+        default_factory=dict,
+        description="Per-MCP-tool category overrides (verified-safe tools get downgraded)",
     )

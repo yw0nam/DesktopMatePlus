@@ -15,11 +15,17 @@ from langchain_core.messages import (
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from loguru import logger
+from pydantic import ValidationError
 
+from src.configs.agent.openai_chat_agent import ToolConfig
+from src.models.websocket import ToolCategory
 from src.services.agent_service.middleware.delegate_middleware import (
     DelegateToolMiddleware,
 )
-from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
+from src.services.agent_service.middleware.hitl_middleware import (
+    _DEFAULT_CATEGORIES,
+    HitLMiddleware,
+)
 from src.services.agent_service.middleware.tool_gate_middleware import (
     ToolGateMiddleware,
 )
@@ -30,6 +36,41 @@ from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
 load_dotenv()
 
 _PERSONAS_PATH = Path(__file__).resolve().parents[3] / "yaml_files" / "personas.yml"
+
+
+def _build_hitl_category_map(
+    *,
+    tool_config: ToolConfig,
+    mcp_tool_names: set[str],
+    mcp_default: ToolCategory,
+    mcp_overrides: dict[str, ToolCategory],
+) -> dict[str, ToolCategory]:
+    """Assemble the final tool→category map (see spec §4).
+
+    Order (later wins):
+      1. _DEFAULT_CATEGORIES (built-in code catalog)
+      2. tool_config.builtin.<group>.hitl_overrides (YAML built-in overrides)
+      3. every discovered MCP tool → mcp_default
+      4. mcp_overrides (YAML MCP per-tool overrides)
+    """
+    category_map: dict[str, ToolCategory] = dict(_DEFAULT_CATEGORIES)
+
+    builtin = tool_config.builtin
+    for group in (builtin.filesystem, builtin.shell, builtin.web_search):
+        category_map.update(group.hitl_overrides)
+
+    for name in mcp_tool_names:
+        if name in _DEFAULT_CATEGORIES:
+            logger.warning(
+                f"MCP tool '{name}' shadows a built-in category "
+                f"({_DEFAULT_CATEGORIES[name].value} → {mcp_default.value}). "
+                f"If unintended, rename the MCP tool or add an explicit entry "
+                f"to mcp_hitl_overrides."
+            )
+        category_map[name] = mcp_default
+    category_map.update(mcp_overrides)
+
+    return category_map
 
 
 def _load_personas() -> dict[str, str]:
@@ -60,7 +101,9 @@ class OpenAIChatAgent(AgentService):
         openai_api_key: str | None = None,
         openai_api_base: str | None = None,
         model_name: str | None = None,
-        tool_config: dict | None = None,
+        tool_config: ToolConfig | dict | None = None,
+        mcp_default_hitl_category: ToolCategory | str = ToolCategory.DANGEROUS,
+        mcp_hitl_overrides: dict[str, ToolCategory | str] | None = None,
         **kwargs,
     ):
         self.temperature = temperature
@@ -68,7 +111,27 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_key = openai_api_key
         self.openai_api_base = openai_api_base
         self.model_name = model_name
-        self.tool_config = tool_config
+
+        if tool_config is None:
+            self._tool_config = ToolConfig()
+        elif isinstance(tool_config, dict):
+            try:
+                self._tool_config = ToolConfig.model_validate(tool_config)
+            except ValidationError as e:
+                logger.error(
+                    f"tool_config YAML failed validation: received keys="
+                    f"{sorted(tool_config.keys())}; errors={e}"
+                )
+                raise
+        else:
+            self._tool_config = tool_config
+
+        # AgentFactory passes enum values as strings after model_dump() — coerce back
+        self._mcp_default_hitl_category = ToolCategory(mcp_default_hitl_category)
+        self._mcp_hitl_overrides = {
+            k: ToolCategory(v) for k, v in (mcp_hitl_overrides or {}).items()
+        }
+
         self.agent = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
@@ -143,25 +206,34 @@ class OpenAIChatAgent(AgentService):
 
         from src.services.agent_service.tools.registry import ToolRegistry
 
-        builtin_tools = ToolRegistry(self.tool_config).get_enabled_tools()
+        builtin_tools = ToolRegistry(self._tool_config).get_enabled_tools()
         if builtin_tools:
             logger.info(
                 f"Adding {len(builtin_tools)} builtin tools: {[t.name for t in builtin_tools]}"
             )
             custom_tools.extend(builtin_tools)
 
-        builtin_cfg: dict = (self.tool_config or {}).get("builtin", {})
+        builtin = self._tool_config.builtin
         tool_gate = ToolGateMiddleware(
-            allowed_commands=builtin_cfg.get("shell", {}).get("allowed_commands"),
+            allowed_commands=builtin.shell.allowed_commands or None,
             allowed_dirs=(
-                [builtin_cfg.get("filesystem", {}).get("root_dir")]
-                if builtin_cfg.get("filesystem", {}).get("root_dir")
-                else None
+                [builtin.filesystem.root_dir] if builtin.filesystem.root_dir else None
             ),
         )
 
         mcp_tool_names = {t.name for t in self._mcp_tools}
-        hitl_gate = HitLMiddleware(mcp_tool_names=mcp_tool_names)
+        category_map = _build_hitl_category_map(
+            tool_config=self._tool_config,
+            mcp_tool_names=mcp_tool_names,
+            mcp_default=self._mcp_default_hitl_category,
+            mcp_overrides=self._mcp_hitl_overrides,
+        )
+        hitl_gate = HitLMiddleware(category_map=category_map)
+        logger.info(
+            f"HitL category map assembled: "
+            f"{len(category_map)} tools "
+            f"({sum(1 for c in category_map.values() if c == ToolCategory.READ_ONLY)} bypass)"
+        )
 
         self.agent = create_agent(
             model=self.llm,
@@ -392,12 +464,25 @@ class OpenAIChatAgent(AgentService):
                 if stream_type == "updates":
                     if data.get("__interrupt__"):
                         interrupt_value = data["__interrupt__"][0].value
+                        # request_id/tool_name/tool_args are contract-required upstream; only `category` is optional for legacy compatibility.
+                        if "category" not in interrupt_value:
+                            # Either a stale pre-Phase-2 checkpoint or a middleware
+                            # bug — warn so the latter doesn't silently hide.
+                            logger.warning(
+                                "HitL interrupt missing 'category' — "
+                                "stale checkpoint or middleware bug; "
+                                "defaulting to dangerous (fail-closed)."
+                            )
                         yield {
                             "type": "hitl_request",
                             "request_id": interrupt_value["request_id"],
                             "tool_name": interrupt_value["tool_name"],
                             "tool_args": interrupt_value["tool_args"],
                             "session_id": session_id,
+                            # fail-closed for older checkpoints / middleware that didn't set `category` (spec §6)
+                            "category": interrupt_value.get(
+                                "category", ToolCategory.DANGEROUS.value
+                            ),
                         }
                         return
 
@@ -450,7 +535,9 @@ class OpenAIChatAgent(AgentService):
             logger.info(f"Stream processing completed: {chunk_count} chunks")
 
         except Exception:
-            logger.warning("Error in stream processing", exc_info=True)
+            # loguru uses `.opt(exception=True)` — the stdlib `exc_info=True` kwarg
+            # is silently ignored. This line used to be silently dropping tracebacks.
+            logger.opt(exception=True).warning("Error in stream processing")
             if remaining := buffer.flush():
                 yield self._flush_buffer(node, remaining)
             yield {"type": "error", "error": "메시지 처리 중 오류가 발생했습니다."}
