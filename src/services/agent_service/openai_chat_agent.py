@@ -520,7 +520,9 @@ class OpenAIChatAgent(AgentService):
             logger.info(f"Stream processing completed: {chunk_count} chunks")
 
         except Exception:
-            logger.warning("Error in stream processing", exc_info=True)
+            # loguru uses `.opt(exception=True)` — the stdlib `exc_info=True` kwarg
+            # is silently ignored. This line used to be silently dropping tracebacks.
+            logger.opt(exception=True).warning("Error in stream processing")
             if remaining := buffer.flush():
                 yield self._flush_buffer(node, remaining)
             yield {"type": "error", "error": "메시지 처리 중 오류가 발생했습니다."}

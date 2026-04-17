@@ -37,9 +37,11 @@ _cleanup() {
         echo "[e2e] Stopping backend..."
         bash "$SCRIPT_DIR/run.sh" --stop || true
     fi
-    # Always clean up the isolated e2e log file
+    # Preserve the e2e log file for post-hoc investigation; it's cleaned up at
+    # the start of the NEXT run (see Phase 2). This lets us inspect tracebacks
+    # of failed runs without racing against the cleanup.
     if [[ -n "${E2E_LOG_FILE:-}" && -f "$E2E_LOG_FILE" ]]; then
-        rm -f "$E2E_LOG_FILE"
+        echo "[e2e] Log preserved at: $E2E_LOG_FILE"
     fi
     rm -f "$REPO_ROOT/.run.logfile"
     exit "$exit_code"
@@ -276,8 +278,11 @@ echo "[e2e] Using port $RAND_PORT"
 # Isolated log file per e2e run — avoids cross-run contamination from shared daily log
 TMP_LOG_DIR="$REPO_ROOT/tmp"
 mkdir -p "$TMP_LOG_DIR"
+# Clean stale e2e logs from prior runs (kept until next run starts, per _cleanup policy)
+# Keeping the pattern broad covers both today's and older-date logs.
+find "$TMP_LOG_DIR" -maxdepth 1 -name "e2e_*.log" -type f -mmin +0 -delete 2>/dev/null || true
 export E2E_LOG_FILE="$TMP_LOG_DIR/e2e_$(date +%Y-%m-%d)_${RAND_PORT}.log"
-echo "[e2e] Log file: $E2E_LOG_FILE"
+echo "[e2e] Log file: $E2E_LOG_FILE (preserved on exit; cleaned at next run start)"
 
 export BACKEND_PORT="$RAND_PORT"
 export SKIP_SERVICE_CHECKS="true"
