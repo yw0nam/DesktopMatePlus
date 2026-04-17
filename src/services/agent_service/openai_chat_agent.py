@@ -16,10 +16,15 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from loguru import logger
 
+from src.configs.agent.openai_chat_agent import ToolConfig
+from src.models.websocket import ToolCategory
 from src.services.agent_service.middleware.delegate_middleware import (
     DelegateToolMiddleware,
 )
-from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
+from src.services.agent_service.middleware.hitl_middleware import (
+    _DEFAULT_CATEGORIES,
+    HitLMiddleware,
+)
 from src.services.agent_service.middleware.tool_gate_middleware import (
     ToolGateMiddleware,
 )
@@ -30,6 +35,34 @@ from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
 load_dotenv()
 
 _PERSONAS_PATH = Path(__file__).resolve().parents[3] / "yaml_files" / "personas.yml"
+
+
+def _build_hitl_category_map(
+    *,
+    tool_config: ToolConfig,
+    mcp_tool_names: set[str],
+    mcp_default: ToolCategory,
+    mcp_overrides: dict[str, ToolCategory],
+) -> dict[str, ToolCategory]:
+    """Assemble the final tool→category map (see spec §4).
+
+    Order (later wins):
+      1. _DEFAULT_CATEGORIES (built-in code catalog)
+      2. tool_config.builtin.<group>.hitl_overrides (YAML built-in overrides)
+      3. every discovered MCP tool → mcp_default
+      4. mcp_overrides (YAML MCP per-tool overrides)
+    """
+    category_map: dict[str, ToolCategory] = dict(_DEFAULT_CATEGORIES)
+
+    builtin = tool_config.builtin
+    for group in (builtin.filesystem, builtin.shell, builtin.web_search):
+        category_map.update(group.hitl_overrides)
+
+    for name in mcp_tool_names:
+        category_map[name] = mcp_default
+    category_map.update(mcp_overrides)
+
+    return category_map
 
 
 def _load_personas() -> dict[str, str]:
@@ -60,7 +93,9 @@ class OpenAIChatAgent(AgentService):
         openai_api_key: str | None = None,
         openai_api_base: str | None = None,
         model_name: str | None = None,
-        tool_config: dict | None = None,
+        tool_config: ToolConfig | dict | None = None,
+        mcp_default_hitl_category: ToolCategory | str = ToolCategory.DANGEROUS,
+        mcp_hitl_overrides: dict[str, ToolCategory | str] | None = None,
         **kwargs,
     ):
         self.temperature = temperature
@@ -68,7 +103,20 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_key = openai_api_key
         self.openai_api_base = openai_api_base
         self.model_name = model_name
-        self.tool_config = tool_config
+
+        if tool_config is None:
+            self._tool_config = ToolConfig()
+        elif isinstance(tool_config, dict):
+            self._tool_config = ToolConfig.model_validate(tool_config)
+        else:
+            self._tool_config = tool_config
+
+        # AgentFactory passes enum values as strings after model_dump() — coerce back
+        self._mcp_default_hitl_category = ToolCategory(mcp_default_hitl_category)
+        self._mcp_hitl_overrides = {
+            k: ToolCategory(v) for k, v in (mcp_hitl_overrides or {}).items()
+        }
+
         self.agent = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
@@ -143,25 +191,34 @@ class OpenAIChatAgent(AgentService):
 
         from src.services.agent_service.tools.registry import ToolRegistry
 
-        builtin_tools = ToolRegistry(self.tool_config).get_enabled_tools()
+        builtin_tools = ToolRegistry(self._tool_config).get_enabled_tools()
         if builtin_tools:
             logger.info(
                 f"Adding {len(builtin_tools)} builtin tools: {[t.name for t in builtin_tools]}"
             )
             custom_tools.extend(builtin_tools)
 
-        builtin_cfg: dict = (self.tool_config or {}).get("builtin", {})
+        builtin = self._tool_config.builtin
         tool_gate = ToolGateMiddleware(
-            allowed_commands=builtin_cfg.get("shell", {}).get("allowed_commands"),
+            allowed_commands=builtin.shell.allowed_commands or None,
             allowed_dirs=(
-                [builtin_cfg.get("filesystem", {}).get("root_dir")]
-                if builtin_cfg.get("filesystem", {}).get("root_dir")
-                else None
+                [builtin.filesystem.root_dir] if builtin.filesystem.root_dir else None
             ),
         )
 
         mcp_tool_names = {t.name for t in self._mcp_tools}
-        hitl_gate = HitLMiddleware(mcp_tool_names=mcp_tool_names)
+        category_map = _build_hitl_category_map(
+            tool_config=self._tool_config,
+            mcp_tool_names=mcp_tool_names,
+            mcp_default=self._mcp_default_hitl_category,
+            mcp_overrides=self._mcp_hitl_overrides,
+        )
+        hitl_gate = HitLMiddleware(category_map=category_map)
+        logger.info(
+            f"HitL category map assembled: "
+            f"{len(category_map)} tools "
+            f"({sum(1 for c in category_map.values() if c == ToolCategory.READ_ONLY)} bypass)"
+        )
 
         self.agent = create_agent(
             model=self.llm,
