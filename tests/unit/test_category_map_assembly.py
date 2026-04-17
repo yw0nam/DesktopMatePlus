@@ -66,6 +66,21 @@ class TestBuildHitLCategoryMap:
         )
         assert category_map["future_mcp_tool"] == ToolCategory.READ_ONLY
 
+    def test_mcp_default_overrides_builtin_when_name_collides(self):
+        """Spec §4: MCP layer runs after built-ins, so a collision downgrades to mcp_default.
+
+        In practice this means an MCP server that registers a tool named 'read_file'
+        will be treated as dangerous (not read_only), because MCP tools' behavior
+        is unknown at config time.
+        """
+        category_map = _build_hitl_category_map(
+            tool_config=ToolConfig(),
+            mcp_tool_names={"read_file"},  # collides with built-in READ_ONLY
+            mcp_default=ToolCategory.DANGEROUS,
+            mcp_overrides={},
+        )
+        assert category_map["read_file"] == ToolCategory.DANGEROUS
+
     def test_unknown_builtin_override_key_still_recorded(self):
         tool_config = ToolConfig(
             builtin=BuiltinToolConfig(

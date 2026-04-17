@@ -15,6 +15,7 @@ from langchain_core.messages import (
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from loguru import logger
+from pydantic import ValidationError
 
 from src.configs.agent.openai_chat_agent import ToolConfig
 from src.models.websocket import ToolCategory
@@ -107,7 +108,14 @@ class OpenAIChatAgent(AgentService):
         if tool_config is None:
             self._tool_config = ToolConfig()
         elif isinstance(tool_config, dict):
-            self._tool_config = ToolConfig.model_validate(tool_config)
+            try:
+                self._tool_config = ToolConfig.model_validate(tool_config)
+            except ValidationError:
+                logger.error(
+                    f"tool_config YAML failed validation: received keys="
+                    f"{sorted(tool_config.keys())}"
+                )
+                raise
         else:
             self._tool_config = tool_config
 
