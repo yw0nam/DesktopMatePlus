@@ -73,6 +73,10 @@ class OpenAIChatAgentConfig(BaseModel):
         default=False,
         description="Whether the agent supports image inputs in messages",
     )
+    filesystem_root_dir: str = Field(
+        default="/tmp/agent-workspace",
+        description="Sandbox root for filesystem tools (ReadFile/WriteFile/EditFile/etc).",
+    )
     tool_config: ToolConfig | None = Field(
         default=None,
         description="Tool registry configuration for builtin tools (filesystem, shell, web_search)",
