@@ -65,6 +65,7 @@ def _fake_llm() -> FakeToolChatModel:
     )
 
 
+@pytest.mark.slow
 @pytest.mark.spike
 @pytest.mark.asyncio
 async def test_mongodb_saver_supports_hitl_interrupt_and_resume():
