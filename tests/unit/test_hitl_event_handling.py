@@ -180,6 +180,7 @@ class TestHitLResponseHandler:
         mock_turn = MagicMock()
         mock_turn.status = TurnStatus.AWAITING_APPROVAL
         mock_turn.session_id = "sess-1"
+        mock_turn.metadata = {"interrupt_id": "iid-1"}
         mock_processor.turns = {"turn-1": mock_turn}
         mock_processor.update_turn_status = AsyncMock()
         mock_processor.attach_agent_stream = AsyncMock()
@@ -229,6 +230,7 @@ class TestHitLResponseHandler:
             session_id="sess-1",
             approved=True,
             request_id="req-1",
+            interrupt_id="iid-1",
         )
 
     async def test_hitl_response_rejects_when_no_pending_approval(self):

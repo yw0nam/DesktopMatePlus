@@ -320,6 +320,7 @@ class MessageHandler:
         request_id = message_data.get("request_id", "")
         approved = message_data.get("approved", False)
         session_id = turn.session_id
+        interrupt_id = turn.metadata.get("interrupt_id", "")
 
         agent_service = get_agent_service()
         if not agent_service:
@@ -335,6 +336,7 @@ class MessageHandler:
             session_id=session_id,
             approved=approved,
             request_id=request_id,
+            interrupt_id=interrupt_id,
         )
 
         await processor.attach_agent_stream(turn_id, agent_stream)

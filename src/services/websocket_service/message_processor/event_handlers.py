@@ -64,6 +64,10 @@ class EventHandler:
                     await self.processor.update_turn_status(
                         turn_id, TurnStatus.AWAITING_APPROVAL
                     )
+                    # Store interrupt_id in turn metadata for resume
+                    turn = self.processor.turns.get(turn_id)
+                    if turn and "interrupt_id" in event:
+                        turn.metadata["interrupt_id"] = event["interrupt_id"]
                     await self.processor._put_event(turn_id, event)
                     await self._signal_token_stream_closed(turn_id)
                     await self._wait_for_token_queue(turn_id)

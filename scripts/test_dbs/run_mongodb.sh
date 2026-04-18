@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-
 docker run -d \
     --name test_mongodb \
     --label com.docker.compose.project=yw \
