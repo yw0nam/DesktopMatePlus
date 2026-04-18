@@ -168,21 +168,16 @@ verify_gp5() {
 }
 
 verify_gp6() {
-  # TODO as First-Class Artifact — Minor
+  # Task Tracking via GitHub Issues — Minor
   local repo="$1"
   if [[ "$repo" == "backend" ]]; then
-    local todo_file="${REPO_DIRS[backend]}/TODO.md"
-    if [[ ! -f "$todo_file" ]]; then
-      add_result GP-6 backend Minor PASS "no TODO.md found"
+    if ! command -v gh &>/dev/null || ! gh auth status &>/dev/null 2>&1; then
+      add_result GP-6 backend Minor SKIP "gh CLI not available or not authenticated"
       return
     fi
-    local wip_count
-    wip_count="$(grep -c 'cc:WIP' "$todo_file" 2>/dev/null)" || wip_count=0
-    if [[ "$wip_count" -eq 0 ]]; then
-      add_result GP-6 backend Minor PASS "no orphan cc:WIP tasks"
-    else
-      add_result GP-6 backend Minor FAIL "${wip_count} cc:WIP task(s) without corresponding commit"
-    fi
+    local open_count
+    open_count="$(gh issue list --repo yw0nam/DesktopMatePlus --state open --json number --jq 'length' 2>/dev/null)" || open_count=0
+    add_result GP-6 backend Minor PASS "${open_count} open issue(s) tracked on GitHub"
   fi
 }
 
@@ -216,79 +211,19 @@ verify_gp8() {
 }
 
 verify_gp9() {
-  # Archive Freshness — WARN
-  # Completed specs in docs/TODO.md must be reflected in TODO.md
+  # Archive Freshness — WARN (legacy: was TODO.md spec-ref check)
+  # Now tracked via GitHub Issues — closed issues = archived
   local repo="$1"
   if [[ "$repo" != "backend" ]]; then return; fi
-
-  local todo_file="${REPO_DIRS[backend]}/TODO.md"
-  [[ -f "$todo_file" ]] || { add_result GP-9 backend WARN SKIP "TODO.md not found"; return; }
-
-  # Find cc:DONE tasks that reference a spec still marked active in docs/TODO.md
-  local done_count active_count
-  done_count="$(grep -c 'cc:DONE' "$todo_file" 2>/dev/null)" || done_count=0
-  active_count="$(grep -c 'cc:TODO\|cc:WIP' "$todo_file" 2>/dev/null)" || active_count=0
-
-  # Basic check: warn if any cc:WIP exists alongside cc:DONE tasks
-  if [[ "$done_count" -gt 0 && "$active_count" -gt 0 ]]; then
-    add_result GP-9 backend WARN PASS "TODO.md has both active (${active_count}) and done (${done_count}) tasks — OK"
-  else
-    add_result GP-9 backend WARN PASS "TODO.md archive freshness OK"
-  fi
+  add_result GP-9 backend WARN PASS "tracked via GitHub Issues (closed = archived)"
 }
 
 verify_gp10() {
-  # TODO.md Auto-Archive — WARN
-  # Detect completed Phases that should be collapsed to a summary line
+  # Auto-Archive — WARN (legacy: was TODO.md phase collapse)
+  # Now tracked via GitHub Issues — close issues to archive
   local repo="$1"
   if [[ "$repo" != "backend" ]]; then return; fi
-
-  local todo_file="${REPO_DIRS[backend]}/TODO.md"
-  [[ -f "$todo_file" ]] || { add_result GP-10 backend WARN SKIP "TODO.md not found"; return; }
-
-  local stale_phases=()
-  local current_phase=""
-  local phase_has_todo=false
-  local phase_has_tasks=false
-  local phase_is_archived=false
-
-  while IFS= read -r line; do
-    if echo "$line" | grep -qP '^### Phase \d+:'; then
-      # Check previous phase
-      if [[ -n "$current_phase" && "$phase_has_tasks" == true && "$phase_has_todo" == false && "$phase_is_archived" == false ]]; then
-        stale_phases+=("$current_phase")
-      fi
-      current_phase="$line"
-      phase_has_todo=false
-      phase_has_tasks=false
-      phase_is_archived=false
-      if echo "$line" | grep -qE 'completed'; then
-        phase_is_archived=true
-      fi
-    fi
-    if echo "$line" | grep -qP '^\s*-\s*\[\s*\]'; then
-      phase_has_todo=true
-      phase_has_tasks=true
-    fi
-    if echo "$line" | grep -qP '^\s*-\s*\[x\]'; then
-      phase_has_tasks=true
-    fi
-  done < "$todo_file"
-
-  # Check last phase
-  if [[ -n "$current_phase" && "$phase_has_tasks" == true && "$phase_has_todo" == false && "$phase_is_archived" == false ]]; then
-    stale_phases+=("$current_phase")
-  fi
-
-  if [[ ${#stale_phases[@]} -eq 0 ]]; then
-    add_result GP-10 backend WARN PASS "no completed phases pending archive"
-  else
-    local details=""
-    for p in "${stale_phases[@]}"; do
-      details+="$p"$'\n'
-    done
-    add_result GP-10 backend WARN FAIL "completed phases not archived: ${details}"
-  fi
+  add_result GP-10 backend WARN PASS "tracked via GitHub Issues (close to archive)"
 }
 
 # ── Detection phase ────────────────────────────────────────────────
@@ -413,96 +348,9 @@ fi
 # ── Auto-fix phase (skip if --dry-run) ─────────────────────────────
 declare -A AUTO_FIXED=()
 
-archive_completed_phases() {
-  local todo_file="${REPO_DIRS[backend]}/TODO.md"
-  [[ -f "$todo_file" ]] || return 0
-
-  # Collect unarchived Phase headers and their line numbers
-  local -a phase_headers=()
-  local -a phase_line_nums=()
-  local line_num=0
-
-  while IFS= read -r line; do
-    (( line_num++ )) || true
-    if echo "$line" | grep -qP '^### Phase \d+:'; then
-      if echo "$line" | grep -qE 'completed'; then continue; fi
-      phase_headers+=("$line")
-      phase_line_nums+=("$line_num")
-    fi
-  done < "$todo_file"
-
-  [[ ${#phase_headers[@]} -gt 0 ]] || return 0
-
-  local total_lines
-  total_lines=$(wc -l < "$todo_file")
-
-  # Process in REVERSE order so line numbers stay valid after deletions
-  local i=${#phase_headers[@]}
-  while [[ $i -gt 0 ]]; do
-    (( i-- )) || true
-    local start="${phase_line_nums[$i]}"
-    local header="${phase_headers[$i]}"
-
-    # Find block end: next ### Phase or ## header, or EOF
-    local block_end="$total_lines"
-    local scan=$((start + 1))
-    while [[ "$scan" -le "$total_lines" ]]; do
-      local scan_line
-      scan_line=$(sed -n "${scan}p" "$todo_file")
-      if echo "$scan_line" | grep -qP '^###\s+Phase\s+\d+:'; then
-        block_end=$((scan - 1))
-        break
-      fi
-      if echo "$scan_line" | grep -qP '^## '; then
-        block_end=$((scan - 1))
-        break
-      fi
-      (( scan++ )) || true
-    done
-
-    # Extract block
-    local block
-    block=$(sed -n "${start},${block_end}p" "$todo_file")
-
-    # Check: has tasks and all complete
-    local has_tasks=false has_todo=false
-    if echo "$block" | grep -qP '^\s*-\s*\[x\]'; then has_tasks=true; fi
-    if echo "$block" | grep -qP '^\s*-\s*\[\s*\]'; then has_todo=true; fi
-
-    if [[ "$has_tasks" == true && "$has_todo" == false ]]; then
-      local phase_name
-      phase_name=$(echo "$header" | sed 's/^### //')
-
-      echo "[GP-10] Collapsing: $phase_name"
-
-      # Replace block with single summary line (no separate archive file)
-      local link_line="### ${phase_name} [completed]"
-      local tmp_todo
-      tmp_todo=$(mktemp)
-      awk -v s="$start" -v e="$block_end" -v r="$link_line" \
-        'NR==s{print r;next} NR>s&&NR<=e{next} {print}' "$todo_file" > "$tmp_todo"
-      mv "$tmp_todo" "$todo_file"
-
-      REPO_HAS_FIXES[backend]=1
-      # Recalculate total_lines after block removal
-      total_lines=$(wc -l < "$todo_file")
-    fi
-  done
-}
-
 if [[ "$DRY_RUN" == false && "$METRICS_ONLY" == false ]]; then
   echo ""
   echo "--- Auto-fix phase ---"
-
-  # GP-10: auto-collapse completed Phases in TODO.md
-  for r in "${RESULTS[@]}"; do
-    IFS=$'\x1f' read -r gp repo severity status details <<< "$r"
-    if [[ "$gp" == "GP-10" && "$status" == "FAIL" ]]; then
-      archive_completed_phases
-      AUTO_FIXED["GP-10|backend"]=1
-      break
-    fi
-  done
 
   for r in "${RESULTS[@]}"; do
     IFS=$'\x1f' read -r gp repo severity status details <<< "$r"

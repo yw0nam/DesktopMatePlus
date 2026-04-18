@@ -1,6 +1,6 @@
 # /quality-report — Daily Quality Check
 
-일일 품질 점검. garden.sh + check_docs.sh + stale TODO 탐지 + QUALITY_SCORE.md 갱신 후 리포트 PR 생성.
+일일 품질 점검. garden.sh + check_docs.sh + stale issue 탐지 + QUALITY_SCORE.md 갱신 후 리포트 PR 생성.
 
 ## 실행 순서
 
@@ -48,31 +48,29 @@ cd "$WORKTREE_PATH" && bash scripts/clean/check_docs.sh --dry-run
 
 데드 링크, 200줄 초과 문서, 누락 스펙 탐지.
 
-### 4. Stale TODO Detection
+### 4. Stale Issue Detection
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
-cd "$WORKTREE_PATH" && grep -n 'cc:TODO' TODO.md
+cd "$WORKTREE_PATH" && gh issue list --repo yw0nam/DesktopMatePlus --state open --json number,title,createdAt --jq '.[] | "#\(.number) \(.title) (created: \(.createdAt[:10]))"'
 ```
 
-`cc:TODO` 상태 14일 이상 방치 항목 탐지 (git log 날짜 비교).
+14일 이상 open 상태 이슈 탐지.
 
-### 5. TODO.md Health Check
+### 5. GitHub Issues Health Check
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
 cd "$WORKTREE_PATH"
-wc -l TODO.md
-grep -n "GSTACK REVIEW REPORT\|### Verdict:" TODO.md || true
-grep -n "^## " TODO.md
+gh issue list --repo yw0nam/DesktopMatePlus --state open --json number --jq 'length'
+gh issue list --repo yw0nam/DesktopMatePlus --state open --label type:tech-debt --json number --jq 'length'
 ```
 
 플래그 대상:
-1. **Orphaned review blocks** — `## GSTACK REVIEW REPORT` 또는 `### Verdict:` 헤딩
-2. **Empty sections** — `##` 바로 뒤 `##` 또는 EOF
-3. **TODO.md 총 줄 수** — 150줄 초과 시 플래그
+1. **Open issue 총 수** — 30개 초과 시 플래그
+2. **Tech-debt 비율** — tech-debt이 전체의 50% 초과 시 플래그
 
-리포트의 `## TODO.md Health` 섹션에 기록. 자동 수정 금지.
+리포트의 `## GitHub Issues Health` 섹션에 기록. 자동 수정 금지.
 
 ### 6. Quality Score Refresh
 
@@ -83,15 +81,15 @@ cd "$WORKTREE_PATH" && bash scripts/clean/garden.sh --metrics
 
 `docs/QUALITY_SCORE.md` 등급 매트릭스 갱신.
 
-### 7. Archive Bloat Detection
+### 7. Closed Issues Check
 
 ```bash
 DATE=$(date +%Y-%m-%d); WORKTREE_PATH="worktrees/quality-${DATE}"
 cd "$WORKTREE_PATH"
-grep -c '\[x\]' TODO.md || true
+gh issue list --repo yw0nam/DesktopMatePlus --state closed --json number --jq 'length'
 ```
 
-완료 Phase 5개 이상 → `docs/archive/todo-YYYY-MM.md`로 아카이브 권고. 리포트에 플래그만 — 실제 아카이브는 별도 수행.
+Closed 이슈 수 기록. 별도 조치 불필요.
 
 ### 8. Write Report
 
@@ -108,21 +106,19 @@ grep -c '\[x\]' TODO.md || true
 [check_docs.sh output summary]
 - List each FAIL with file path
 
-## Stale TODO (2w+)
-[Tasks in cc:TODO state for 14+ days]
-- Task ID: description (added: YYYY-MM-DD)
+## Stale Issues (2w+)
+[Issues open for 14+ days]
+- #N: description (created: YYYY-MM-DD)
 
-## TODO.md Health
-- Total lines: N (threshold: 150)
-- Orphaned review blocks: [list or "none"]
-- Empty sections: [list or "none"]
+## GitHub Issues Health
+- Open issues: N (threshold: 30)
+- Tech-debt ratio: N/M (threshold: 50%)
 
 ## Quality Score Update
 [Paste updated QUALITY_SCORE.md table]
 
-## Archive Bloat
-- TODO.md: N completed Phases (threshold: 5)
-[If threshold exceeded: recommend archiving to docs/archive/]
+## Closed Issues
+- Closed issues: N
 
 ## Violations Summary
 - GP-3 (backend): N violations
@@ -179,4 +175,4 @@ PR URL을 최종 응답에 포함할 것.
 ## 제약
 
 - **소스 파일 수정 금지** — `docs/reports/YYYY/MM/`과 `docs/QUALITY_SCORE.md`만 쓰기 허용
-- **garden.sh auto-fix** (GP-10 archive)만 허용. 그 외 소스 수정 불가
+- **garden.sh auto-fix** (ruff 등 Minor 위반)만 허용. 그 외 소스 수정 불가
