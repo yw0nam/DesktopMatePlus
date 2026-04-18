@@ -102,9 +102,6 @@ class OpenAIChatAgent(AgentService):
         self.agent = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
-        # Legacy tool_config field from OpenAIChatAgentConfig is ignored here;
-        # Task 6 will remove the field from the config entirely.
-        kwargs.pop("tool_config", None)
         super().__init__(**kwargs)
         logger.info(f"Agent initialized: model={self.model_name}")
 

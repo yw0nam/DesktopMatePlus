@@ -45,13 +45,9 @@ class TestMCPToolLoading:
                 return_value=None,
             ),
             patch(
-                "src.services.agent_service.tools.registry.ToolRegistry"
-            ) as mock_registry,
-            patch(
                 "src.services.agent_service.openai_chat_agent.create_agent"
             ) as mock_create_agent,
         ):
-            mock_registry.return_value.get_enabled_tools.return_value = []
             mock_create_agent.return_value = MagicMock()
 
             await agent.initialize_async()
@@ -81,9 +77,6 @@ class TestMCPToolLoading:
                 return_value=None,
             ),
             patch(
-                "src.services.agent_service.tools.registry.ToolRegistry"
-            ) as mock_registry,
-            patch(
                 "src.services.agent_service.openai_chat_agent.create_agent"
             ) as mock_create_agent,
         ):
@@ -92,7 +85,6 @@ class TestMCPToolLoading:
                 side_effect=RuntimeError("Server failed to start")
             )
             mock_mcp_cls.return_value = mock_mcp_instance
-            mock_registry.return_value.get_enabled_tools.return_value = []
             mock_create_agent.return_value = MagicMock()
 
             await agent.initialize_async()
@@ -126,16 +118,12 @@ class TestMCPToolLoading:
                 return_value=None,
             ),
             patch(
-                "src.services.agent_service.tools.registry.ToolRegistry"
-            ) as mock_registry,
-            patch(
                 "src.services.agent_service.openai_chat_agent.create_agent"
             ) as mock_create_agent,
         ):
             mock_mcp_instance = MagicMock()
             mock_mcp_instance.get_tools = AsyncMock(return_value=[fake_tool])
             mock_mcp_cls.return_value = mock_mcp_instance
-            mock_registry.return_value.get_enabled_tools.return_value = []
             mock_create_agent.return_value = MagicMock()
 
             await agent.initialize_async()

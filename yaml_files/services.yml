@@ -49,18 +49,6 @@ llm_config:
 #     args: ["run", "--rm", "-i", "--net=none", "--memory=512m", "--cpus=1", "ghcr.io/pydantic/mcp-run-python"]
 #     transport: "stdio"
 
-# Builtin Tool Configuration
-tool_config:
-  builtin:
-    filesystem:
-      enabled: false
-      root_dir: "/tmp/agent-workspace"
-    shell:
-      enabled: false
-      allowed_commands: ["ls", "cat", "ps", "date", "whoami", "pwd", "wc", "head", "tail"]
-    web_search:
-      enabled: false
-
 # -----------------------------------------------------------------------------
 # MongoDB (Checkpointer + Session Registry)
 # -----------------------------------------------------------------------------
