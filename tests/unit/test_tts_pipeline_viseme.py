@@ -2,7 +2,7 @@
 
 import base64
 import struct
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -49,7 +49,6 @@ def viseme_mapper():
     return VisemeMapper()
 
 
-@pytest.mark.asyncio
 async def test_viseme_keyframes_in_output(tts_service, emotion_mapper, viseme_mapper):
     """synthesize_chunk should produce keyframes with A/I/U/E/O visemes."""
     msg = await synthesize_chunk(
@@ -68,7 +67,6 @@ async def test_viseme_keyframes_in_output(tts_service, emotion_mapper, viseme_ma
     assert has_viseme, "Keyframes should contain viseme targets"
 
 
-@pytest.mark.asyncio
 async def test_emotion_merged_in_viseme_keyframes(tts_service, emotion_mapper, viseme_mapper):
     """Emotion targets should be present in viseme keyframes."""
     msg = await synthesize_chunk(
@@ -84,7 +82,6 @@ async def test_emotion_merged_in_viseme_keyframes(tts_service, emotion_mapper, v
         assert kf["targets"].get("happy") == 1.0, f"Missing happy in {kf}"
 
 
-@pytest.mark.asyncio
 async def test_tts_disabled_still_has_emotion_keyframes(tts_service, emotion_mapper, viseme_mapper):
     """When TTS disabled, should fall back to emotion-only keyframes."""
     msg = await synthesize_chunk(
@@ -100,7 +97,6 @@ async def test_tts_disabled_still_has_emotion_keyframes(tts_service, emotion_map
     assert len(msg.keyframes) > 0  # emotion keyframes still present
 
 
-@pytest.mark.asyncio
 async def test_tts_failure_falls_back(tts_service, emotion_mapper, viseme_mapper):
     """When TTS fails, should fall back to emotion-only keyframes."""
     tts_service.generate_speech.return_value = None

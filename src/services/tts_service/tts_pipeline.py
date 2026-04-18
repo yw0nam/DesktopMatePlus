@@ -98,11 +98,21 @@ async def synthesize_chunk(
                         if isinstance(targets_value, dict):
                             emotion_targets = targets_value
 
-                viseme_keyframes = viseme_mapper.generate(
-                    text, duration, emotion_targets
-                )
+                try:
+                    viseme_keyframes = viseme_mapper.generate(
+                        text, duration, emotion_targets
+                    )
+                except Exception:
+                    logger.opt(exception=True).warning(
+                        "[Viseme] generate failed, falling back to emotion keyframes"
+                    )
+                    viseme_keyframes = []
                 if viseme_keyframes:
                     keyframes = viseme_keyframes
+    else:
+        logger.warning(
+            f"[TTS] generate_speech returned no audio for sequence {sequence}"
+        )
 
     return TtsChunkMessage(
         sequence=sequence,

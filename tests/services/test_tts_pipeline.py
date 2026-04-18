@@ -104,7 +104,33 @@ async def test_synthesize_chunk_exception():
     assert chunk.audio_base64 is None
     assert chunk.sequence == 2
     # Pipeline now logs exceptions via logger.opt(exception=True).warning(...)
+    mock_logger.opt.assert_called_once_with(exception=True)
     mock_logger.opt.return_value.warning.assert_called_once()
+    args, _ = mock_logger.opt.return_value.warning.call_args
+    assert args and "TTS" in args[0]
+
+
+async def test_synthesize_chunk_warns_on_none_return():
+    """generate_speech returns None → audio=None, logger.warning called once."""
+    tts_service = MagicMock()
+    tts_service.generate_speech.return_value = None
+    mapper = MagicMock()
+    mapper.map.return_value = [{"duration": 0.3, "targets": {"neutral": 1.0}}]
+
+    with patch("src.services.tts_service.tts_pipeline.logger") as mock_logger:
+        chunk = await synthesize_chunk(
+            tts_service=tts_service,
+            mapper=mapper,
+            text="텍스트",
+            emotion=None,
+            sequence=7,
+            tts_enabled=True,
+        )
+
+    assert chunk.audio_base64 is None
+    mock_logger.warning.assert_called_once()
+    args, _ = mock_logger.warning.call_args
+    assert args and "TTS" in args[0] and "sequence 7" in args[0]
 
 
 async def test_synthesize_chunk_tts_disabled():
