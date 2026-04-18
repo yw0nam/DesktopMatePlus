@@ -30,7 +30,7 @@ async def test_hitl_request_sets_awaiting_approval_and_stores_count():
             "type": "hitl_request",
             "session_id": "s1",
             "action_requests": [
-                {"name": "write_file", "arguments": {}, "description": "d"},
+                {"name": "write_file", "args": {}, "description": "d"},
             ],
             "review_configs": [
                 {
@@ -71,9 +71,9 @@ async def test_hitl_request_stores_multi_action_count():
             "type": "hitl_request",
             "session_id": "s1",
             "action_requests": [
-                {"name": "write_file", "arguments": {}, "description": "d1"},
-                {"name": "file_delete", "arguments": {}, "description": "d2"},
-                {"name": "edit_file", "arguments": {}, "description": "d3"},
+                {"name": "write_file", "args": {}, "description": "d1"},
+                {"name": "file_delete", "args": {}, "description": "d2"},
+                {"name": "edit_file", "args": {}, "description": "d3"},
             ],
             "review_configs": [
                 {

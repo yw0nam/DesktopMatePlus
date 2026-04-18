@@ -314,7 +314,7 @@ class TestHitLBuiltinFlow:
             if hitl is None:
                 pytest.skip("LLM did not choose write_file")
 
-            edited_args = dict(hitl["action_requests"][0]["arguments"])
+            edited_args = dict(hitl["action_requests"][0]["args"])
             edited_args["file_path"] = "edited_name.txt"
             await ws.send(
                 json.dumps(

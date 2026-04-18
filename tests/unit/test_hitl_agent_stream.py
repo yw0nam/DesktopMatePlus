@@ -25,7 +25,7 @@ async def test_interrupt_single_action_request_forwarded_as_list():
         "action_requests": [
             {
                 "name": "write_file",
-                "arguments": {"file_path": "a.txt"},
+                "args": {"file_path": "a.txt"},
                 "description": "desc",
             },
         ],
@@ -61,12 +61,12 @@ async def test_interrupt_multi_action_requests_preserve_order():
         "action_requests": [
             {
                 "name": "write_file",
-                "arguments": {"file_path": "a"},
+                "args": {"file_path": "a"},
                 "description": "d1",
             },
             {
                 "name": "file_delete",
-                "arguments": {"file_path": "b"},
+                "args": {"file_path": "b"},
                 "description": "d2",
             },
         ],

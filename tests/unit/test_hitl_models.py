@@ -17,7 +17,7 @@ from src.models.websocket import (
 def test_hitl_action_request_valid():
     ar = HitLActionRequest(
         name="write_file",
-        arguments={"file_path": "a.txt", "text": "hi"},
+        args={"file_path": "a.txt", "text": "hi"},
         description="desc",
     )
     assert ar.name == "write_file"
@@ -32,7 +32,7 @@ def test_hitl_request_message_shape():
     msg = HitLRequestMessage(
         session_id="s1",
         action_requests=[
-            HitLActionRequest(name="write_file", arguments={}, description="d"),
+            HitLActionRequest(name="write_file", args={}, description="d"),
         ],
         review_configs=[
             HitLReviewConfig(

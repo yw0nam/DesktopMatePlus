@@ -240,10 +240,14 @@ class StreamEndMessage(BaseMessage):
 
 
 class HitLActionRequest(BaseModel):
-    """One tool call awaiting human review."""
+    """One tool call awaiting human review.
+
+    Mirrors LangChain's built-in ``ActionRequest``; the ``args`` field name
+    must match so server→client forwarding can be a pass-through.
+    """
 
     name: str = Field(..., description="Tool name")
-    arguments: dict[str, Any] = Field(..., description="Tool call arguments")
+    args: dict[str, Any] = Field(..., description="Tool call arguments")
     description: str = Field(..., description="Human-readable description for UI")
 
 
