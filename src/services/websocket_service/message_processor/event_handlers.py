@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
+from src.services.service_manager import get_viseme_mapper
 from src.services.tts_service.tts_pipeline import synthesize_chunk
 from src.services.websocket_service.text_processors import (
     TextChunkProcessor,
@@ -299,6 +300,7 @@ class EventHandler:
             sequence=sequence,
             tts_enabled=tts_enabled,
             reference_id=reference_id,
+            viseme_mapper=get_viseme_mapper(),
         )
 
         if self.processor.is_connection_closing():
