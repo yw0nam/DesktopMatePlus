@@ -1,12 +1,12 @@
 ---
 name: Documentation
 about: "Report missing, incorrect, or unclear documentation"
-labels: [type:docs]
+labels: [documentation]
 ---
 
 ## Location
 
-File path or URL of the affected documentation.
+Page URL or file path of the affected documentation.
 
 ## Issue
 

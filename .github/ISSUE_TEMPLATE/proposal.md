@@ -1,14 +1,16 @@
 ---
-name: Feature Request
-about: "Suggest a new feature or improvement"
-labels: [type:feature]
+name: Proposal
+about: "Suggest a new feature or improve an existing one"
+labels: [enhancement]
 ---
 
-- [ ] I searched existing issues and found no duplicate
+- [ ] I searched existing issues and discussions and found no duplicate
 
 ## Type
 
-<!-- new feature / improvement to existing feature / idea -->
+Is this a new feature or an improvement to an existing one?
+
+<!-- new feature / improvement to existing feature -->
 
 ## Problem / Current Behavior
 
@@ -18,9 +20,9 @@ What problem does this solve, or what existing behavior would you like to change
 
 How would you like it to work?
 
-## Component
+## Affected Area
 
-<!-- agent / websocket / proactive / tts / docker / mcp / channel / memory / other -->
+<!-- engine / packages / mods / docs / website / ci/build / other -->
 
 ## Alternatives Considered
 

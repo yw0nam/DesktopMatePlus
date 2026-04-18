@@ -76,12 +76,12 @@ Detail goes in `docs/`, `docs/faq/`, or sub-directory `CLAUDE.md` files.
 
 ---
 
-## GP-6: Task Tracking via GitHub Issues
+## GP-6: TODO as First-Class Artifact
 
-**Rule**: Every task must exist as a GitHub Issue before implementation starts.
-Issues use label taxonomy (`type:*`, `severity:*`, `component:*`) for classification.
+**Rule**: Every task must exist in `TODO.md` with `cc:TODO` before implementation starts.
+TODO.md changes must be committed in the same session as the task they track.
 
-**Verify**: `gh issue list --repo yw0nam/DesktopMatePlus --state open`
+**Verify**: No `cc:WIP` task in `TODO.md` without a corresponding commit on the feature branch.
 
 **Severity**: Minor.
 
@@ -110,19 +110,27 @@ Direct commits to `main`/`master` are forbidden during implementation.
 
 ## GP-9: Archive Freshness
 
-**Rule**: Completed work must be reflected by closing the corresponding GitHub Issue. When a feature is merged, its issue should be closed (automatically via `fixes #N` or manually).
+**Rule**: Completed specs in `docs/TODO.md` must be reflected in TODO.md. When a spec's Status becomes `DONE` in `docs/TODO.md`, all corresponding TODO.md tasks must be `cc:DONE`, and the spec row must remain in `docs/TODO.md` under a Completed section (not deleted).
 
-**Verify**: `gh issue list --repo yw0nam/DesktopMatePlus --state open` — no stale issues for merged features.
+- Active specs: Status = `TODO` in `docs/TODO.md`
+- Completed specs: Status = `DONE` in `docs/TODO.md`; all linked TODO.md tasks are `cc:DONE`
+- If a `DONE` spec still has open (`cc:TODO`) TODO.md tasks, it triggers a warning.
 
-**Severity**: WARN — garden.sh reports only.
+**Verify**: `scripts/clean/garden.sh --gp GP-9` — lists DONE specs with open TODO.md tasks.
+
+**Severity**: WARN — garden.sh reports only; PM agent handles status updates.
 
 ---
 
-## GP-10: Issue Hygiene
+## GP-10: TODO.md Auto-Archive
 
-**Rule**: Open issues should be actionable. Stale issues (30+ days without activity) should be reviewed and either updated, closed, or labeled with a reason for keeping open.
+**Rule**: Completed Phases in TODO.md (all tasks `cc:DONE`) must be collapsed to a single summary line. TODO.md retains only the Phase title with a `[completed]` annotation; task details are removed.
 
-**Verify**: `gh issue list --repo yw0nam/DesktopMatePlus --state open --json number,updatedAt`
+- Already-collapsed Phases (single line with `[completed]` annotation) are skipped.
+- garden.sh detects unarchived completed Phases in dry-run mode; quality-agent performs the actual collapse.
+- `docs/superpowers/` paths are legacy — no new archives go there.
+
+**Verify**: `scripts/clean/garden.sh --gp GP-10` — lists uncollapsed completed Phases.
 
 **Severity**: WARN — garden.sh reports only; no merge block.
 

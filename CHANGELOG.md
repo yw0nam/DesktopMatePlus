@@ -8,7 +8,6 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Changed
 
-- migrate TODO.md + KNOWN_ISSUES.md to GitHub Issues — label taxonomy, milestones, script/doc references updated
 - add HITL gate flow and proactive trigger data flow docs; Docker UID fix and dev volume mounts; services.docker.yml proactive config (#40)
 - HitL Phase 2 — `HitLMiddleware` switched from binary dangerous/safe to a category-driven gate; READ_ONLY bypasses approval, all other categories interrupt. Unknown tools fail closed to DANGEROUS (#42, #60)
 - `extra="forbid"` enforced on `FilesystemToolConfig`/`ShellToolConfig`/`WebSearchToolConfig`/`OpenAIChatAgentConfig` so stale YAML keys fail at startup (#42, #60)

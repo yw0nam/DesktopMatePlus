@@ -1,11 +1,11 @@
 ---
 name: Bug Report
-about: "Something isn't working — crashes, errors, incorrect behavior"
-labels: [type:bug]
+about: "Something isn't working — crashes, visual glitches, incorrect behavior"
+labels: [bug]
 ---
 
 - [ ] I searched existing issues and found no duplicate
-- [ ] I can reproduce this on the latest commit
+- [ ] I can reproduce this on the latest release
 
 ## Actual Behavior
 
@@ -23,20 +23,34 @@ Minimal steps to reproduce the issue.
 2.
 3.
 
-## Component
-
-<!-- agent / websocket / proactive / tts / docker / mcp / channel / memory / other -->
-
 ## Environment
 
 - OS:
-- Python version:
-- Docker (if applicable):
+- App version:
+- Build method:
+- GPU (Windows):
+- Mods installed:
 
-## Logs
+<!--
+  Examples:
+  - OS: macOS 15.3 / Windows 11 24H2
+  - Build method: local build / MSI installer / DMG / GitHub Actions artifact
+  - GPU: NVIDIA RTX 3080 Ti, driver 560.xx
+-->
 
-Paste relevant logs (Loguru output, Docker logs, etc).
+## Logs / Crash Output
+
+Paste relevant logs from `~/.homunculus/Logs/log.txt` or crash output.
 
 ```
 (paste here)
 ```
+
+## Screenshots
+
+<details>
+<summary>If applicable, add screenshots or screen recordings.</summary>
+
+(paste here)
+
+</details>

@@ -1,6 +1,6 @@
 # Task Completion Checklist (DoD)
 
-Every task MUST pass all phases before closing the GitHub Issue.
+Every task MUST pass all phases before marking `cc:DONE`.
 
 ## Full E2E check (preferred)
 
@@ -50,7 +50,7 @@ bash scripts/run.sh --stop
 - Phase 3 requires real external services (MongoDB, Qdrant). If unavailable, backend starts but `/health` returns 500 and examples will fail.
 - `make e2e` picks a random port (7000-8999) to avoid collisions with the main app on 5500.
 - LTM test auto-skips if Qdrant is not running (prints "LTM SKIPPED").
-- 신규 태스크: GitHub Issue에 `make e2e PASSED` 체크 필수.
+- 신규 태스크: TODO.md DoD에 `make e2e PASSED` 체크 필수.
 
 ## Appendix
 
