@@ -68,17 +68,43 @@ Create `tests/spike/test_hitl_mongodb_checkpointer.py`:
 
 Blocker for HITL built-in middleware migration. If this fails, the
 migration plan needs to pivot (async saver swap or dependency bump).
+
+Pattern mirrors tests/spike/test_interrupt_in_middleware.py — uses
+FakeToolChatModel so no live LLM is needed; MONGO_URL env var required.
 """
+
+import os
+from collections.abc import Callable, Sequence
+from typing import Any
+from uuid import uuid4
 
 import pytest
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langchain_core.tools import tool
+from langchain_core.language_models import FakeMessagesListChatModel
+from langchain_core.language_models.chat_models import LanguageModelInput
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langgraph.types import Command
 from pymongo import MongoClient
 
-from src.configs.settings import get_settings
+
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://admin:test@192.168.0.43:27017/")
+
+
+class FakeToolChatModel(FakeMessagesListChatModel):
+    """FakeMessagesListChatModel that supports bind_tools (returns self)."""
+
+    def bind_tools(
+        self,
+        tools: Sequence[dict[str, Any] | type | Callable | BaseTool],
+        *,
+        tool_choice: str | None = None,
+        **kwargs: Any,
+    ) -> Runnable[LanguageModelInput, BaseMessage]:
+        return self
 
 
 @tool
@@ -87,16 +113,36 @@ def mutating_tool(payload: str) -> str:
     return f"applied: {payload}"
 
 
+def _fake_llm() -> FakeToolChatModel:
+    return FakeToolChatModel(
+        responses=[
+            AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "mutating_tool",
+                    "args": {"payload": "x"},
+                    "id": "call_1",
+                    "type": "tool_call",
+                }],
+            ),
+            AIMessage(content="Done."),
+        ]
+    )
+
+
 @pytest.mark.spike
 @pytest.mark.asyncio
 async def test_mongodb_saver_supports_hitl_interrupt_and_resume():
     """Agent with MongoDBSaver pauses on mutating_tool, resumes on approve."""
-    settings = get_settings()
-    mongo_client = MongoClient(settings.mongo.connection_string)
-    checkpointer = MongoDBSaver(client=mongo_client)
+    if not MONGO_URL:
+        pytest.skip("MONGO_URL env var not set")
+
+    mongo_client = MongoClient(MONGO_URL)
+    # Use a unique db name per test to avoid cross-run contamination
+    checkpointer = MongoDBSaver(client=mongo_client, db_name=f"spike_{uuid4().hex[:8]}")
 
     agent = create_agent(
-        model=settings.llm.model_name,  # any configured chat model
+        model=_fake_llm(),
         tools=[mutating_tool],
         checkpointer=checkpointer,
         middleware=[
@@ -104,25 +150,37 @@ async def test_mongodb_saver_supports_hitl_interrupt_and_resume():
         ],
     )
 
-    config = {"configurable": {"thread_id": "spike-mongo-hitl"}}
-    result = await agent.ainvoke(
-        {"messages": [{"role": "user", "content": "Please call mutating_tool with payload='x'"}]},
+    thread_id = f"spike-{uuid4().hex[:8]}"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    # Drain astream to reach interrupt
+    interrupt_value = None
+    async for stream_type, data in agent.astream(
+        {"messages": [("human", "call mutating_tool")]},
         config=config,
-    )
+        stream_mode=["updates"],
+    ):
+        if stream_type == "updates" and "__interrupt__" in data:
+            interrupt_value = data["__interrupt__"][0].value
 
-    # Graph must be suspended at interrupt, not completed
-    interrupts = result.get("__interrupt__") or []
-    assert len(interrupts) == 1, f"Expected 1 interrupt, got {len(interrupts)}"
-    value = interrupts[0].value
-    assert "action_requests" in value
-    assert value["action_requests"][0]["name"] == "mutating_tool"
+    assert interrupt_value is not None, "Graph did not reach interrupt"
+    assert interrupt_value["action_requests"][0]["name"] == "mutating_tool"
 
-    # Resume with approve — same thread_id, Mongo checkpoint must be readable
-    resumed = await agent.ainvoke(
+    # Resume with approve — MongoDB checkpoint must be readable on same thread_id
+    tool_executed = False
+    async for stream_type, data in agent.astream(
         Command(resume={"decisions": [{"type": "approve"}]}),
         config=config,
-    )
-    assert "applied: x" in str(resumed["messages"][-1].content)
+        stream_mode=["updates"],
+    ):
+        if stream_type == "updates":
+            for node_name, updates in data.items():
+                if node_name == "tools":
+                    for msg in updates.get("messages", []):
+                        if "applied: x" in str(getattr(msg, "content", "")):
+                            tool_executed = True
+
+    assert tool_executed, "Tool did not execute after approve resume"
 ```
 
 - [ ] **Step 2: 스파이크 실행 — 현행 sync saver**
@@ -141,9 +199,9 @@ Run: `uv run pytest tests/spike/test_hitl_mongodb_checkpointer.py -v -s`
 from langgraph.checkpoint.mongodb import AsyncMongoDBSaver
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# ... inside test:
-mongo_client = AsyncIOMotorClient(settings.mongo.connection_string)
-checkpointer = AsyncMongoDBSaver(client=mongo_client)
+# Replace MongoClient/MongoDBSaver creation inside the test with:
+mongo_client = AsyncIOMotorClient(MONGO_URL)
+checkpointer = AsyncMongoDBSaver(client=mongo_client, db_name=f"spike_{uuid4().hex[:8]}")
 ```
 
 Run: `uv run pytest tests/spike/test_hitl_mongodb_checkpointer.py -v -s`
@@ -705,16 +763,12 @@ Expected: 전체 FAIL.
 
 `src/services/agent_service/openai_chat_agent.py`:
 
-① 파일 상단 import 교체 — 구 middleware import 2줄(19-25) 삭제, 추가:
+① 파일 상단 import 교체 — `HitLMiddleware`(현 줄 22) + `ToolGateMiddleware`(현 줄 23-25, 멀티라인) 총 4줄 삭제. `DelegateToolMiddleware` import (줄 19-21) 유지. 추가:
 ```python
 from langchain.agents.middleware import HumanInTheLoopMiddleware
-
-from src.services.agent_service.middleware.delegate_middleware import (
-    DelegateToolMiddleware,
-)
 ```
 
-② 파일 상단(클래스 밖)에 상수·helper 추가 (personas 로더 위):
+② 파일 상단(클래스 밖, personas 로더 위)에 상수·helper 추가:
 ```python
 _FS_MUTATING_TOOLS = frozenset({
     "write_file", "copy_file", "move_file", "delete_file", "edit_file",
@@ -730,7 +784,40 @@ def _build_interrupt_on(mcp_tool_names: set[str]) -> dict[str, bool]:
     }
 ```
 
-③ `initialize_async` 내부 미들웨어 구성 블록(현재 줄 153-181) 교체:
+③ `OpenAIChatAgent.__init__` 시그니처(현 줄 56-75) 교체 — `tool_config: dict | None = None` 파라미터를 `filesystem_root_dir: str = "/tmp/agent-workspace"` 로 바꾸고, `self.tool_config = tool_config` 라인을 `self.filesystem_root_dir = filesystem_root_dir` 로:
+```python
+def __init__(
+    self,
+    temperature: float,
+    top_p: float,
+    openai_api_key: str | None = None,
+    openai_api_base: str | None = None,
+    model_name: str | None = None,
+    filesystem_root_dir: str = "/tmp/agent-workspace",
+    **kwargs,
+):
+    self.temperature = temperature
+    self.top_p = top_p
+    self.openai_api_key = openai_api_key
+    self.openai_api_base = openai_api_base
+    self.model_name = model_name
+    self.filesystem_root_dir = filesystem_root_dir
+    self.agent = None
+    self._mcp_tools: list = []
+    self._personas: dict[str, str] = {}
+    super().__init__(**kwargs)
+    logger.info(f"Agent initialized: model={self.model_name}")
+```
+
+④ `OpenAIChatAgentConfig` (`src/configs/agent/openai_chat_agent.py:50-79`) 에 `filesystem_root_dir: str` 필드 추가 (기존 `tool_config` 필드는 **Task 6에서** 제거; 여기서는 둘 다 존재해도 `__init__`에서 tool_config 를 받지 않으므로 ignored). 추가 위치 (파일 끝 `tool_config` 필드 앞):
+```python
+filesystem_root_dir: str = Field(
+    default="/tmp/agent-workspace",
+    description="Sandbox root for filesystem tools (ReadFile/WriteFile/EditFile/etc).",
+)
+```
+
+⑤ `initialize_async` 내부 미들웨어·툴 구성 블록(현재 줄 139-182) 교체:
 ```python
 from src.services.agent_service.tools.builtin.filesystem_tools import (
     get_filesystem_tools,
@@ -741,8 +828,7 @@ profile_svc = get_user_profile_service()
 if profile_svc is not None:
     custom_tools.append(UpdateUserProfileTool(service=profile_svc))
 
-from src.configs.settings import get_settings
-custom_tools.extend(get_filesystem_tools(root_dir=get_settings().agent.filesystem_root_dir))
+custom_tools.extend(get_filesystem_tools(root_dir=self.filesystem_root_dir))
 
 self.agent = create_agent(
     model=self.llm,
@@ -764,6 +850,36 @@ self.agent = create_agent(
 )
 logger.info("Agent created successfully")
 ```
+
+⑥ YAML 3개 파일에 `llm_config.configs.filesystem_root_dir` 추가 — `services.yml`/`services.docker.yml`/`services.e2e.yml` 각 `llm_config.configs` 블록 끝에 한 줄씩 (환경별 경로):
+```yaml
+# services.yml
+llm_config:
+  configs:
+    # ... 기존 필드 유지 ...
+    filesystem_root_dir: "/tmp/agent-workspace"
+
+# services.docker.yml
+    filesystem_root_dir: "/data/agent-workspace"
+
+# services.e2e.yml
+    filesystem_root_dir: "/tmp/agent-workspace-e2e"
+```
+
+⑦ **Task 1 Step 3 폴백(AsyncMongoDBSaver)이 선택된 경우에만**: `openai_chat_agent.py:127-137` 의 `MongoDBSaver` 초기화 블록도 아래로 교체 (현행 `mongo_client` 는 동기이므로 motor client 로 전환 필요):
+```python
+if mongo_client:
+    try:
+        from langgraph.checkpoint.mongodb import AsyncMongoDBSaver
+        from motor.motor_asyncio import AsyncIOMotorClient
+
+        async_client = AsyncIOMotorClient(mongo_client.address[0] and str(mongo_client.address))
+        # 또는 service_manager 에서 AsyncIOMotorClient 싱글톤을 따로 만들어 주입
+        checkpointer = AsyncMongoDBSaver(client=async_client)
+    except ImportError:
+        logger.warning("AsyncMongoDBSaver not available, checkpointer disabled")
+```
+Task 1 Step 2 에서 sync saver 로 PASS 라면 이 단계 **스킵**.
 
 ④ `_consume_astream` 내부 `__interrupt__` 블록(현재 줄 393-402) 교체:
 ```python
@@ -962,9 +1078,13 @@ Run: `uv run python -c "from src.main import create_app; create_app()"` → no e
 
 ```bash
 git add src/services/agent_service/openai_chat_agent.py \
+        src/configs/agent/openai_chat_agent.py \
         src/services/websocket_service/manager/handlers.py \
         src/services/websocket_service/message_processor/processor.py \
         src/services/websocket_service/message_processor/event_handlers.py \
+        yaml_files/services.yml \
+        yaml_files/services.docker.yml \
+        yaml_files/services.e2e.yml \
         tests/unit/test_hitl_agent_stream.py \
         tests/unit/test_hitl_event_handling.py
 git commit -m "feat(agent): swap to built-in HumanInTheLoopMiddleware with list-based HITL"
@@ -981,60 +1101,222 @@ git commit -m "feat(agent): swap to built-in HumanInTheLoopMiddleware with list-
 
 - [ ] **Step 1: 신 E2E 작성 (9개 시나리오)**
 
-Overwrite `tests/e2e/test_hitl_e2e.py` — 다음 9개 테스트 함수를 포함 (클래스 `TestHitLBuiltinFlow`):
+파일 전체 구조 — 기존 `tests/e2e/test_hitl_e2e.py` 의 helpers(`_connect_and_authorize`, `_collect_until_terminal`, `_recv_skip_ping`, `_send_chat`)는 **그대로 보존**. 테스트 클래스만 교체. 아래 9개 테스트 각 scenario를 `TestHitLBuiltinFlow` 클래스에 넣는다. `e2e_session` fixture 는 dict (`{"base_url", "ws_url"}`) — 현행 `tests/e2e/conftest.py:22-30` 참조.
 
-1. `test_normal_chat_no_hitl_request` — `chat_message` → safe 응답 → `stream_end`, `hitl_request` 없음.
-2. `test_safe_tool_no_hitl_request` — 유리에게 "read_file a.txt" 요청 → `hitl_request` 없음.
-3. `test_write_file_approve` — write 요청 → `hitl_request` 수신 (`action_requests` 길이 1) → `hitl_response` `{decisions:[{type:"approve"}]}` → `stream_end`, 실제 파일 생성 확인.
-4. `test_write_file_reject_with_message` — reject + message 전송 → agent 가 ToolMessage 받고 대체 응답 → `stream_end`. LLM 비결정성 → `pytest.skip` 패턴 (기존 테스트 line 240 참조).
-5. `test_write_file_edit` — edit decision 으로 `edited_action.args.file_path` 바꿔서 재실행 → 수정된 경로에 파일 생성 확인.
-6. `test_multi_parallel_tool_calls` — 프롬프트로 두 dangerous tool 유도 → `action_requests` 2개 → mixed decisions 응답 → 순서 보존 실행. LLM 비결정성 skip.
-7. `test_decisions_count_mismatch_returns_error` — `action_requests` 1개인데 0개 decisions 전송 → `ErrorMessage(code=4004)` 수신, 턴 상태 유지, 재전송(1개 decisions) 성공.
-8. `test_hitl_response_without_pending_approval` — chat 없이 바로 `hitl_response` 전송 → `ErrorMessage(code=4004)`.
-9. `test_hitl_response_requires_authentication` — 인증 전 `hitl_response` → `ErrorMessage`.
-
-각 시나리오의 프레임은 기존 `tests/e2e/test_hitl_e2e.py` 의 fixture (`e2e_session`, `collect_events_until_terminal`) 와 `terminal_types = {"stream_end","error","hitl_request"}` 패턴을 재사용. 구 `request_id` / `approved` 필드 사용하던 모든 코드 제거. 예시 — 시나리오 3:
-
+상단에 추가 imports:
 ```python
-class TestHitLBuiltinFlow:
-    @pytest.mark.asyncio
-    async def test_write_file_approve(self, e2e_session):
-        async for conn in e2e_session() as ws:
-            await ws.send_json({
-                "type": "chat_message",
-                "content": "Please write 'hello' to a file named e2e_test.txt.",
-                "user_id": "u", "agent_id": "yuri", "persona_id": "yuri",
-                "tts_enabled": False,
-            })
+from pathlib import Path
+import yaml
 
-            events = await collect_events_until_terminal(
-                ws, terminal_types={"hitl_request", "stream_end", "error"},
-            )
+def _filesystem_root_from_yaml() -> Path:
+    # services.e2e.yml 의 llm_config.configs.filesystem_root_dir 을 읽어옴
+    cfg = yaml.safe_load(Path("yaml_files/services.e2e.yml").read_text())
+    return Path(cfg["llm_config"]["configs"]["filesystem_root_dir"])
+```
+
+**시나리오 1 — normal chat:**
+```python
+@pytest.mark.e2e
+class TestHitLBuiltinFlow:
+    async def test_normal_chat_no_hitl_request(self, e2e_session):
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            await ws.send(_send_chat(SAFE_CHAT_PROMPT))
+            events = await _collect_until_terminal(ws)
+            assert "hitl_request" not in [e["type"] for e in events]
+            assert any(e["type"] == "stream_end" for e in events)
+        finally:
+            await ws.close()
+```
+
+**시나리오 2 — safe tool no HITL:**
+```python
+    async def test_safe_tool_no_hitl_request(self, e2e_session):
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            await ws.send(_send_chat(SAFE_TOOL_PROMPT))
+            events = await _collect_until_terminal(ws)
+            if "hitl_request" in [e["type"] for e in events]:
+                pytest.skip("LLM chose an MCP/dangerous tool instead of search_memory")
+            assert any(e["type"] == "stream_end" for e in events)
+        finally:
+            await ws.close()
+```
+
+**시나리오 3 — write_file approve:**
+```python
+    async def test_write_file_approve(self, e2e_session):
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            prompt = "Please write 'hello-e2e' to a file named e2e_approve.txt using write_file."
+            await ws.send(_send_chat(prompt))
+            events = await _collect_until_terminal(ws)
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None:
+                pytest.skip("LLM did not choose write_file")
+            assert len(hitl["action_requests"]) == 1
+            assert hitl["action_requests"][0]["name"] == "write_file"
+
+            await ws.send(json.dumps({
+                "type": "hitl_response",
+                "decisions": [{"type": "approve"}],
+            }))
+            final = await _collect_until_terminal(ws, terminal_types={"stream_end", "error"})
+            assert any(e["type"] == "stream_end" for e in final)
+
+            sandbox = _filesystem_root_from_yaml() / "e2e_approve.txt"
+            assert sandbox.exists()
+            assert "hello-e2e" in sandbox.read_text()
+            sandbox.unlink(missing_ok=True)
+        finally:
+            await ws.close()
+```
+
+**시나리오 4 — reject with message:**
+```python
+    async def test_write_file_reject_with_message(self, e2e_session):
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            prompt = "Please write 'x' to reject_e2e.txt using write_file."
+            await ws.send(_send_chat(prompt))
+            events = await _collect_until_terminal(ws)
             hitl = next((e for e in events if e["type"] == "hitl_request"), None)
             if hitl is None:
                 pytest.skip("LLM did not choose write_file")
 
-            assert "action_requests" in hitl
-            assert len(hitl["action_requests"]) == 1
-            assert hitl["action_requests"][0]["name"] == "write_file"
-
-            await ws.send_json({
+            await ws.send(json.dumps({
                 "type": "hitl_response",
-                "decisions": [{"type": "approve"}],
-            })
+                "decisions": [{"type": "reject", "message": "path is unsafe"}],
+            }))
+            final = await _collect_until_terminal(ws, terminal_types={"stream_end", "error"})
+            # Agent handles rejection with alternate response — LLM-dependent
+            if not any(e["type"] == "stream_end" for e in final):
+                pytest.skip("LLM did not produce stream_end after rejection (nondeterministic)")
 
-            final = await collect_events_until_terminal(
-                ws, terminal_types={"stream_end", "error"},
-            )
-            assert any(e["type"] == "stream_end" for e in final)
-
-            sandbox = Path(settings.agent.filesystem_root_dir) / "e2e_test.txt"
-            assert sandbox.exists()
-            assert "hello" in sandbox.read_text()
-            sandbox.unlink(missing_ok=True)
+            sandbox = _filesystem_root_from_yaml() / "reject_e2e.txt"
+            assert not sandbox.exists()
+        finally:
+            await ws.close()
 ```
 
-다른 시나리오도 동일 패턴으로 작성하되 payload·검증만 바꿈. 시나리오 4·6 에는 `if hitl is None: pytest.skip(...)` + `if len(action_requests) != 2: pytest.skip(...)` 추가.
+**시나리오 5 — edit decision:**
+```python
+    async def test_write_file_edit(self, e2e_session):
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            prompt = "Please write 'yuri' to wrong_name.txt using write_file."
+            await ws.send(_send_chat(prompt))
+            events = await _collect_until_terminal(ws)
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None:
+                pytest.skip("LLM did not choose write_file")
+
+            edited_args = dict(hitl["action_requests"][0]["arguments"])
+            edited_args["file_path"] = "edited_name.txt"
+            await ws.send(json.dumps({
+                "type": "hitl_response",
+                "decisions": [{
+                    "type": "edit",
+                    "edited_action": {"name": "write_file", "args": edited_args},
+                }],
+            }))
+            final = await _collect_until_terminal(ws, terminal_types={"stream_end", "error"})
+            assert any(e["type"] == "stream_end" for e in final)
+
+            root = _filesystem_root_from_yaml()
+            assert (root / "edited_name.txt").exists()
+            assert not (root / "wrong_name.txt").exists()
+            (root / "edited_name.txt").unlink(missing_ok=True)
+        finally:
+            await ws.close()
+```
+
+**시나리오 6 — multi parallel tool calls:**
+```python
+    async def test_multi_parallel_tool_calls(self, e2e_session):
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            prompt = (
+                "In one turn, call write_file to create multi1.txt='a' AND "
+                "write_file to create multi2.txt='b'. Both calls in a single response."
+            )
+            await ws.send(_send_chat(prompt))
+            events = await _collect_until_terminal(ws)
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None or len(hitl["action_requests"]) != 2:
+                pytest.skip("LLM did not emit 2 parallel tool calls")
+
+            await ws.send(json.dumps({
+                "type": "hitl_response",
+                "decisions": [{"type": "approve"}, {"type": "reject", "message": "skip second"}],
+            }))
+            final = await _collect_until_terminal(ws, terminal_types={"stream_end", "error"})
+            assert any(e["type"] == "stream_end" for e in final)
+
+            root = _filesystem_root_from_yaml()
+            assert (root / "multi1.txt").exists()
+            assert not (root / "multi2.txt").exists()
+            (root / "multi1.txt").unlink(missing_ok=True)
+        finally:
+            await ws.close()
+```
+
+**시나리오 7 — decisions count mismatch:**
+```python
+    async def test_decisions_count_mismatch_returns_error(self, e2e_session):
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            prompt = "Please write 'x' to mismatch_e2e.txt using write_file."
+            await ws.send(_send_chat(prompt))
+            events = await _collect_until_terminal(ws)
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None:
+                pytest.skip("LLM did not choose write_file")
+            assert len(hitl["action_requests"]) == 1
+
+            # Send 0 decisions — mismatch
+            await ws.send(json.dumps({
+                "type": "hitl_response",
+                "decisions": [],
+            }))
+            err = await _recv_skip_ping(ws, timeout=15.0)
+            assert err["type"] == "error"
+            assert err.get("code") == 4004
+
+            # Retry with correct count
+            await ws.send(json.dumps({
+                "type": "hitl_response",
+                "decisions": [{"type": "reject"}],
+            }))
+            final = await _collect_until_terminal(ws, terminal_types={"stream_end", "error"})
+            assert any(e["type"] == "stream_end" for e in final)
+
+            (_filesystem_root_from_yaml() / "mismatch_e2e.txt").unlink(missing_ok=True)
+        finally:
+            await ws.close()
+```
+
+**시나리오 8 & 9 — 기존 `TestHitLProtocol` 클래스 유지**:
+`test_hitl_response_without_pending_approval` / `test_hitl_response_requires_authentication` 은 현행 테스트(`tests/e2e/test_hitl_e2e.py:133-187`)를 거의 그대로 유지하되, payload 의 `request_id`/`approved` 필드를 `decisions` 로 바꾼다:
+```python
+            await ws.send(json.dumps({
+                "type": "hitl_response",
+                "decisions": [{"type": "approve"}],
+            }))
+```
+검증 로직 (error 응답 / auth 에러) 은 동일.
+
+**cleanup fixture**: 테스트 모듈 상단에 autouse fixture 추가해 filesystem_root 하위 e2e_*.txt / multi*.txt / *_e2e.txt 를 module teardown 에 청소:
+```python
+@pytest.fixture(autouse=True, scope="module")
+def _cleanup_e2e_files():
+    yield
+    root = _filesystem_root_from_yaml()
+    if root.exists():
+        for name in ("e2e_approve.txt", "reject_e2e.txt", "edited_name.txt",
+                     "wrong_name.txt", "multi1.txt", "multi2.txt", "mismatch_e2e.txt"):
+            (root / name).unlink(missing_ok=True)
+```
 
 - [ ] **Step 2: E2E 실행**
 
@@ -1070,11 +1352,10 @@ git commit -m "test(e2e): rewrite HITL matrix for built-in middleware shape"
 - Delete: `tests/services/agent_service/middleware/test_tool_gate_middleware.py`
 - Delete: `tests/services/agent_service/tools/test_registry.py`
 - Modify: `src/services/agent_service/middleware/__init__.py` (exports 정리)
-- Modify: `src/configs/agent/openai_chat_agent.py` (`ToolConfig` / `BuiltinToolConfig` 제거)
-- Modify: `src/configs/settings.py` — `agent.filesystem_root_dir: str` 추가 (아직 없다면)
-- Modify: `yaml_files/services.yml` (tool_config 블록 교체)
-- Modify: `yaml_files/services.docker.yml`
-- Modify: `yaml_files/services.e2e.yml`
+- Modify: `src/configs/agent/openai_chat_agent.py` (`ToolConfig`/`BuiltinToolConfig`/`FilesystemToolConfig`/`ShellToolConfig`/`WebSearchToolConfig` 및 `tool_config` 필드 제거 — `filesystem_root_dir` 필드는 Task 4 Step 4 ④ 에서 이미 추가됨)
+- Modify: `yaml_files/services.yml` / `services.docker.yml` / `services.e2e.yml` (`tool_config:` 블록만 삭제 — `llm_config.configs.filesystem_root_dir` 는 Task 4 Step 4 ⑥ 에서 이미 추가됨)
+
+**Note:** `src/configs/settings.py` 는 이 마이그레이션에서 **건드리지 않는다**. `filesystem_root_dir` 은 기존 YAML `llm_config.configs.*` 로딩 경로를 통해 `OpenAIChatAgentConfig` → `OpenAIChatAgent.__init__` kwarg 로 직접 전달됨 (다른 `openai_api_base`/`model_name` 필드와 동일 패턴).
 
 - [ ] **Step 1: 고아 파일 삭제**
 
@@ -1103,37 +1384,56 @@ __all__ = ["DelegateToolMiddleware"]
 
 - [ ] **Step 3: `configs/agent/openai_chat_agent.py` 정리**
 
-`ToolConfig` / `BuiltinToolConfig` / `FilesystemToolConfig` / `ShellToolConfig` / `WebSearchToolConfig` 등 tool 관련 Pydantic 모델 전체 삭제. `OpenAIChatAgentConfig` 에서 `tool_config: ToolConfig | None` 필드 삭제.
-
-- [ ] **Step 4: `configs/settings.py` `filesystem_root_dir` 추가**
-
-`agent` 섹션 (AgentSettings Pydantic 모델) 에 필드 추가:
+파일(현행 1-79줄) 을 다음 버전으로 축소 — tool 관련 Pydantic 모델 전부 삭제, `OpenAIChatAgentConfig.tool_config` 필드 삭제. `filesystem_root_dir` 필드는 Task 4 에서 이미 추가된 상태(유지):
 ```python
-class AgentSettings(BaseModel):
-    # ... 기존 필드 ...
-    filesystem_root_dir: str = "/tmp/agent-workspace"
+"""OpenAI Chat Agent configuration."""
+
+import os
+
+from pydantic import BaseModel, Field
+
+
+class OpenAIChatAgentConfig(BaseModel):
+    """Configuration for OpenAI Chat Agent."""
+
+    openai_api_key: str = Field(
+        default_factory=lambda: os.getenv("LLM_API_KEY"),
+        description="API key for OpenAI API",
+    )
+    openai_api_base: str = Field(
+        description="Base URL for OpenAI API", default="http://localhost:55120/v1"
+    )
+    model_name: str = Field(
+        description="Name of the OpenAI LLM model",
+        default="chat_model",
+    )
+    top_p: float = Field(0.9, description="Top-p sampling value (for diversity)")
+    temperature: float = Field(
+        0.7, description="Sampling temperature (controls creativity)"
+    )
+    mcp_config: dict | None = Field(
+        default=None,
+        description="MCP client configuration for OpenAI Chat Agent",
+    )
+    support_image: bool = Field(
+        default=False,
+        description="Whether the agent supports image inputs in messages",
+    )
+    filesystem_root_dir: str = Field(
+        default="/tmp/agent-workspace",
+        description="Sandbox root for filesystem tools (ReadFile/WriteFile/EditFile/etc).",
+    )
 ```
 
-- [ ] **Step 5: YAML 3파일 갱신**
+Also remove `model_validator` from imports if unused after removal.
 
-각 `yaml_files/services*.yml` 에서:
-- `tool_config:` 블록 (services.yml 51-60, services.docker.yml 52~, services.e2e.yml 52~) 전체 삭제.
-- `agent` 또는 `llm_config` 섹션 내 (환경마다 다름) `filesystem_root_dir` 키 추가:
-```yaml
-# services.yml
-agent:
-  filesystem_root_dir: "/tmp/agent-workspace"
+- [ ] **Step 4: YAML 3파일 — `tool_config:` 블록만 삭제**
 
-# services.docker.yml
-agent:
-  filesystem_root_dir: "/data/agent-workspace"
+각 `yaml_files/services*.yml` 에서 `tool_config:` 블록 (services.yml 51-60 확인; 나머지 두 파일은 `grep -n 'tool_config:'` 로 라인 확인 후 해당 블록 전체 삭제).
 
-# services.e2e.yml
-agent:
-  filesystem_root_dir: "/tmp/agent-workspace-e2e"
-```
+**`filesystem_root_dir` 는 이미 Task 4 Step 4 ⑥ 에서 `llm_config.configs:` 하위에 추가되어 있음** — 중복 추가 금지.
 
-- [ ] **Step 6: Lint + 기존 테스트 재실행**
+- [ ] **Step 5: Lint + 기존 테스트 재실행**
 
 ```bash
 make lint
@@ -1141,12 +1441,12 @@ uv run pytest tests/ -x --ignore=tests/e2e --ignore=tests/spike
 ```
 Expected: 고아 import 없음, 전체 PASS (e2e/spike 제외).
 
-- [ ] **Step 7: 전체 E2E 재실행 (최종 확인)**
+- [ ] **Step 6: 전체 E2E 재실행 (최종 확인)**
 
 Run: `bash scripts/e2e.sh`
 Expected: PASS (Task 5 와 동일 결과).
 
-- [ ] **Step 8: 커밋**
+- [ ] **Step 7: 커밋**
 
 ```bash
 git add -u src/services/agent_service/middleware/ \
@@ -1222,6 +1522,11 @@ gh pr create --base develop --title "feat: migrate HITL to built-in middleware a
 - WebSocket HITL 페이로드를 빌트인 list-based shape 로 재설계 (approve/edit/reject 3-way).
 - 기존 YAML 토글로 비활성화돼 있던 filesystem tools 를 상시 로드 + HITL 게이트 적용 — 단순 refactor 가 아닌 기능 확장 포함.
 
+## Breaking changes (FE 주의)
+- WS 메시지 `hitl_request` payload 변경: `tool_name` / `tool_args` / `request_id` 제거 → `action_requests` / `review_configs` 리스트로 교체.
+- WS 메시지 `hitl_response` payload 변경: `request_id` / `approved` 제거 → `decisions` 리스트 (approve/edit/reject + optional edited_action / message).
+- Reject 시 ToolMessage 기본 문구가 빌트인의 영문 default 로 전환됨. FE 가 `decisions[i].message` 에 한국어 이유를 보내지 않으면 유리의 응답 맥락이 영문 텍스트를 참조할 수 있음 — FE 에서 기본 reject 사유 한국어 제공 권장.
+
 Spec: `docs/superpowers/specs/2026-04-18-hitl-builtin-middleware-migration-design.md`
 Plan: `docs/superpowers/plans/2026-04-18-hitl-builtin-middleware-migration.md`
 
@@ -1239,21 +1544,26 @@ EOF
 ## Self-Review Checklist (작성자용 — 플랜 커밋 전 확인)
 
 **Spec coverage:**
-- §2 스코프 델타 → Task 3 (filesystem_tools 재작성), Task 4 (agent+WS swap), Task 6 (dead code/config), Task 7 (docs) 전부 커버.
+- §2 스코프 델타 → Task 3 (filesystem_tools), Task 4 (agent+config+YAML+WS swap), Task 6 (dead code/config), Task 7 (docs) 전부 커버.
 - §3 Tool Layer → Task 3.
-- §4 HITL Middleware 설정 → Task 4 Step 4 (`_build_interrupt_on` + chain).
-- §5 WebSocket 프로토콜 → Task 2 (models) + Task 4 Steps 5·6·7 (handlers·event_handlers·processor).
-- §6 에러 처리 → Task 4 Step 6 (`decisions count mismatch`), Task 7 Step 2 (disconnect KNOWN_ISSUES).
+- §4 HITL Middleware 설정 → Task 4 Step 4 ②·⑤ (`_build_interrupt_on` + chain).
+- §5 WebSocket 프로토콜 → Task 2 (models) + Task 4 Steps 5·6·7 (event_handlers·handlers·processor).
+- §6 에러 처리 → Task 4 Step 6 (`decisions count mismatch`), Task 7 Step 2 (disconnect KNOWN_ISSUES). Locale 회귀는 PR body Breaking changes 섹션.
 - §7 테스트 전략 → Task 1 (spike), Task 2~4 (unit), Task 5 (E2E).
 - §8 마이그레이션 순서 → Task 1~7 1:1 매핑.
-- §9 비스코프/위험 → Task 7 Step 2 (disconnect), PR body (locale 회귀).
+- §9 비스코프/위험 → Task 7 Step 2 (disconnect), PR body (locale 회귀, breaking changes).
 
 **Placeholder scan:** TBD / TODO 없음 (확인).
 
 **Type consistency:**
-- `decisions: list[dict]` — Task 4 Step 4 (resume_after_approval 시그니처) / Step 6 (handlers.py 호출) / Step 7 (processor.py 호출) 동일.
-- `pending_action_count` — Task 4 Step 5 (event_handlers 에서 write) / Step 6 (handlers 에서 read) 동일 키.
-- `_build_interrupt_on` 시그니처 `set[str] -> dict[str, bool]` — Task 4 Step 1 테스트 / Step 4 구현 동일.
+- `decisions: list[dict]` — Task 4 Step 4 ⑤ (resume_after_approval 시그니처) / Step 6 (handlers.py 호출) / Step 7 (processor.py 호출) 동일.
+- `pending_action_count` — Task 4 Step 5 (event_handlers 에서 write) / Step 6 (handlers 에서 read) / Step 7 (processor 에서 read) 동일 키.
+- `_build_interrupt_on` 시그니처 `set[str] -> dict[str, bool]` — Task 4 Step 1 테스트 / Step 4 ② 구현 동일.
+- `filesystem_root_dir` — `OpenAIChatAgentConfig` 필드 (Task 4 Step 4 ④) / `OpenAIChatAgent.__init__` kwarg (Task 4 Step 4 ③) / YAML `llm_config.configs.filesystem_root_dir` (Task 4 Step 4 ⑥) / `self.filesystem_root_dir` 사용 (Task 4 Step 4 ⑤) 동일 키.
+
+**Ordering:**
+- Task 4 내부 Step 4 가 config 필드 추가 + YAML 추가를 포함 — Task 6 에서 오래된 `tool_config` 필드·YAML 블록을 제거할 때 `filesystem_root_dir` 은 이미 로드 가능한 상태.
+- Task 1 Step 3 (AsyncMongoDBSaver 폴백) 선택 시 Task 4 Step 4 ⑦ 이 호출됨 — 조건부 경로 명시.
 
 ---
 
