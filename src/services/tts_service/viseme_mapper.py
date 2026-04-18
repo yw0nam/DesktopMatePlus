@@ -17,6 +17,7 @@ _VOWEL_MAP: dict[str, tuple[str, float]] = {
 
 _VISEME_KEYS = ("A", "I", "U", "E", "O")
 _CLOSING_DURATION = 0.05  # seconds for mouth-close keyframe
+_COARTICULATION_WEIGHT = 0.3  # Consonant mouth shape blends to 30% of next vowel
 
 
 class VisemeMapper:
@@ -74,7 +75,7 @@ class VisemeMapper:
                 next_vowel = self._next_vowel(phonemes, idx)
                 for k in _VISEME_KEYS:
                     if next_vowel and k == next_vowel[0]:
-                        targets[k] = next_vowel[1] * 0.3  # coarticulation
+                        targets[k] = next_vowel[1] * _COARTICULATION_WEIGHT
                     else:
                         targets[k] = 0.0
 
