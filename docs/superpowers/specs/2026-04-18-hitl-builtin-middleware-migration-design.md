@@ -29,12 +29,15 @@
 | 교체 | `models/websocket.py` | `HitLRequestMessage`/`HitLResponseMessage` list-based shape |
 | 수정 | `websocket_service/manager/handlers.py` | `handle_hitl_response()` 신 shape |
 | 수정 | `websocket_service/message_processor/event_handlers.py` | hitl_request payload 필드 변경 |
+| 수정 | `websocket_service/message_processor/processor.py` | `resume_after_approval()` 호출부 시그니처 업데이트 (`handlers.py:335`와 함께 2곳 호출) |
 | 재작성 | `tests/unit/test_hitl_*.py`, `tests/e2e/test_hitl_e2e.py` | 신 스키마 기반 전면 재작성 |
+| 삭제 | `tests/services/agent_service/middleware/test_tool_gate_middleware.py` | `ToolGateMiddleware` 소멸 |
+| 삭제 | `tests/services/agent_service/tools/test_registry.py` | `ToolRegistry` 소멸 |
 | 신규 | `tests/unit/test_edit_file_tool.py` | EditFileTool 단위 테스트 |
-| 신규 | `tests/integration/test_hitl_mongodb_checkpointer.py` | `AsyncMongoDBSaver` + HITL 호환 스파이크 |
+| 신규 | `tests/spike/test_hitl_mongodb_checkpointer.py` | `MongoDBSaver` + HITL 호환 스파이크 (`tests/spike/test_interrupt_in_middleware.py`와 같은 디렉토리) |
 | 수정 | `docs/data_flow/agent/HITL_GATE_FLOW.md` | payload 섹션 갱신 |
 
-유지: `AsyncMongoDBSaver`, `DelegateToolMiddleware` + `delegate_task`, LTM/Profile/Summary/TaskStatus hook 미들웨어, MCP 로딩, 메모리 툴(별도 이슈).
+유지: `MongoDBSaver` (현행 sync checkpointer, `openai_chat_agent.py:131-133`), `DelegateToolMiddleware` + `delegate_task`, LTM/Profile/Summary/TaskStatus hook 미들웨어, MCP 로딩, 메모리 툴(별도 이슈).
 
 ## 3. Tool Layer 설계
 
@@ -245,13 +248,15 @@ async def resume_after_approval(
 - **Turn 상태 전이**: `PROCESSING → AWAITING_APPROVAL → PROCESSING → stream_end`. 프로토콜 오류 시 AWAITING_APPROVAL 유지.
 - **Edit 결정 유효성**: 서버 사전검증 없음 (YAGNI). 엉뚱한 args 면 tool 자체 validation error → ToolMessage → 모델 재시도.
 - **연결 끊김 중 interrupt**: Mongo checkpoint 에 suspended 상태 잔존 — 현행 제약 이월. `KNOWN_ISSUES.md` 에 기재.
+- **Reject 메시지 locale**: 빌트인은 `decision.message` 또는 영문 기본값을 `ToolMessage` 로 삽입. 현행 한국어 하드코딩("사용자가 ... 거부했습니다")이 제거되므로 FE 가 reject 이유를 한국어로 보내지 않으면 UX 가 영문으로 전환. FE 구현 시 기본 reject 메시지 한국어 제공 권장 (스코프 밖, FE 구현 노트).
 - **Timeout / partial re-approval / backend force-abandon**: 본 스코프 제외.
 
 ## 7. 테스트 전략
 
 ### 삭제
 - `tests/unit/test_hitl_middleware.py` (커스텀 미들웨어 소멸)
-- `tests/unit/test_tool_gate_middleware.py` 및 `test_tool_registry.py` (있다면)
+- `tests/services/agent_service/middleware/test_tool_gate_middleware.py` (`ToolGateMiddleware` 소멸)
+- `tests/services/agent_service/tools/test_registry.py` (`ToolRegistry` 소멸)
 
 ### 재작성
 - `tests/unit/test_hitl_models.py` — 신 스키마 + `HitLDecision` validator.
@@ -261,7 +266,7 @@ async def resume_after_approval(
 
 ### 신규
 - `tests/unit/test_edit_file_tool.py` — unique match, absent/multi match, absolute path, traversal.
-- `tests/integration/test_hitl_mongodb_checkpointer.py` — **구현 1단계 블로커**. 실제 Mongo + `AsyncMongoDBSaver` + `HumanInTheLoopMiddleware` 최소 조합으로 interrupt→checkpoint→resume 검증.
+- `tests/spike/test_hitl_mongodb_checkpointer.py` — **구현 1단계 블로커**. 실제 Mongo + `MongoDBSaver` (현행 sync checkpointer) + `HumanInTheLoopMiddleware` 최소 조합으로 interrupt→checkpoint→resume 검증. 실패 시 폴백 순서는 §9 Risks 참고.
 
 ### E2E 매트릭스
 
@@ -283,18 +288,19 @@ TDD: (1) checkpointer 스파이크 RED→GREEN → (2) 모델 → (3) 툴 → (4
 
 | # | 커밋 | 게이트 |
 |---|---|---|
-| 1 | MongoDB checkpointer 호환 스파이크 (`test_hitl_mongodb_checkpointer.py`, 필요시 `pyproject.toml` bump) | **블로커** |
+| 1 | MongoDB checkpointer 호환 스파이크 (`tests/spike/test_hitl_mongodb_checkpointer.py`). 검증 순서: ① 현행 `MongoDBSaver` (sync) + HITL 동작 확인 → 실패 시 ② `AsyncMongoDBSaver` 스왑 시도 → 실패 시 ③ `langgraph-checkpoint-mongodb` 버전 bump | **블로커** |
 | 2 | 신 WS HITL 모델 + unit 테스트 | `pytest` GREEN |
 | 3 | `filesystem_tools.py` 재작성 + `EditFileTool` + unit 테스트 (shell/search/registry 는 아직 유지) | `pytest` GREEN |
-| 4 | `openai_chat_agent.py` 미들웨어 체인 교체 + `__interrupt__` 파서·`resume_after_approval()` + unit 테스트 | unit GREEN |
+| 4 | `openai_chat_agent.py` 미들웨어 체인 교체 + `__interrupt__` 파서 + `resume_after_approval()` + unit 테스트. **원자성 필수**: 파서 재작성과 미들웨어 스왑은 한 커밋에 — 구 payload shape(`{tool_name, tool_args, request_id}`)와 신 파서(`{action_requests, review_configs}`) 공존 불가. 동일 커밋에 `processor.py:310` / `handlers.py:335` 호출부도 신 시그니처로 업데이트 | unit GREEN |
 | 5 | `handlers.py` / `event_handlers.py` 재배선 + unit 테스트 | unit GREEN |
 | 6 | E2E 전면 재작성 | `bash scripts/e2e.sh` GREEN (CLAUDE.md 강제) |
-| 7 | 데드 코드 정리: `hitl_middleware.py`, `tool_gate_middleware.py`, `registry.py`, `shell_tools.py`, `search_tools.py`, `ToolConfig` 스키마, YAML `tool_config:` 블록 | `make lint` GREEN |
-| 8 | 문서 갱신: `HITL_GATE_FLOW.md`, `KNOWN_ISSUES.md`, `docs/todo/human-in-the-loop.md` | — |
+| 7 | 데드 코드 정리: `hitl_middleware.py`, `tool_gate_middleware.py`, `registry.py`, `shell_tools.py`, `search_tools.py`, `ToolConfig` 스키마, YAML `tool_config:` 블록, 구 테스트 (`tests/services/agent_service/middleware/test_tool_gate_middleware.py`, `tests/services/agent_service/tools/test_registry.py`) | `make lint` GREEN |
+| 8 | 문서 갱신: `HITL_GATE_FLOW.md`, `KNOWN_ISSUES.md`, `docs/todo/human-in-the-loop.md` 삭제 | — |
 
 PR 메타:
-- 타이틀: `refactor: replace custom HITL with LangChain built-in middleware`
-- 라벨: `type:refactor`, `component:agent`, `component:websocket`
+- 타이틀: `feat: migrate HITL to built-in middleware and enable filesystem tools`
+- 본문 요지: 현행 YAML 토글(`tool_config.builtin.filesystem.enabled: false`)로 비활성화된 FS 툴을 상시 로드 + HITL 게이트 적용. 커스텀 HITL/ToolGate/Registry 삭제. 단순 refactor 가 아닌 기능 확장 + 리팩터 혼합.
+- 라벨: `type:feature`, `type:refactor`, `component:agent`, `component:websocket`
 
 ## 9. 비스코프 & 위험
 
@@ -306,9 +312,10 @@ PR 메타:
 - HITL timeout / partial retry / disconnect resume 자동화.
 
 ### 위험
-- **AsyncMongoDBSaver + HITL 호환 미확인**: 공식 예제는 `AsyncPostgresSaver`/`InMemorySaver` 만 등장. Commit #1 에서 검증 필수. 실패 시 재논의.
+- **MongoDB checkpointer + HITL 호환 미확인**: 공식 예제는 `AsyncPostgresSaver`/`InMemorySaver`만 등장. 현행 코드(`openai_chat_agent.py:131-133`)는 sync `MongoDBSaver` 사용. Commit #1 스파이크에서 ① sync 호환 → ② async 스왑 → ③ 버전 bump 순서로 검증. 세 단계 모두 실패 시 유저와 재논의.
 - **멀티콜 시나리오(#6) 비결정성**: LLM 이 병렬 tool call 을 내는지 제어 불가. 고정 프롬프트로 확률 높이되, 필요 시 `pytest.skip` 패턴.
 - **E2E 재작성 범위 큼**: 기존 테스트 9개 중 최소 6개 터치 — 리뷰 부담.
+- **FE reject UX 한국어 회귀**: §6 참조. FE 구현 노트로 전달 필요.
 
 ---
 
@@ -332,3 +339,4 @@ PR 메타:
 ### C. PatchNote
 
 2026-04-18: 최초 작성. 브레인스토밍 세션 결과 기반, approach 1(big-bang 단일 PR) + 스코프 A(최소 교체) 확정.
+2026-04-18: 리뷰어 피드백 반영. (1) 스파이크 경로 `tests/integration/` → `tests/spike/` 정정. (2) 삭제 대상 테스트 파일 실제 경로 명시 (`tests/services/agent_service/...`). (3) `resume_after_approval()` 호출처 `processor.py:310` 추가. (4) checkpointer 용어 `AsyncMongoDBSaver` → 현행 sync `MongoDBSaver` 로 정정 + 스파이크 폴백 순서 명시. (5) Commit #4 원자성 문구 추가. (6) PR 타이틀 `refactor:` → `feat:` 로 변경 (FS 툴 상시 로드는 기능 확장). (7) Reject 메시지 locale 리스크 §6/§9 에 기재.
