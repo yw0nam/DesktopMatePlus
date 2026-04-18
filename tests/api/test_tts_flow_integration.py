@@ -53,6 +53,8 @@ async def _fake_synthesize_and_send(
 
 async def test_tts_enabled_normal_flow(processor: MessageProcessor):
     """tts_chunk received, audio non-null, sequence order, stream_end last."""
+    # Pipeline now expects bytes from generate_speech (see synthesize_chunk).
+    processor.tts_service.generate_speech.return_value = b"\x00\x01\x02\x03"
 
     async def agent_stream() -> AsyncIterator[dict[str, Any]]:
         yield {"type": "stream_start"}

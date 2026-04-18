@@ -11,6 +11,7 @@ from src.core.logger import logger
 from src.models.websocket import TimelineKeyframe, TtsChunkMessage
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
 from src.services.tts_service.service import TTSService
+from src.services.tts_service.viseme_mapper import VisemeMapper
 
 
 def wav_duration(data: bytes | None) -> float:
@@ -45,53 +46,68 @@ async def synthesize_chunk(
     sequence: int,
     tts_enabled: bool = True,
     reference_id: str | None = None,
+    viseme_mapper: VisemeMapper | None = None,
 ) -> TtsChunkMessage:
+    """Synthesize a text chunk into audio + animation keyframes.
+
+    Always returns a TtsChunkMessage, never raises.
+    When viseme_mapper is provided and TTS succeeds, generates lip-sync
+    keyframes merged with emotion targets. Falls back to emotion-only
+    keyframes on any failure.
     """
-    Always returns a single TtsChunkMessage.
-
-    Behavior:
-    - tts_enabled=True: calls generate_speech() via asyncio.to_thread()
-    - tts_enabled=False: skips TTS API, audio_base64=None (normal state)
-    - On failure: audio_base64=None, error logged backend-only — never raised
-
-    Args:
-        tts_service: TTS engine instance (TTSService ABC)
-        mapper: EmotionMotionMapper for emotion → keyframes
-        text: Text to synthesize
-        emotion: Detected emotion tag (None → mapper returns default)
-        sequence: Chunk order within turn (starts at 0)
-        tts_enabled: False → skip TTS API entirely
-        reference_id: Voice reference ID. None → engine default
-
-    Returns:
-        TtsChunkMessage with audio_base64=None on failure/disabled,
-        keyframes always populated.
-    """
+    # 1. Generate emotion keyframes (always)
     keyframes: list[TimelineKeyframe] = mapper.map(emotion)
-    audio: str | None = None
 
-    if tts_enabled:
-        try:
-            result = await to_thread(
-                tts_service.generate_speech,
-                text,
-                reference_id,
-                "base64",
-                audio_format="wav",
-            )
-            if result is None:
-                logger.error(f"TTS synthesis returned None for sequence {sequence}")
-                audio = None
-            else:
-                audio = result
-        except Exception as e:
-            logger.error(f"TTS synthesis failed for sequence {sequence}: {e}")
-            audio = None
+    audio_base64: str | None = None
+
+    if not tts_enabled:
+        return TtsChunkMessage(
+            sequence=sequence,
+            text=text,
+            audio_base64=None,
+            emotion=emotion,
+            keyframes=keyframes,
+        )
+
+    # 2. Generate speech as raw bytes first (for duration calculation)
+    try:
+        audio_bytes: bytes | None = await to_thread(
+            tts_service.generate_speech,
+            text,
+            reference_id,
+            "bytes",
+            audio_format="wav",
+        )
+    except Exception:
+        logger.opt(exception=True).warning("[TTS] generate_speech failed")
+        audio_bytes = None
+
+    # 3. If audio succeeded, compute duration and generate visemes
+    if audio_bytes and isinstance(audio_bytes, bytes):
+        audio_base64 = base64.b64encode(audio_bytes).decode("ascii")
+
+        if viseme_mapper is not None:
+            duration = wav_duration(audio_bytes)
+            if duration > 0:
+                # Extract emotion targets from last emotion keyframe
+                emotion_targets: dict[str, float] | None = None
+                if keyframes:
+                    last_kf = keyframes[-1]
+                    if isinstance(last_kf, dict) and "targets" in last_kf:
+                        targets_value = last_kf["targets"]
+                        if isinstance(targets_value, dict):
+                            emotion_targets = targets_value
+
+                viseme_keyframes = viseme_mapper.generate(
+                    text, duration, emotion_targets
+                )
+                if viseme_keyframes:
+                    keyframes = viseme_keyframes
 
     return TtsChunkMessage(
         sequence=sequence,
         text=text,
-        audio_base64=audio,
+        audio_base64=audio_base64,
         emotion=emotion,
         keyframes=keyframes,
     )
