@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from langchain_core.messages import HumanMessage
 from loguru import logger
+from pydantic import ValidationError
 
 from src.models.websocket import (
     AuthorizeErrorMessage,
@@ -318,10 +319,11 @@ class MessageHandler:
             parsed = HitLResponseMessage.model_validate(
                 {"type": "hitl_response", **message_data}
             )
-        except Exception as e:
+        except ValidationError as e:
+            logger.warning(f"hitl_response validation failed: {e.errors()}")
             await self.send_message(
                 connection_id,
-                ErrorMessage(error=f"Invalid hitl_response: {e}", code=4004),
+                ErrorMessage(error="Invalid hitl_response payload", code=4004),
             )
             return
 

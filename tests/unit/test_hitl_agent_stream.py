@@ -106,3 +106,40 @@ def test_build_interrupt_on_matrix():
     # safe tools not in matrix
     for name in {"read_file", "list_directory", "file_search"}:
         assert name not in matrix
+
+
+@pytest.mark.asyncio
+async def test_resume_after_approval_uses_command_with_decisions():
+    from langgraph.types import Command
+
+    from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
+
+    agent = OpenAIChatAgent.__new__(OpenAIChatAgent)
+
+    captured: dict = {}
+
+    class _Fake:
+        def astream(self, resume_value, *, config, stream_mode, context):
+            captured["resume_value"] = resume_value
+            captured["config"] = config
+
+            async def gen():
+                if False:
+                    yield
+
+            return gen()
+
+    agent.agent = _Fake()
+
+    events = []
+    async for ev in agent.resume_after_approval(
+        session_id="s1",
+        decisions=[{"type": "approve"}, {"type": "reject", "message": "x"}],
+    ):
+        events.append(ev)
+
+    assert isinstance(captured["resume_value"], Command)
+    assert captured["resume_value"].resume == {
+        "decisions": [{"type": "approve"}, {"type": "reject", "message": "x"}]
+    }
+    assert captured["config"] == {"configurable": {"thread_id": "s1"}}
