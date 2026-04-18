@@ -1,6 +1,5 @@
 """Tests for viseme integration in tts_pipeline.synthesize_chunk."""
 
-import base64
 import struct
 from unittest.mock import MagicMock
 
@@ -21,11 +20,19 @@ def _make_wav_bytes(duration_seconds: float = 1.0) -> bytes:
     data_size = num_samples * channels * bytes_per_sample
     header = struct.pack(
         "<4sI4s4sIHHIIHH4sI",
-        b"RIFF", 36 + data_size, b"WAVE",
-        b"fmt ", 16, 1, channels, sample_rate,
+        b"RIFF",
+        36 + data_size,
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        channels,
+        sample_rate,
         sample_rate * channels * bytes_per_sample,
-        channels * bytes_per_sample, bits,
-        b"data", data_size,
+        channels * bytes_per_sample,
+        bits,
+        b"data",
+        data_size,
     )
     return header + b"\x00" * data_size
 
@@ -67,7 +74,9 @@ async def test_viseme_keyframes_in_output(tts_service, emotion_mapper, viseme_ma
     assert has_viseme, "Keyframes should contain viseme targets"
 
 
-async def test_emotion_merged_in_viseme_keyframes(tts_service, emotion_mapper, viseme_mapper):
+async def test_emotion_merged_in_viseme_keyframes(
+    tts_service, emotion_mapper, viseme_mapper
+):
     """Emotion targets should be present in viseme keyframes."""
     msg = await synthesize_chunk(
         tts_service=tts_service,
@@ -82,7 +91,9 @@ async def test_emotion_merged_in_viseme_keyframes(tts_service, emotion_mapper, v
         assert kf["targets"].get("happy") == 1.0, f"Missing happy in {kf}"
 
 
-async def test_tts_disabled_still_has_emotion_keyframes(tts_service, emotion_mapper, viseme_mapper):
+async def test_tts_disabled_still_has_emotion_keyframes(
+    tts_service, emotion_mapper, viseme_mapper
+):
     """When TTS disabled, should fall back to emotion-only keyframes."""
     msg = await synthesize_chunk(
         tts_service=tts_service,

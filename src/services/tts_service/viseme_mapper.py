@@ -86,7 +86,7 @@ class VisemeMapper:
             keyframes.append({"duration": per_phoneme, "targets": targets})
 
         # Closing keyframe: all visemes zero
-        closing_targets: dict[str, float] = {k: 0.0 for k in _VISEME_KEYS}
+        closing_targets: dict[str, float] = dict.fromkeys(_VISEME_KEYS, 0.0)
         if emotion_targets:
             closing_targets.update(emotion_targets)
         keyframes.append({"duration": _CLOSING_DURATION, "targets": closing_targets})
