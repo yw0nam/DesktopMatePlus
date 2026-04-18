@@ -145,6 +145,12 @@ class ProactiveService:
             got_stream_end = False
             websocket = conn.websocket
             async for event in agent_stream:
+                # Abort if connection closed mid-stream
+                if conn.is_closing:
+                    logger.info(
+                        f"Connection {connection_id} closed during proactive stream"
+                    )
+                    return {"status": "skipped", "reason": "connection closed"}
                 event["proactive"] = True
                 if event.get("type") == "stream_start":
                     turn_id = event.get("turn_id", "")
@@ -155,7 +161,7 @@ class ProactiveService:
 
             # If the agent errored without emitting stream_end, send a synthetic one
             # so the client is not left waiting indefinitely.
-            if not got_stream_end:
+            if not got_stream_end and not conn.is_closing:
                 fallback = {
                     "type": "stream_end",
                     "turn_id": turn_id or "",

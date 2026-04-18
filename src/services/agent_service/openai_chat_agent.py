@@ -15,6 +15,7 @@ from langchain_core.messages import (
 )
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
+from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
 from loguru import logger
 
 from src.services.agent_service.middleware.delegate_middleware import (
@@ -232,7 +233,15 @@ class OpenAIChatAgent(AgentService):
                 ]
 
             turn_id = str(uuid4())
-            config = {"configurable": {"thread_id": session_id}}
+            langfuse_handler = LangfuseCallbackHandler()
+            config = {
+                "configurable": {"thread_id": session_id},
+                "callbacks": [langfuse_handler],
+                "metadata": {
+                    "langfuse_user_id": user_id,
+                    "langfuse_session_id": session_id,
+                },
+            }
 
             yield {
                 "type": "stream_start",
@@ -287,7 +296,12 @@ class OpenAIChatAgent(AgentService):
         """
         from langgraph.types import Command
 
-        config = {"configurable": {"thread_id": session_id}}
+        langfuse_handler = LangfuseCallbackHandler()
+        config = {
+            "configurable": {"thread_id": session_id},
+            "callbacks": [langfuse_handler],
+            "metadata": {"langfuse_session_id": session_id},
+        }
         astream_iter = self.agent.astream(
             Command(resume={"decisions": decisions}),
             config=config,
@@ -332,7 +346,15 @@ class OpenAIChatAgent(AgentService):
                     *list(messages),
                 ]
 
-            config = {"configurable": {"thread_id": session_id}}
+            langfuse_handler = LangfuseCallbackHandler()
+            config = {
+                "configurable": {"thread_id": session_id},
+                "callbacks": [langfuse_handler],
+                "metadata": {
+                    "langfuse_user_id": user_id,
+                    "langfuse_session_id": session_id,
+                },
+            }
             input_count = len(messages)
 
             result = await self.agent.ainvoke(

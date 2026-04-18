@@ -68,7 +68,7 @@ class IdleWatcher:
 
         self._triggered_connections &= connections.keys()
 
-        for connection_id, conn in connections.items():
+        for connection_id, conn in list(connections.items()):
             if not conn.is_authenticated or conn.is_closing:
                 continue
             mp = conn.message_processor
