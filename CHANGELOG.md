@@ -8,6 +8,7 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Changed
 
+- migrate HITL to built-in middleware — custom `HitLMiddleware`, `ToolGateMiddleware`, `ToolRegistry` removed as dead code; YAML `tool_config` blocks simplified (#61)
 - migrate TODO.md + KNOWN_ISSUES.md to GitHub Issues — label taxonomy, milestones, script/doc references updated
 - add HITL gate flow and proactive trigger data flow docs; Docker UID fix and dev volume mounts; services.docker.yml proactive config (#40)
 - HitL Phase 2 — `HitLMiddleware` switched from binary dangerous/safe to a category-driven gate; READ_ONLY bypasses approval, all other categories interrupt. Unknown tools fail closed to DANGEROUS (#42, #60)
@@ -15,6 +16,10 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Added
 
+- migrate HITL to LangChain's built-in `HumanInTheLoopMiddleware` — replaces custom `HitLMiddleware` with `interrupt_on` config; list-based `decisions` schema supports approve/edit/reject per tool call (#61)
+- replace filesystem wrapper tools with `FileManagementToolkit` + `EditFileTool` — HITL-gated file operations using LangChain's built-in toolkit (#61)
+- add `HitLResponseMessage` Pydantic model with `decisions: list[HitLActionRequest]` for parallel multi-tool approval (#61)
+- add Langfuse observability integration — `_langfuse_config` helper DRYs config blocks across stream/resume paths (#61)
 - implement Human-in-the-Loop approval gate for dangerous tool calls (#36)
 - add proactive talking feature — idle watcher, scheduled triggers, webhook endpoint (#38)
 - add ProactiveConfig model, PromptLoader, IdleWatcher, ScheduleManager, ProactiveService (#38)
@@ -28,6 +33,9 @@ All notable changes to DesktopMatePlus Backend will be documented in this file.
 
 ### Fixed
 
+- narrow HITL response parse errors — `HitLResponseMessage` validation replaces manual dict parsing; `pending_action_count` hardened with zero-count guard before resume (#61)
+- rename `HitLActionRequest.arguments` to `args` — aligns with LangChain's built-in `HumanInTheLoopMiddleware` wire shape (#61)
+- mark MongoDB checkpointer spike test as `@pytest.mark.slow` — skips in CI when MongoDB unavailable (#61)
 - HitL interrupt payload without `category` now warns before fail-closed fallback to DANGEROUS (#42, #60)
 - `scripts/e2e.sh`: preserve log on exit and sweep stale logs at next run start — enables post-hoc investigation of failed runs (#42, #60)
 - `logger.warning(..., exc_info=True)` silently dropped tracebacks (loguru ignores the stdlib kwarg) — switched to `logger.opt(exception=True)` in `openai_chat_agent.py`; added `{exception}` to file format and `backtrace=True`/`diagnose=True` on both sinks (#42, #60)
