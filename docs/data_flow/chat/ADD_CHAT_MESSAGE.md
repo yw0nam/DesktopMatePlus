@@ -57,13 +57,13 @@ sequenceDiagram
         end
 
         alt HitL Gate Trigger (위험 도구 호출 시)
-            Note right of BE: MCP 도구 또는 delegate_task 호출 시<br/>HitLMiddleware가 interrupt() 발생
-            BE-->>FE: hitl_request (tool_name, tool_args, request_id)
+            Note right of BE: MCP 도구 / delegate_task / mutating FS 도구 호출 시<br/>HumanInTheLoopMiddleware가 interrupt() 발생
+            BE-->>FE: hitl_request (action_requests[], review_configs[])
             BE->>BE: TurnStatus → AWAITING_APPROVAL<br/>Producer exit (graph suspended at checkpoint)
-            FE->>FE: 승인 UI 표시 (사용자에게 도구 실행 확인)
-            FE->>BE: hitl_response (request_id, approved=true/false)
+            FE->>FE: 승인 UI 표시 (action_requests 별 approve/edit/reject)
+            FE->>BE: hitl_response (decisions[])
             BE->>BE: TurnStatus → PROCESSING
-            BE->>BE: agent_service.resume_after_approval()
+            BE->>BE: agent_service.resume_after_approval(decisions)
             BE-->>FE: stream_start (재개)
             BE-->>FE: stream_token / tts_chunk (계속)
         end
@@ -128,11 +128,12 @@ sequenceDiagram
 
 ### HitL Gate
 
-- **Trigger**: MCP 도구 또는 `delegate_task` 호출 시 `HitLMiddleware.awrap_tool_call()`이 `interrupt()` 발생
-- **Safe tools**: `search_memory`, `update_user_profile` 등 — HitL 없이 즉시 실행
-- **Dangerous tools**: 모든 MCP 도구 + `delegate_task` + static deny-list
-- **Resume**: FE에서 `hitl_response` 전송 → `agent_service.resume_after_approval()` → graph 재개
-- **Denial**: 거부 시 `"사용자가 '{tool_name}' 도구 실행을 거부했습니다."` 메시지 반환
+- **Trigger**: MCP 도구 / `delegate_task` / mutating FS 도구 호출 시 빌트인 `HumanInTheLoopMiddleware`가 interrupt 발생
+- **Safe tools**: `search_memory`, `update_user_profile`, `read_file`, `list_directory`, `file_search` — HitL 없이 즉시 실행
+- **Dangerous tools**: 모든 MCP 도구 + `delegate_task` + `_FS_MUTATING_TOOLS` (`write_file`, `copy_file`, `move_file`, `file_delete`, `edit_file`)
+- **Resume**: FE에서 `hitl_response` (`decisions` 리스트) 전송 → `agent_service.resume_after_approval(decisions)` → graph 재개
+- **Decisions**: 각 `action_request`에 1:1 대응하는 `{"type": "approve" | "edit" | "reject", ...}`. `edit`는 `edited_action.args`, `reject`는 선택적 `message`.
+- 자세한 흐름: [`HITL_GATE_FLOW.md`](../agent/HITL_GATE_FLOW.md)
 
 ## Appendix
 
