@@ -130,10 +130,10 @@ class ProactiveService:
 
         # 6-7. Stream agent response + forward to client WebSocket
         try:
-            from langchain_core.messages import SystemMessage
+            from langchain_core.messages import HumanMessage
 
             agent_stream = self._agent_service.stream(
-                messages=[SystemMessage(content=prompt_text)],
+                messages=[HumanMessage(content=prompt_text)],
                 session_id=str(connection_id),
                 persona_id=conn.persona_id,
                 user_id=conn.user_id or "unknown",
@@ -142,13 +142,32 @@ class ProactiveService:
             )
 
             turn_id: str | None = None
+            got_stream_end = False
             websocket = conn.websocket
             async for event in agent_stream:
+                # Abort if connection closed mid-stream
+                if conn.is_closing:
+                    logger.info(
+                        f"Connection {connection_id} closed during proactive stream"
+                    )
+                    return {"status": "skipped", "reason": "connection closed"}
                 event["proactive"] = True
                 if event.get("type") == "stream_start":
                     turn_id = event.get("turn_id", "")
+                elif event.get("type") == "stream_end":
+                    got_stream_end = True
                 event_json = json.dumps(event, default=str)
                 await websocket.send_text(event_json)
+
+            # If the agent errored without emitting stream_end, send a synthetic one
+            # so the client is not left waiting indefinitely.
+            if not got_stream_end and not conn.is_closing:
+                fallback = {
+                    "type": "stream_end",
+                    "turn_id": turn_id or "",
+                    "proactive": True,
+                }
+                await websocket.send_text(json.dumps(fallback, default=str))
 
             # 8. Update cooldown timestamp
             self._last_proactive_at[connection_id] = time.time()

@@ -39,6 +39,7 @@ llm_config:
     temperature: 0.7
     top_p: 0.9
     support_image: True  # Enable image support
+    filesystem_root_dir: "/tmp/agent-workspace"
     # openai_api_key is loaded from LLM_API_KEY environment variable
 
 # MCP Server Configuration (commented out)
@@ -47,18 +48,6 @@ llm_config:
 #     command: "docker"
 #     args: ["run", "--rm", "-i", "--net=none", "--memory=512m", "--cpus=1", "ghcr.io/pydantic/mcp-run-python"]
 #     transport: "stdio"
-
-# Builtin Tool Configuration
-tool_config:
-  builtin:
-    filesystem:
-      enabled: false
-      root_dir: "/tmp/agent-workspace"
-    shell:
-      enabled: false
-      allowed_commands: ["ls", "cat", "ps", "date", "whoami", "pwd", "wc", "head", "tail"]
-    web_search:
-      enabled: false
 
 # -----------------------------------------------------------------------------
 # MongoDB (Checkpointer + Session Registry)

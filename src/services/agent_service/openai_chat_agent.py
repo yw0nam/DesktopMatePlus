@@ -5,6 +5,7 @@ from uuid import uuid4
 import yaml
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import (
     AIMessageChunk,
@@ -14,20 +15,49 @@ from langchain_core.messages import (
 )
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
+from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
 from loguru import logger
 
 from src.services.agent_service.middleware.delegate_middleware import (
     DelegateToolMiddleware,
-)
-from src.services.agent_service.middleware.hitl_middleware import HitLMiddleware
-from src.services.agent_service.middleware.tool_gate_middleware import (
-    ToolGateMiddleware,
 )
 from src.services.agent_service.service import AgentService
 from src.services.agent_service.state import CustomAgentState
 from src.services.agent_service.utils.streaming_buffer import StreamingBuffer
 
 load_dotenv()
+
+_FS_MUTATING_TOOLS = frozenset(
+    {
+        "write_file",
+        "copy_file",
+        "move_file",
+        "file_delete",
+        "edit_file",
+    }
+)
+
+
+def _build_interrupt_on(mcp_tool_names: set[str]) -> dict[str, bool]:
+    """All MCP tools + delegate_task + mutating FS tools require HITL approval."""
+    return {
+        **dict.fromkeys(mcp_tool_names, True),
+        "delegate_task": True,
+        **dict.fromkeys(_FS_MUTATING_TOOLS, True),
+    }
+
+
+def _langfuse_config(session_id: str, user_id: str = "") -> dict:
+    """Build langgraph config with Langfuse callback + user/session metadata."""
+    metadata: dict[str, str] = {"langfuse_session_id": session_id}
+    if user_id:
+        metadata["langfuse_user_id"] = user_id
+    return {
+        "configurable": {"thread_id": session_id},
+        "callbacks": [LangfuseCallbackHandler()],
+        "metadata": metadata,
+    }
+
 
 _PERSONAS_PATH = Path(__file__).resolve().parents[3] / "yaml_files" / "personas.yml"
 
@@ -60,7 +90,7 @@ class OpenAIChatAgent(AgentService):
         openai_api_key: str | None = None,
         openai_api_base: str | None = None,
         model_name: str | None = None,
-        tool_config: dict | None = None,
+        filesystem_root_dir: str = "/tmp/agent-workspace",
         **kwargs,
     ):
         self.temperature = temperature
@@ -68,7 +98,7 @@ class OpenAIChatAgent(AgentService):
         self.openai_api_key = openai_api_key
         self.openai_api_base = openai_api_base
         self.model_name = model_name
-        self.tool_config = tool_config
+        self.filesystem_root_dir = filesystem_root_dir
         self.agent = None
         self._mcp_tools: list = []
         self._personas: dict[str, str] = {}
@@ -136,32 +166,16 @@ class OpenAIChatAgent(AgentService):
                     "langgraph-checkpoint-mongodb not available, checkpointer disabled"
                 )
 
+        from src.services.agent_service.tools.builtin.filesystem_tools import (
+            get_filesystem_tools,
+        )
+
         custom_tools = list(self._mcp_tools)
         profile_svc = get_user_profile_service()
         if profile_svc is not None:
             custom_tools.append(UpdateUserProfileTool(service=profile_svc))
 
-        from src.services.agent_service.tools.registry import ToolRegistry
-
-        builtin_tools = ToolRegistry(self.tool_config).get_enabled_tools()
-        if builtin_tools:
-            logger.info(
-                f"Adding {len(builtin_tools)} builtin tools: {[t.name for t in builtin_tools]}"
-            )
-            custom_tools.extend(builtin_tools)
-
-        builtin_cfg: dict = (self.tool_config or {}).get("builtin", {})
-        tool_gate = ToolGateMiddleware(
-            allowed_commands=builtin_cfg.get("shell", {}).get("allowed_commands"),
-            allowed_dirs=(
-                [builtin_cfg.get("filesystem", {}).get("root_dir")]
-                if builtin_cfg.get("filesystem", {}).get("root_dir")
-                else None
-            ),
-        )
-
-        mcp_tool_names = {t.name for t in self._mcp_tools}
-        hitl_gate = HitLMiddleware(mcp_tool_names=mcp_tool_names)
+        custom_tools.extend(get_filesystem_tools(root_dir=self.filesystem_root_dir))
 
         self.agent = create_agent(
             model=self.llm,
@@ -169,8 +183,9 @@ class OpenAIChatAgent(AgentService):
             state_schema=CustomAgentState,
             checkpointer=checkpointer,
             middleware=[
-                tool_gate,
-                hitl_gate,
+                HumanInTheLoopMiddleware(
+                    interrupt_on=_build_interrupt_on({t.name for t in self._mcp_tools}),
+                ),
                 DelegateToolMiddleware(),
                 before_model(profile_retrieve_hook),
                 before_model(summary_inject_hook),
@@ -227,7 +242,7 @@ class OpenAIChatAgent(AgentService):
                 ]
 
             turn_id = str(uuid4())
-            config = {"configurable": {"thread_id": session_id}}
+            config = _langfuse_config(session_id=session_id, user_id=user_id)
 
             yield {
                 "type": "stream_start",
@@ -271,25 +286,20 @@ class OpenAIChatAgent(AgentService):
     async def resume_after_approval(
         self,
         session_id: str,
-        approved: bool,
-        request_id: str,
+        decisions: list[dict],
         *,
-        user_id: str = "",
-        agent_id: str = "",
         context: dict | None = None,
     ):
-        """Resume graph after HitL approval/denial.
+        """Resume graph with built-in HITL decisions list.
 
-        CRITICAL: Command(resume=...) is passed as the FIRST POSITIONAL argument
-        to astream, replacing the normal input dict. This is the documented
-        LangGraph resume convention.
+        decisions: list parallel to the interrupt's action_requests.
+        Each entry: {"type": "approve"|"edit"|"reject", ...}.
         """
         from langgraph.types import Command
 
-        config = {"configurable": {"thread_id": session_id}}
-        resume_value = Command(resume={"approved": approved, "request_id": request_id})
+        config = _langfuse_config(session_id=session_id)
         astream_iter = self.agent.astream(
-            resume_value,
+            Command(resume={"decisions": decisions}),
             config=config,
             stream_mode=["messages", "updates"],
             context=context,
@@ -332,7 +342,7 @@ class OpenAIChatAgent(AgentService):
                     *list(messages),
                 ]
 
-            config = {"configurable": {"thread_id": session_id}}
+            config = _langfuse_config(session_id=session_id, user_id=user_id)
             input_count = len(messages)
 
             result = await self.agent.ainvoke(
@@ -394,10 +404,9 @@ class OpenAIChatAgent(AgentService):
                         interrupt_value = data["__interrupt__"][0].value
                         yield {
                             "type": "hitl_request",
-                            "request_id": interrupt_value["request_id"],
-                            "tool_name": interrupt_value["tool_name"],
-                            "tool_args": interrupt_value["tool_args"],
                             "session_id": session_id,
+                            "action_requests": interrupt_value["action_requests"],
+                            "review_configs": interrupt_value["review_configs"],
                         }
                         return
 

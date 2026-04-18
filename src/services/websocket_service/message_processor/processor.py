@@ -299,22 +299,30 @@ class MessageProcessor:
 
         previous_status = turn.status
 
-        # If turn is awaiting HitL approval, send deny to clear graph checkpoint
+        # If turn is awaiting HitL approval, send reject to clear graph checkpoint
         if previous_status == TurnStatus.AWAITING_APPROVAL:
             from src.services.service_manager import get_agent_service
 
             agent_service = get_agent_service()
             if agent_service:
                 session_id = turn.session_id
-                try:
-                    async for _ in agent_service.resume_after_approval(
-                        session_id=session_id, approved=False, request_id=""
-                    ):
-                        pass
-                except Exception:
+                count = turn.metadata.get("pending_action_count", 0)
+                if count <= 0:
                     logger.warning(
-                        f"Failed to clear HitL checkpoint for turn {target_turn_id}"
+                        f"HitL deny: pending_action_count missing/zero for turn {target_turn_id}; skipping resume"
                     )
+                else:
+                    reject_decisions = [{"type": "reject"} for _ in range(count)]
+                    try:
+                        async for _ in agent_service.resume_after_approval(
+                            session_id=session_id,
+                            decisions=reject_decisions,
+                        ):
+                            pass
+                    except Exception:
+                        logger.warning(
+                            f"Failed to clear HitL checkpoint for turn {target_turn_id}"
+                        )
 
         await self.update_turn_status(target_turn_id, TurnStatus.INTERRUPTED, reason)
         if previous_status != TurnStatus.INTERRUPTED:

@@ -1,244 +1,145 @@
-"""Unit tests for HitL interrupt detection and resume in OpenAIChatAgent."""
+"""Tests for OpenAIChatAgent __interrupt__ parsing (built-in HITL shape)."""
 
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
 
 import pytest
 
-from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
+
+class _FakeAgent:
+    def __init__(self, chunks):
+        self._chunks = chunks
+
+    def astream(self, *_, **__):
+        async def gen():
+            for c in self._chunks:
+                yield c
+
+        return gen()
 
 
-def _make_agent() -> OpenAIChatAgent:
-    """Create an agent with mocked internals."""
+@pytest.mark.asyncio
+async def test_interrupt_single_action_request_forwarded_as_list():
+    from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
+
+    interrupt_value = {
+        "action_requests": [
+            {
+                "name": "write_file",
+                "args": {"file_path": "a.txt"},
+                "description": "desc",
+            },
+        ],
+        "review_configs": [
+            {
+                "action_name": "write_file",
+                "allowed_decisions": ["approve", "edit", "reject"],
+            },
+        ],
+    }
+    chunks = [
+        ("updates", {"__interrupt__": [SimpleNamespace(value=interrupt_value)]}),
+    ]
     agent = OpenAIChatAgent.__new__(OpenAIChatAgent)
-    agent.agent = MagicMock()
-    agent._mcp_tools = []
-    agent._personas = {}
-    agent.llm = MagicMock()
-    agent.mcp_config = None
-    agent.model_name = "test"
-    agent.temperature = 0
-    agent.top_p = 1
-    return agent
+    agent.agent = _FakeAgent(chunks)
+
+    events = []
+    async for ev in agent._consume_astream(_FakeAgent(chunks).astream(), "s1"):
+        events.append(ev)
+
+    assert len(events) == 1
+    assert events[0]["type"] == "hitl_request"
+    assert events[0]["session_id"] == "s1"
+    assert events[0]["action_requests"] == interrupt_value["action_requests"]
+    assert events[0]["review_configs"] == interrupt_value["review_configs"]
 
 
-async def _fake_astream_with_interrupt(*args, **kwargs):
-    """Simulate astream that hits an interrupt."""
-    yield (
-        "updates",
-        {
-            "__interrupt__": [
-                MagicMock(
-                    value={
-                        "tool_name": "mcp_search",
-                        "tool_args": {"query": "test"},
-                        "request_id": "req-123",
-                    }
-                )
-            ]
-        },
-    )
+@pytest.mark.asyncio
+async def test_interrupt_multi_action_requests_preserve_order():
+    from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
+
+    interrupt_value = {
+        "action_requests": [
+            {
+                "name": "write_file",
+                "args": {"file_path": "a"},
+                "description": "d1",
+            },
+            {
+                "name": "file_delete",
+                "args": {"file_path": "b"},
+                "description": "d2",
+            },
+        ],
+        "review_configs": [
+            {"action_name": "write_file", "allowed_decisions": ["approve", "reject"]},
+            {"action_name": "file_delete", "allowed_decisions": ["approve", "reject"]},
+        ],
+    }
+    chunks = [("updates", {"__interrupt__": [SimpleNamespace(value=interrupt_value)]})]
+    agent = OpenAIChatAgent.__new__(OpenAIChatAgent)
+
+    events = []
+    async for ev in agent._consume_astream(_FakeAgent(chunks).astream(), "s2"):
+        events.append(ev)
+
+    assert events[0]["action_requests"][0]["name"] == "write_file"
+    assert events[0]["action_requests"][1]["name"] == "file_delete"
 
 
-async def _fake_astream_normal(*args, **kwargs):
-    """Simulate normal astream with model output."""
-    yield (
-        "updates",
-        {
-            "model": {"messages": [MagicMock(content="Hello world")]},
-        },
-    )
+def test_build_interrupt_on_matrix():
+    from src.services.agent_service.openai_chat_agent import _build_interrupt_on
+
+    mcp_names = {"mcp_tool_a", "mcp_tool_b"}
+    matrix = _build_interrupt_on(mcp_names)
+
+    # MCP + delegate_task + FS mutating — all True
+    for name in mcp_names | {
+        "delegate_task",
+        "write_file",
+        "copy_file",
+        "move_file",
+        "file_delete",
+        "edit_file",
+    }:
+        assert matrix[name] is True
+
+    # safe tools not in matrix
+    for name in {"read_file", "list_directory", "file_search"}:
+        assert name not in matrix
 
 
-async def _fake_astream_resume_approve(*args, **kwargs):
-    """Simulate resumed astream after approval -- tool executes then model responds."""
-    yield (
-        "updates",
-        {
-            "tools": {"messages": [MagicMock(content="Tool executed successfully")]},
-        },
-    )
-    yield (
-        "updates",
-        {
-            "model": {"messages": [MagicMock(content="Here is the result")]},
-        },
-    )
+@pytest.mark.asyncio
+async def test_resume_after_approval_uses_command_with_decisions():
+    from langgraph.types import Command
 
+    from src.services.agent_service.openai_chat_agent import OpenAIChatAgent
 
-async def _fake_astream_resume_with_second_interrupt(*args, **kwargs):
-    """Simulate resumed astream that hits another interrupt."""
-    yield (
-        "updates",
-        {
-            "tools": {"messages": [MagicMock(content="First tool done")]},
-        },
-    )
-    yield (
-        "updates",
-        {
-            "__interrupt__": [
-                MagicMock(
-                    value={
-                        "tool_name": "mcp_write",
-                        "tool_args": {"data": "important"},
-                        "request_id": "req-456",
-                    }
-                )
-            ]
-        },
-    )
+    agent = OpenAIChatAgent.__new__(OpenAIChatAgent)
 
+    captured: dict = {}
 
-# Helper for mocking async iterator
-class AsyncIteratorMock:
-    def __init__(self, items: list):
-        self.items = iter(items)
+    class _Fake:
+        def astream(self, resume_value, *, config, stream_mode, context):
+            captured["resume_value"] = resume_value
+            captured["config"] = config
 
-    def __aiter__(self):
-        return self
+            async def gen():
+                if False:
+                    yield
 
-    async def __anext__(self):
-        try:
-            return next(self.items)
-        except StopIteration as exc:
-            raise StopAsyncIteration from exc
+            return gen()
 
+    agent.agent = _Fake()
 
-class TestInterruptDetection:
-    """Test __interrupt__ detection in _process_message."""
+    events = []
+    async for ev in agent.resume_after_approval(
+        session_id="s1",
+        decisions=[{"type": "approve"}, {"type": "reject", "message": "x"}],
+    ):
+        events.append(ev)
 
-    @pytest.mark.asyncio
-    async def test_interrupt_detected_in_updates_stream(self):
-        """__interrupt__ in updates stream should yield hitl_request."""
-        agent = _make_agent()
-        agent.agent.astream = _fake_astream_with_interrupt
-
-        events = []
-        async for event in agent._process_message(
-            messages=[],
-            config={"configurable": {"thread_id": "test-session"}},
-        ):
-            events.append(event)
-
-        assert len(events) == 1
-        assert events[0]["type"] == "hitl_request"
-        assert events[0]["tool_name"] == "mcp_search"
-        assert events[0]["tool_args"] == {"query": "test"}
-        assert events[0]["request_id"] == "req-123"
-        assert events[0]["session_id"] == "test-session"
-
-    @pytest.mark.asyncio
-    async def test_hitl_request_event_has_correct_fields(self):
-        """hitl_request should contain request_id, tool_name, tool_args, session_id."""
-        agent = _make_agent()
-        agent.agent.astream = _fake_astream_with_interrupt
-
-        events = []
-        async for event in agent._process_message(
-            messages=[],
-            config={"configurable": {"thread_id": "sess-1"}},
-        ):
-            events.append(event)
-
-        hitl_event = events[0]
-        required_fields = {"type", "request_id", "tool_name", "tool_args", "session_id"}
-        assert required_fields.issubset(hitl_event.keys())
-
-    @pytest.mark.asyncio
-    async def test_stream_exits_after_hitl_request(self):
-        """After hitl_request, _process_message should NOT yield final_response."""
-        agent = _make_agent()
-        agent.agent.astream = _fake_astream_with_interrupt
-
-        events = []
-        async for event in agent._process_message(
-            messages=[],
-            config={"configurable": {"thread_id": "test"}},
-        ):
-            events.append(event)
-
-        event_types = [e["type"] for e in events]
-        assert "final_response" not in event_types
-        assert "stream_end" not in event_types
-
-    @pytest.mark.asyncio
-    async def test_stream_hitl_request_propagated_through_stream(self):
-        """stream() should yield hitl_request and NOT yield stream_end."""
-        agent = _make_agent()
-        agent.agent.astream = _fake_astream_with_interrupt
-
-        events = []
-        async for event in agent.stream(
-            messages=[],
-            session_id="test-session",
-        ):
-            events.append(event)
-
-        event_types = [e["type"] for e in events]
-        assert "stream_start" in event_types
-        assert "hitl_request" in event_types
-        assert "stream_end" not in event_types
-
-
-class TestResumeAfterApproval:
-    """Test resume_after_approval method."""
-
-    @pytest.mark.asyncio
-    async def test_resume_approve_continues_stream(self):
-        """Approved resume should yield tool result and stream_end."""
-        agent = _make_agent()
-        agent.agent.astream = _fake_astream_resume_approve
-
-        events = []
-        async for event in agent.resume_after_approval(
-            session_id="test-session",
-            approved=True,
-            request_id="req-123",
-        ):
-            events.append(event)
-
-        event_types = [e["type"] for e in events]
-        assert "stream_end" in event_types
-
-    @pytest.mark.asyncio
-    async def test_resume_uses_command_as_first_positional_arg(self):
-        """Command(resume=...) should be passed as first positional arg to astream."""
-        agent = _make_agent()
-        agent.agent.astream = AsyncMock(return_value=AsyncIteratorMock([]))
-
-        events = []
-        async for event in agent.resume_after_approval(
-            session_id="sess-1",
-            approved=True,
-            request_id="req-1",
-        ):
-            events.append(event)
-
-        # Check astream was called with Command as first arg
-        call_args = agent.agent.astream.call_args
-        first_arg = call_args[0][0]
-        from langgraph.types import Command
-
-        assert isinstance(first_arg, Command)
-
-    @pytest.mark.asyncio
-    async def test_resume_second_interrupt_yields_another_hitl_request(self):
-        """If resume hits another interrupt, yield another hitl_request."""
-        agent = _make_agent()
-        agent.agent.astream = _fake_astream_resume_with_second_interrupt
-
-        events = []
-        async for event in agent.resume_after_approval(
-            session_id="test-session",
-            approved=True,
-            request_id="req-123",
-        ):
-            events.append(event)
-
-        event_types = [e["type"] for e in events]
-        assert "hitl_request" in event_types
-        hitl_events = [e for e in events if e["type"] == "hitl_request"]
-        assert hitl_events[0]["tool_name"] == "mcp_write"
-        assert hitl_events[0]["request_id"] == "req-456"
-        # Should NOT have stream_end after interrupt
-        assert "stream_end" not in event_types
+    assert isinstance(captured["resume_value"], Command)
+    assert captured["resume_value"].resume == {
+        "decisions": [{"type": "approve"}, {"type": "reject", "message": "x"}]
+    }
+    assert captured["config"]["configurable"] == {"thread_id": "s1"}

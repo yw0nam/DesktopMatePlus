@@ -182,6 +182,36 @@ class TestTriggerProactive:
         assert result["status"] == "skipped"
         assert "error" in result["reason"]
 
+    async def test_stream_end_sent_when_agent_yields_error_event(
+        self, proactive_service
+    ):
+        """When the agent yields an error event without stream_end, a synthetic
+        stream_end must be sent so the client is not left waiting indefinitely."""
+        conn = _make_connection(idle_seconds=400.0)
+        proactive_service._ws_manager.connections = {conn.connection_id: conn}
+
+        async def error_stream(**kwargs):
+            yield {"type": "stream_start", "turn_id": "t-err", "session_id": "s1"}
+            yield {"type": "error", "error": "메시지 처리 중 오류가 발생했습니다."}
+            # note: no stream_end yielded (matches real agent error path)
+
+        proactive_service._agent_service.stream = error_stream
+        result = await proactive_service.trigger_proactive(
+            connection_id=conn.connection_id,
+            trigger_type="webhook",
+        )
+        assert result["status"] == "triggered"
+
+        sent = [
+            json.loads(call.args[0]) for call in conn.websocket.send_text.call_args_list
+        ]
+        event_types = [e["type"] for e in sent]
+        assert "stream_start" in event_types
+        assert "error" in event_types
+        assert "stream_end" in event_types, "synthetic stream_end must be sent on error"
+        # All events must carry the proactive flag
+        assert all(e.get("proactive") is True for e in sent)
+
     async def test_prompt_key_override(self, proactive_service):
         """When prompt_key is provided, it should be used instead of trigger_type."""
         conn = _make_connection(idle_seconds=400.0)

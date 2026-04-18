@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-
 docker run -d \
     --name test_neo4j \
     --label com.docker.compose.project=yw \

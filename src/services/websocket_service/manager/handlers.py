@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from langchain_core.messages import HumanMessage
 from loguru import logger
+from pydantic import ValidationError
 
 from src.models.websocket import (
     AuthorizeErrorMessage,
@@ -286,13 +287,9 @@ class MessageHandler:
         message_data: dict,
         forward_events_fn,
     ) -> None:
-        """Handle HitL approval/denial from client.
+        """Handle HITL decisions list from client for built-in HumanInTheLoopMiddleware."""
+        from src.models.websocket import HitLResponseMessage
 
-        Args:
-            connection_id: Connection identifier.
-            message_data: Message data containing request_id and approved.
-            forward_events_fn: Function to forward events to client.
-        """
         connection_state = self.get_connection(connection_id)
         if not connection_state or not connection_state.message_processor:
             await self.send_message(
@@ -317,24 +314,43 @@ class MessageHandler:
             )
             return
 
-        request_id = message_data.get("request_id", "")
-        approved = message_data.get("approved", False)
-        session_id = turn.session_id
+        # Parse decisions via Pydantic (validates approve/edit/reject + shape)
+        try:
+            parsed = HitLResponseMessage.model_validate(
+                {"type": "hitl_response", **message_data}
+            )
+        except ValidationError as e:
+            logger.warning(f"hitl_response validation failed: {e.errors()}")
+            await self.send_message(
+                connection_id,
+                ErrorMessage(error="Invalid hitl_response payload", code=4004),
+            )
+            return
+
+        expected = turn.metadata.get("pending_action_count", 0)
+        if len(parsed.decisions) != expected:
+            await self.send_message(
+                connection_id,
+                ErrorMessage(
+                    error=f"decisions count mismatch: expected {expected}, got {len(parsed.decisions)}",
+                    code=4004,
+                ),
+            )
+            return  # keep AWAITING_APPROVAL, allow client retry
 
         agent_service = get_agent_service()
         if not agent_service:
             await self.send_message(
-                connection_id,
-                ErrorMessage(error="Agent service unavailable"),
+                connection_id, ErrorMessage(error="Agent service unavailable")
             )
             return
 
         await processor.update_turn_status(turn_id, TurnStatus.PROCESSING)
 
+        decisions_dicts = [d.model_dump(exclude_none=True) for d in parsed.decisions]
         agent_stream = agent_service.resume_after_approval(
-            session_id=session_id,
-            approved=approved,
-            request_id=request_id,
+            session_id=turn.session_id,
+            decisions=decisions_dicts,
         )
 
         await processor.attach_agent_stream(turn_id, agent_stream)

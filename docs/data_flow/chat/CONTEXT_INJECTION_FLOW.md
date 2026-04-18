@@ -64,10 +64,10 @@ sequenceDiagram
 ### Middleware Chain Order
 
 ```
-ToolGate → HitL → Delegate → Profile → Summary → LTM → TaskStatus
+HumanInTheLoop → Delegate → Profile → Summary → LTM → TaskStatus
 ```
 
-- **HitLMiddleware** (PR #36): ToolGate 다음 2번째 위치. MCP 도구 + `delegate_task` 호출 시 `interrupt()`로 FE 승인 게이트. Safe 도구(`search_memory`, `update_user_profile`)는 통과.
+- **HumanInTheLoopMiddleware** (built-in, `langchain.agents.middleware`): 체인 첫 번째. MCP 도구 + `delegate_task` + mutating FS 도구 (`write_file`, `copy_file`, `move_file`, `file_delete`, `edit_file`) 호출 시 interrupt 발생 → FE 승인 게이트. Safe 도구 (`search_memory`, `update_user_profile`, `read_file`, `list_directory`, `file_search`)는 통과. 게이트 matrix는 `src/services/agent_service/openai_chat_agent.py::_build_interrupt_on` 참조.
 
 ### 2-2. 제약 및 주의 사항 (Constraints)
 

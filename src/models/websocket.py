@@ -1,10 +1,10 @@
 """WebSocket message models and schemas."""
 
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Max base64 image size: ~6MB corresponds to ~4.5MB binary file
 _MAX_IMAGE_BASE64_BYTES = 6 * 1024 * 1024
@@ -141,12 +141,34 @@ class InterruptStreamMessage(BaseMessage):
     )
 
 
+class HitLEditedAction(BaseModel):
+    """Replacement tool call args when user picks 'edit'."""
+
+    name: str
+    args: dict[str, Any]
+
+
+class HitLDecision(BaseModel):
+    """Single approve/edit/reject decision for one action_request."""
+
+    type: Literal["approve", "edit", "reject"]
+    edited_action: HitLEditedAction | None = None
+    message: str | None = None
+
+    @model_validator(mode="after")
+    def _check_payload(self) -> "HitLDecision":
+        if self.type == "edit" and self.edited_action is None:
+            raise ValueError("edit decision requires edited_action")
+        if self.type == "approve" and (self.edited_action or self.message):
+            raise ValueError("approve decision must not carry edited_action or message")
+        return self
+
+
 class HitLResponseMessage(BaseMessage):
-    """Client message with approval decision."""
+    """Client message: one decision per server-issued action_request, same order."""
 
     type: MessageType = MessageType.HITL_RESPONSE
-    request_id: str = Field(..., description="Must match the hitl_request request_id")
-    approved: bool = Field(..., description="True to execute, False to deny")
+    decisions: list[HitLDecision]
 
 
 # =================================================================================
@@ -217,14 +239,32 @@ class StreamEndMessage(BaseMessage):
     content: str
 
 
+class HitLActionRequest(BaseModel):
+    """One tool call awaiting human review.
+
+    Mirrors LangChain's built-in ``ActionRequest``; the ``args`` field name
+    must match so server→client forwarding can be a pass-through.
+    """
+
+    name: str = Field(..., description="Tool name")
+    args: dict[str, Any] = Field(..., description="Tool call arguments")
+    description: str = Field(..., description="Human-readable description for UI")
+
+
+class HitLReviewConfig(BaseModel):
+    """Allowed decisions for one action_request (parallel to action_requests)."""
+
+    action_name: str
+    allowed_decisions: list[Literal["approve", "edit", "reject"]]
+
+
 class HitLRequestMessage(BaseMessage):
-    """Server message requesting user approval for a tool call."""
+    """Server message: list of pending tool calls requiring human review."""
 
     type: MessageType = MessageType.HITL_REQUEST
-    request_id: str = Field(..., description="Unique ID linking request/response")
-    tool_name: str = Field(..., description="Name of the tool requiring approval")
-    tool_args: dict[str, Any] = Field(..., description="Tool call arguments")
-    session_id: str = Field(..., description="Session ID for graph resume")
+    session_id: str
+    action_requests: list[HitLActionRequest]
+    review_configs: list[HitLReviewConfig]
 
 
 # TimelineKeyframe matches desktop-homunculus POST /vrm/{entity}/speech/timeline format.

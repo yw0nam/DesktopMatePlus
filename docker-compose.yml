@@ -6,6 +6,7 @@ services:
       - ./src:/app/src
       - ./yaml_files:/app/yaml_files
       - ./logs:/app/logs
+      - .env:/app/.env
     ports:
       - "5500:5500"
     env_file:

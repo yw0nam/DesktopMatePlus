@@ -110,17 +110,18 @@ class Mem0LTM(LTMService[Memory]):
         """
         Check if the memory service is healthy and ready.
 
+        Uses a lightweight search query instead of mem0.add() to avoid
+        triggering a full LLM inference round-trip on every health check.
+
         Returns:
             Tuple of (is_healthy: bool, message: str)
         """
         try:
-            # Simple health check by adding a temporary entry,
-            # And this should be returned as empty result. because this query dosen't have any information.
-            health = self.memory_client.add("temp", user_id="health_check")
-            if health["results"] == []:
-                return True, "Mem0 Long Term Memory Service is healthy."
-            else:
-                return False, f"Mem0 Long Term Memory Service is unhealthy: {health}"
+            if self.memory_client is None:
+                return False, "Memory client not initialized"
+            # Lightweight connectivity check: search returns fast without LLM call
+            self.memory_client.search("health_check", user_id="health_check", limit=1)
+            return True, "Mem0 Long Term Memory Service is healthy."
         except Exception as e:
             return False, f"Mem0 Long Term Memory Service health check failed: {e}"
 
