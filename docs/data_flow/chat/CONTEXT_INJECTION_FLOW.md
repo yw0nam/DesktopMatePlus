@@ -1,6 +1,6 @@
 # Context Injection & Auto-Compression Flow
 
-Updated: 2026-04-17
+Updated: 2026-04-11
 
 ## 1. Synopsis
 
@@ -67,7 +67,7 @@ sequenceDiagram
 ToolGate → HitL → Delegate → Profile → Summary → LTM → TaskStatus
 ```
 
-- **HitLMiddleware** (PR #36 → Phase 2 #42): ToolGate 다음 2번째 위치. `_DEFAULT_CATEGORIES` + YAML override로 빌드된 category_map 기준으로 `read_only` 바이패스, 그 외(`state_mutating`/`external`/`dangerous`)는 `interrupt()`로 FE 승인 게이트. Interrupt payload에 `category` 포함.
+- **HitLMiddleware** (PR #36): ToolGate 다음 2번째 위치. MCP 도구 + `delegate_task` 호출 시 `interrupt()`로 FE 승인 게이트. Safe 도구(`search_memory`, `update_user_profile`)는 통과.
 
 ### 2-2. 제약 및 주의 사항 (Constraints)
 
