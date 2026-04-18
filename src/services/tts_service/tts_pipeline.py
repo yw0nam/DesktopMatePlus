@@ -3,12 +3,38 @@
 synthesize_chunk() never raises. All errors are logged to backend only.
 """
 
+import base64
+import struct
 from asyncio import to_thread
 
 from src.core.logger import logger
 from src.models.websocket import TimelineKeyframe, TtsChunkMessage
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
 from src.services.tts_service.service import TTSService
+
+
+def wav_duration(data: bytes | None) -> float:
+    """Calculate duration in seconds from raw WAV bytes.
+
+    Returns 0.0 on invalid input or parse failure.
+    """
+    if not data or len(data) < 44:
+        return 0.0
+    try:
+        if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+            return 0.0
+        # Parse fmt chunk: channels at offset 22, sample_rate at 24, bits at 34
+        channels = struct.unpack_from("<H", data, 22)[0]
+        sample_rate = struct.unpack_from("<I", data, 24)[0]
+        bits_per_sample = struct.unpack_from("<H", data, 34)[0]
+        if sample_rate == 0 or channels == 0 or bits_per_sample == 0:
+            return 0.0
+        # Find data chunk size at offset 40
+        data_size = struct.unpack_from("<I", data, 40)[0]
+        bytes_per_sample = bits_per_sample // 8
+        return data_size / (sample_rate * channels * bytes_per_sample)
+    except (struct.error, ZeroDivisionError):
+        return 0.0
 
 
 async def synthesize_chunk(
