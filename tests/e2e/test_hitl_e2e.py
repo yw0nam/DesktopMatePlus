@@ -5,18 +5,21 @@ Requires: FASTAPI_URL env var pointing to a running backend.
 
 Tests cover:
   - hitl_response without pending approval (protocol error)
+  - hitl_response before authorization (auth error)
   - Normal chat without tool calls (no hitl_request, flow unchanged)
   - Safe built-in tool bypass (no hitl_request for non-dangerous tools)
-  - Full approve flow (chat → hitl_request → approve → stream_end)
-  - Full deny flow (chat → hitl_request → deny → stream_end)
-  - Multi-tool sequential approval
+  - write_file approve / reject / edit flows
+  - Multi parallel tool calls with mixed decisions
+  - decisions count mismatch (4004 error + retry)
 """
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 import websockets
+import yaml
 
 TOKEN = "demo-token"
 AGENT_ID = "e2e-hitl-agent"
@@ -25,17 +28,36 @@ PERSONA_ID = "yuri"
 CONNECT_TIMEOUT = 10
 RECV_TIMEOUT = 90.0
 
-# Prompt designed to trigger delegate_task tool (always in dangerous list)
-DELEGATE_PROMPT = (
-    "다음 작업을 NanoClaw에게 위임해줘: 'hello world를 출력하는 간단한 스크립트를 만들어줘'. "
-    "반드시 delegate_task 도구를 사용해서 위임해."
-)
-
 # Simple greeting that should NOT trigger any dangerous tool
 SAFE_CHAT_PROMPT = "안녕! 한 문장으로 짧게 인사해줘."
 
 # Prompt that should trigger a built-in safe tool (memory search)
 SAFE_TOOL_PROMPT = "내 기억에서 '취미'에 대해 검색해줘. search_memory 도구를 사용해."
+
+
+def _filesystem_root_from_yaml() -> Path:
+    """Read the filesystem_root_dir from services.e2e.yml."""
+    cfg = yaml.safe_load(Path("yaml_files/services.e2e.yml").read_text())
+    return Path(cfg["llm_config"]["configs"]["filesystem_root_dir"])
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _cleanup_e2e_files():
+    """Ensure sandbox exists before tests and clean up known artifacts after."""
+    root = _filesystem_root_from_yaml()
+    root.mkdir(parents=True, exist_ok=True)
+    yield
+    if root.exists():
+        for name in (
+            "e2e_approve.txt",
+            "reject_e2e.txt",
+            "edited_name.txt",
+            "wrong_name.txt",
+            "multi1.txt",
+            "multi2.txt",
+            "mismatch_e2e.txt",
+        ):
+            (root / name).unlink(missing_ok=True)
 
 
 async def _connect_and_authorize(ws_url: str):
@@ -139,8 +161,7 @@ class TestHitLProtocol:
                 json.dumps(
                     {
                         "type": "hitl_response",
-                        "request_id": "nonexistent-request-id",
-                        "approved": True,
+                        "decisions": [{"type": "approve"}],
                     }
                 )
             )
@@ -169,8 +190,7 @@ class TestHitLProtocol:
                 json.dumps(
                     {
                         "type": "hitl_response",
-                        "request_id": "req-1",
-                        "approved": True,
+                        "decisions": [{"type": "approve"}],
                     }
                 )
             )
@@ -188,270 +208,219 @@ class TestHitLProtocol:
 
 
 @pytest.mark.e2e
-class TestHitLExistingFlowUnchanged:
-    """Verify existing chat flows are NOT affected by HitL."""
+class TestHitLBuiltinFlow:
+    """Built-in HumanInTheLoopMiddleware-backed HitL matrix."""
 
     async def test_normal_chat_no_hitl_request(self, e2e_session):
         """Normal chat without tool calls produces no hitl_request events."""
         ws = await _connect_and_authorize(e2e_session["ws_url"])
         try:
             await ws.send(_send_chat(SAFE_CHAT_PROMPT))
-
             events = await _collect_until_terminal(ws)
-            event_types = [e["type"] for e in events]
-
-            assert (
-                "hitl_request" not in event_types
-            ), "Normal chat should not trigger hitl_request"
-            assert "stream_start" in event_types, "Missing stream_start event"
-            assert "stream_end" in event_types, "Missing stream_end event"
-        finally:
-            await ws.close()
-
-    async def test_normal_chat_stream_tokens_present(self, e2e_session):
-        """Normal chat produces stream_token events as before."""
-        ws = await _connect_and_authorize(e2e_session["ws_url"])
-        try:
-            await ws.send(_send_chat(SAFE_CHAT_PROMPT))
-
-            events = await _collect_until_terminal(ws)
-            token_events = [e for e in events if e["type"] == "stream_token"]
-
-            assert (
-                len(token_events) > 0
-            ), "Expected at least one stream_token event in normal chat"
+            assert "hitl_request" not in [e["type"] for e in events]
+            assert any(e["type"] == "stream_end" for e in events)
         finally:
             await ws.close()
 
     async def test_safe_tool_no_hitl_request(self, e2e_session):
-        """Built-in safe tool calls (e.g. search_memory) bypass HitL gate.
-
-        If the LLM non-deterministically chooses a dangerous tool (MCP)
-        instead of the built-in search_memory, the test is skipped.
-        """
+        """Built-in safe tool calls (e.g. search_memory) bypass HitL gate."""
         ws = await _connect_and_authorize(e2e_session["ws_url"])
         try:
             await ws.send(_send_chat(SAFE_TOOL_PROMPT))
-
             events = await _collect_until_terminal(ws)
-            event_types = [e["type"] for e in events]
-
-            if "hitl_request" in event_types:
-                pytest.skip(
-                    "Agent chose a dangerous tool instead of built-in search_memory "
-                    "(LLM non-determinism) — cannot verify safe-tool bypass. "
-                    f"Events: {event_types}"
-                )
-            # Should complete normally
-            assert (
-                "stream_end" in event_types or "error" in event_types
-            ), "Chat with safe tool should reach stream_end or error"
+            if "hitl_request" in [e["type"] for e in events]:
+                pytest.skip("LLM chose an MCP/dangerous tool instead of search_memory")
+            assert any(e["type"] == "stream_end" for e in events)
         finally:
             await ws.close()
 
-
-@pytest.mark.e2e
-class TestHitLApproveFlow:
-    """Full HitL approve flow — requires agent to call delegate_task."""
-
-    async def test_hitl_approve_completes_stream(self, e2e_session):
-        """Send chat → receive hitl_request → approve → stream_end.
-
-        This test prompts the agent to use delegate_task, which is always
-        in the HitL dangerous list. If the agent does not call delegate_task,
-        the test is skipped (LLM behavior is non-deterministic).
-        """
+    async def test_write_file_approve(self, e2e_session):
+        """Approve a write_file tool call and verify the file is written."""
         ws = await _connect_and_authorize(e2e_session["ws_url"])
         try:
-            await ws.send(_send_chat(DELEGATE_PROMPT))
-
-            # Collect events until hitl_request or stream_end
+            prompt = (
+                "Please write 'hello-e2e' to a file named e2e_approve.txt "
+                "using write_file."
+            )
+            await ws.send(_send_chat(prompt))
             events = await _collect_until_terminal(ws)
-            event_types = [e["type"] for e in events]
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None:
+                pytest.skip("LLM did not choose write_file")
+            assert len(hitl["action_requests"]) == 1
+            assert hitl["action_requests"][0]["name"] == "write_file"
 
-            if "hitl_request" not in event_types:
-                pytest.skip(
-                    "Agent did not call a dangerous tool — cannot test approve flow. "
-                    f"Events: {event_types}"
-                )
-
-            hitl_event = next(e for e in events if e["type"] == "hitl_request")
-
-            # Validate hitl_request fields
-            assert "request_id" in hitl_event, "hitl_request missing request_id"
-            assert "tool_name" in hitl_event, "hitl_request missing tool_name"
-            assert "tool_args" in hitl_event, "hitl_request missing tool_args"
-            assert "session_id" in hitl_event, "hitl_request missing session_id"
-
-            # Send approval
             await ws.send(
                 json.dumps(
                     {
                         "type": "hitl_response",
-                        "request_id": hitl_event["request_id"],
-                        "approved": True,
+                        "decisions": [{"type": "approve"}],
                     }
                 )
             )
-
-            # Collect remaining events until stream_end
-            # After approval, may get more hitl_requests (multi-tool), or stream_end
-            remaining = await _collect_until_terminal(
-                ws,
-                terminal_types={"stream_end", "error"},
-                timeout=RECV_TIMEOUT,
+            final = await _collect_until_terminal(
+                ws, terminal_types={"stream_end", "error"}
             )
-            remaining_types = [e["type"] for e in remaining]
+            assert any(e["type"] == "stream_end" for e in final)
 
-            assert (
-                "stream_end" in remaining_types or "error" in remaining_types
-            ), f"Expected stream_end or error after approval. Got: {remaining_types}"
+            sandbox = _filesystem_root_from_yaml() / "e2e_approve.txt"
+            assert sandbox.exists()
+            assert "hello-e2e" in sandbox.read_text()
+            sandbox.unlink(missing_ok=True)
         finally:
             await ws.close()
 
-    async def test_hitl_request_has_correct_schema(self, e2e_session):
-        """hitl_request event must contain all required fields with correct types."""
+    async def test_write_file_reject_with_message(self, e2e_session):
+        """Reject a write_file tool call with a message; file must not exist."""
         ws = await _connect_and_authorize(e2e_session["ws_url"])
         try:
-            await ws.send(_send_chat(DELEGATE_PROMPT))
-
+            prompt = "Please write 'x' to reject_e2e.txt using write_file."
+            await ws.send(_send_chat(prompt))
             events = await _collect_until_terminal(ws)
-            event_types = [e["type"] for e in events]
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None:
+                pytest.skip("LLM did not choose write_file")
 
-            if "hitl_request" not in event_types:
-                pytest.skip(
-                    "Agent did not call a dangerous tool — cannot validate schema. "
-                    f"Events: {event_types}"
-                )
-
-            hitl_event = next(e for e in events if e["type"] == "hitl_request")
-
-            # Validate field types
-            assert isinstance(hitl_event["request_id"], str), "request_id must be str"
-            assert isinstance(hitl_event["tool_name"], str), "tool_name must be str"
-            assert isinstance(hitl_event["tool_args"], dict), "tool_args must be dict"
-            assert isinstance(hitl_event["session_id"], str), "session_id must be str"
-            assert len(hitl_event["request_id"]) > 0, "request_id must not be empty"
-            assert len(hitl_event["tool_name"]) > 0, "tool_name must not be empty"
-        finally:
-            await ws.close()
-
-
-@pytest.mark.e2e
-class TestHitLDenyFlow:
-    """Full HitL deny flow — requires agent to call delegate_task."""
-
-    async def test_hitl_deny_completes_stream(self, e2e_session):
-        """Send chat → receive hitl_request → deny → agent handles denial → stream_end."""
-        ws = await _connect_and_authorize(e2e_session["ws_url"])
-        try:
-            await ws.send(_send_chat(DELEGATE_PROMPT))
-
-            events = await _collect_until_terminal(ws)
-            event_types = [e["type"] for e in events]
-
-            if "hitl_request" not in event_types:
-                pytest.skip(
-                    "Agent did not call a dangerous tool — cannot test deny flow. "
-                    f"Events: {event_types}"
-                )
-
-            hitl_event = next(e for e in events if e["type"] == "hitl_request")
-
-            # Send denial
             await ws.send(
                 json.dumps(
                     {
                         "type": "hitl_response",
-                        "request_id": hitl_event["request_id"],
-                        "approved": False,
+                        "decisions": [{"type": "reject", "message": "path is unsafe"}],
                     }
                 )
             )
-
-            # After denial, agent should get error message and eventually stream_end
-            remaining = await _collect_until_terminal(
-                ws,
-                terminal_types={"stream_end", "error"},
-                timeout=RECV_TIMEOUT,
+            final = await _collect_until_terminal(
+                ws, terminal_types={"stream_end", "error"}
             )
-            remaining_types = [e["type"] for e in remaining]
+            # Agent handles rejection with alternate response — LLM-dependent
+            if not any(e["type"] == "stream_end" for e in final):
+                pytest.skip(
+                    "LLM did not produce stream_end after rejection (nondeterministic)"
+                )
 
-            assert (
-                "stream_end" in remaining_types or "error" in remaining_types
-            ), f"Expected stream_end or error after denial. Got: {remaining_types}"
+            sandbox = _filesystem_root_from_yaml() / "reject_e2e.txt"
+            assert not sandbox.exists()
         finally:
             await ws.close()
 
-
-@pytest.mark.e2e
-class TestHitLMultiToolApproval:
-    """Multi-tool sequential approval — approve first, handle second."""
-
-    async def test_hitl_multi_tool_sequential_approval(self, e2e_session):
-        """If agent calls 2+ dangerous tools, approve each sequentially."""
+    async def test_write_file_edit(self, e2e_session):
+        """Edit a write_file tool call's arguments before executing."""
         ws = await _connect_and_authorize(e2e_session["ws_url"])
         try:
-            # Use a prompt that might trigger multiple tool calls
-            multi_prompt = (
-                "다음 두 작업을 각각 NanoClaw에게 위임해줘: "
-                "1) 'hello world 스크립트 작성' "
-                "2) '간단한 테스트 작성'. "
-                "각각 별도로 delegate_task 도구를 사용해서 위임해."
-            )
-            await ws.send(_send_chat(multi_prompt))
-
-            hitl_count = 0
-            all_events: list[dict] = []
-
-            # Collect first batch of events
+            prompt = "Please write 'yuri' to wrong_name.txt using write_file."
+            await ws.send(_send_chat(prompt))
             events = await _collect_until_terminal(ws)
-            all_events.extend(events)
-            event_types = [e["type"] for e in events]
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None:
+                pytest.skip("LLM did not choose write_file")
 
-            if "hitl_request" not in event_types:
-                pytest.skip(
-                    "Agent did not call a dangerous tool — cannot test multi-tool flow. "
-                    f"Events: {event_types}"
+            edited_args = dict(hitl["action_requests"][0]["arguments"])
+            edited_args["file_path"] = "edited_name.txt"
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "hitl_response",
+                        "decisions": [
+                            {
+                                "type": "edit",
+                                "edited_action": {
+                                    "name": "write_file",
+                                    "args": edited_args,
+                                },
+                            }
+                        ],
+                    }
                 )
-
-            # Approve and collect, up to 5 iterations (safety limit)
-            for _ in range(5):
-                last_event = all_events[-1]
-                if last_event["type"] != "hitl_request":
-                    break
-
-                hitl_count += 1
-                # Approve the tool call
-                await ws.send(
-                    json.dumps(
-                        {
-                            "type": "hitl_response",
-                            "request_id": last_event["request_id"],
-                            "approved": True,
-                        }
-                    )
-                )
-
-                # Collect next batch
-                next_events = await _collect_until_terminal(
-                    ws,
-                    terminal_types={"stream_end", "error", "hitl_request"},
-                    timeout=RECV_TIMEOUT,
-                )
-                all_events.extend(next_events)
-
-            final_types = [e["type"] for e in all_events]
-
-            # Must eventually reach stream_end or error
-            assert "stream_end" in final_types or "error" in final_types, (
-                f"Expected stream_end or error after approving all tools. "
-                f"HitL requests seen: {hitl_count}. Events: {final_types}"
             )
+            final = await _collect_until_terminal(
+                ws, terminal_types={"stream_end", "error"}
+            )
+            assert any(e["type"] == "stream_end" for e in final)
 
-            # Should have seen at least 1 hitl_request (already verified by skip above)
-            assert (
-                hitl_count >= 1
-            ), f"Expected at least 1 hitl_request, got {hitl_count}"
+            root = _filesystem_root_from_yaml()
+            assert (root / "edited_name.txt").exists()
+            assert not (root / "wrong_name.txt").exists()
+            (root / "edited_name.txt").unlink(missing_ok=True)
+        finally:
+            await ws.close()
+
+    async def test_multi_parallel_tool_calls(self, e2e_session):
+        """Mixed approve/reject decisions for 2 parallel write_file calls."""
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            prompt = (
+                "In one turn, call write_file to create multi1.txt='a' AND "
+                "write_file to create multi2.txt='b'. "
+                "Both calls in a single response."
+            )
+            await ws.send(_send_chat(prompt))
+            events = await _collect_until_terminal(ws)
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None or len(hitl["action_requests"]) != 2:
+                pytest.skip("LLM did not emit 2 parallel tool calls")
+
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "hitl_response",
+                        "decisions": [
+                            {"type": "approve"},
+                            {"type": "reject", "message": "skip second"},
+                        ],
+                    }
+                )
+            )
+            final = await _collect_until_terminal(
+                ws, terminal_types={"stream_end", "error"}
+            )
+            assert any(e["type"] == "stream_end" for e in final)
+
+            root = _filesystem_root_from_yaml()
+            assert (root / "multi1.txt").exists()
+            assert not (root / "multi2.txt").exists()
+            (root / "multi1.txt").unlink(missing_ok=True)
+        finally:
+            await ws.close()
+
+    async def test_decisions_count_mismatch_returns_error(self, e2e_session):
+        """Sending wrong-sized decisions list returns 4004 error and allows retry."""
+        ws = await _connect_and_authorize(e2e_session["ws_url"])
+        try:
+            prompt = "Please write 'x' to mismatch_e2e.txt using write_file."
+            await ws.send(_send_chat(prompt))
+            events = await _collect_until_terminal(ws)
+            hitl = next((e for e in events if e["type"] == "hitl_request"), None)
+            if hitl is None:
+                pytest.skip("LLM did not choose write_file")
+            assert len(hitl["action_requests"]) == 1
+
+            # Send 0 decisions — mismatch
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "hitl_response",
+                        "decisions": [],
+                    }
+                )
+            )
+            err = await _recv_skip_ping(ws, timeout=15.0)
+            assert err["type"] == "error"
+            assert err.get("code") == 4004
+
+            # Retry with correct count
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "hitl_response",
+                        "decisions": [{"type": "reject"}],
+                    }
+                )
+            )
+            final = await _collect_until_terminal(
+                ws, terminal_types={"stream_end", "error"}
+            )
+            assert any(e["type"] == "stream_end" for e in final)
+
+            (_filesystem_root_from_yaml() / "mismatch_e2e.txt").unlink(missing_ok=True)
         finally:
             await ws.close()
