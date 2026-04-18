@@ -142,4 +142,4 @@ async def test_resume_after_approval_uses_command_with_decisions():
     assert captured["resume_value"].resume == {
         "decisions": [{"type": "approve"}, {"type": "reject", "message": "x"}]
     }
-    assert captured["config"] == {"configurable": {"thread_id": "s1"}}
+    assert captured["config"]["configurable"] == {"thread_id": "s1"}

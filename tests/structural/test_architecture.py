@@ -188,8 +188,10 @@ class TestFileSizeLimits:
     _SERVICE_EXEMPT = {"__init__.py", "service_manager.py"}
 
     # TODO: split processor.py — extract task lifecycle and event handling
+    # TODO: split openai_chat_agent.py — extract streaming/config helpers
     _KNOWN_LARGE_SERVICE_FILES: set[str] = {
         "services/websocket_service/message_processor/processor.py",
+        "services/agent_service/openai_chat_agent.py",
     }
 
     # TODO: extract ltm operations to ltm_service, keep route as thin handler

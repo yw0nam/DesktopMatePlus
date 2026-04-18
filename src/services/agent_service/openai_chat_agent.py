@@ -47,6 +47,18 @@ def _build_interrupt_on(mcp_tool_names: set[str]) -> dict[str, bool]:
     }
 
 
+def _langfuse_config(session_id: str, user_id: str = "") -> dict:
+    """Build langgraph config with Langfuse callback + user/session metadata."""
+    metadata: dict[str, str] = {"langfuse_session_id": session_id}
+    if user_id:
+        metadata["langfuse_user_id"] = user_id
+    return {
+        "configurable": {"thread_id": session_id},
+        "callbacks": [LangfuseCallbackHandler()],
+        "metadata": metadata,
+    }
+
+
 _PERSONAS_PATH = Path(__file__).resolve().parents[3] / "yaml_files" / "personas.yml"
 
 
@@ -233,15 +245,7 @@ class OpenAIChatAgent(AgentService):
                 ]
 
             turn_id = str(uuid4())
-            langfuse_handler = LangfuseCallbackHandler()
-            config = {
-                "configurable": {"thread_id": session_id},
-                "callbacks": [langfuse_handler],
-                "metadata": {
-                    "langfuse_user_id": user_id,
-                    "langfuse_session_id": session_id,
-                },
-            }
+            config = _langfuse_config(session_id=session_id, user_id=user_id)
 
             yield {
                 "type": "stream_start",
@@ -296,12 +300,7 @@ class OpenAIChatAgent(AgentService):
         """
         from langgraph.types import Command
 
-        langfuse_handler = LangfuseCallbackHandler()
-        config = {
-            "configurable": {"thread_id": session_id},
-            "callbacks": [langfuse_handler],
-            "metadata": {"langfuse_session_id": session_id},
-        }
+        config = _langfuse_config(session_id=session_id)
         astream_iter = self.agent.astream(
             Command(resume={"decisions": decisions}),
             config=config,
@@ -346,15 +345,7 @@ class OpenAIChatAgent(AgentService):
                     *list(messages),
                 ]
 
-            langfuse_handler = LangfuseCallbackHandler()
-            config = {
-                "configurable": {"thread_id": session_id},
-                "callbacks": [langfuse_handler],
-                "metadata": {
-                    "langfuse_user_id": user_id,
-                    "langfuse_session_id": session_id,
-                },
-            }
+            config = _langfuse_config(session_id=session_id, user_id=user_id)
             input_count = len(messages)
 
             result = await self.agent.ainvoke(
