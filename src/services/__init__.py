@@ -12,6 +12,7 @@ from src.services.service_manager import (
     get_summary_service,
     get_tts_service,
     get_user_profile_service,
+    get_viseme_mapper,
     initialize_agent_service,
     initialize_channel_service,
     initialize_emotion_motion_mapper,
@@ -22,6 +23,7 @@ from src.services.service_manager import (
     initialize_sweep_service,
     initialize_tts_service,
     initialize_user_profile_service,
+    initialize_viseme_mapper,
 )
 
 __all__ = [
@@ -36,6 +38,7 @@ __all__ = [
     "get_summary_service",
     "get_tts_service",
     "get_user_profile_service",
+    "get_viseme_mapper",
     "health_service",
     "initialize_agent_service",
     "initialize_channel_service",
@@ -47,4 +50,5 @@ __all__ = [
     "initialize_sweep_service",
     "initialize_tts_service",
     "initialize_user_profile_service",
+    "initialize_viseme_mapper",
 ]

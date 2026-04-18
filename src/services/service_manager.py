@@ -32,6 +32,7 @@ from src.services.pending_task_repository import PendingTaskRepository
 from src.services.summary_service import SummaryService
 from src.services.tts_service import TTSFactory, TTSService
 from src.services.tts_service.emotion_motion_mapper import EmotionMotionMapper
+from src.services.tts_service.viseme_mapper import VisemeMapper
 from src.services.user_profile_service import UserProfileService
 
 # Global service instances
@@ -39,6 +40,7 @@ _tts_service_instance: TTSService | None = None
 _agent_service_instance: AgentService | None = None
 _ltm_service_instance: LTMService | None = None
 _emotion_motion_mapper_instance: EmotionMotionMapper | None = None
+_viseme_mapper_instance: VisemeMapper | None = None
 _mongo_client: "_pymongo.MongoClient | None" = None
 _mongo_db: "_pymongo.database.Database | None" = None
 _session_registry_instance: "SessionRegistry | None" = None
@@ -531,6 +533,30 @@ def get_emotion_motion_mapper() -> EmotionMotionMapper | None:
     return _emotion_motion_mapper_instance
 
 
+def initialize_viseme_mapper(
+    force_reinit: bool = False,
+) -> VisemeMapper:
+    """Initialize VisemeMapper singleton.
+
+    Returns:
+        Initialized VisemeMapper instance
+    """
+    global _viseme_mapper_instance
+
+    if _viseme_mapper_instance is not None and not force_reinit:
+        logger.debug("VisemeMapper already initialized, skipping")
+        return _viseme_mapper_instance
+
+    _viseme_mapper_instance = VisemeMapper()
+    logger.info("VisemeMapper initialized")
+    return _viseme_mapper_instance
+
+
+def get_viseme_mapper() -> VisemeMapper | None:
+    """Get the initialized VisemeMapper instance."""
+    return _viseme_mapper_instance
+
+
 def _load_service_yaml(
     service_name: str,
     default_config_path: Path,
@@ -711,6 +737,7 @@ __all__ = [
     "get_summary_service",
     "get_tts_service",
     "get_user_profile_service",
+    "get_viseme_mapper",
     "initialize_agent_service",
     "initialize_channel_service",
     "initialize_emotion_motion_mapper",
@@ -722,5 +749,6 @@ __all__ = [
     "initialize_sweep_service",
     "initialize_tts_service",
     "initialize_user_profile_service",
+    "initialize_viseme_mapper",
     "reset_mongo_client",
 ]

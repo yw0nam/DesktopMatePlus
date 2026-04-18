@@ -97,6 +97,7 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
                 initialize_mongodb_client,
                 initialize_tts_service,
                 initialize_user_profile_service,
+                initialize_viseme_mapper,
             )
 
             svc_config = config_paths.get("services_config_path")
@@ -105,6 +106,8 @@ def create_app(config_paths: dict | None = None) -> FastAPI:
             initialize_tts_service(config_path=svc_config)
 
             initialize_emotion_motion_mapper()
+
+            initialize_viseme_mapper()
 
             # MongoDB client for checkpointer + session_registry (before agent)
             initialize_mongodb_client(config_path=svc_config)
